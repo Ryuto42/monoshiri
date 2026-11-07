@@ -1,6 +1,7 @@
 import { motion, useMotionTemplate, useMotionValue, useSpring, useTransform } from 'motion/react';
 import type { PointerEvent } from 'react';
-import { catStyle, Icon } from './ui';
+import { Icon } from './ui';
+import { catStyle } from './theme';
 import { mediaUrl } from '../lib/api';
 
 export type CardLike = {

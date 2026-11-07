@@ -1,17 +1,6 @@
 import { animate, motion, useMotionValue, type PanInfo } from 'motion/react';
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
-
-const mq = typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)') : null;
-
-export function useDesktop() {
-  return useSyncExternalStore(
-    (l) => {
-      mq?.addEventListener('change', l);
-      return () => mq?.removeEventListener('change', l);
-    },
-    () => !!mq?.matches,
-  );
-}
+import { useEffect, useState, type ReactNode } from 'react';
+import { useDesktop } from '../lib/useDesktop';
 
 export function Sheet({ open, expanded, onExpandedChange, peek = 300, children }: {
   open: boolean; expanded: boolean; onExpandedChange: (v: boolean) => void; peek?: number; children: ReactNode;

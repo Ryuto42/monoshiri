@@ -5,8 +5,11 @@ import { LOCAL, PROJECT, PRICES, SAFETY } from './config.ts';
 import { addSpent } from './store.ts';
 
 function makeClient() {
-  const base = { vertexai: true, project: PROJECT, location: 'global', apiKey: undefined } as const;
+  const base = { vertexai: true, project: PROJECT, location: 'global' } as const;
   if (!LOCAL) return new GoogleGenAI(base);
+  // A developer's shell may export Gemini API keys; Vertex AI here must use the gcloud login instead.
+  delete process.env.GEMINI_API_KEY;
+  delete process.env.GOOGLE_API_KEY;
   // Local dev borrows the developer's gcloud login instead of a key file.
   const authClient = new OAuth2Client();
   const refresh = () =>

@@ -5,7 +5,7 @@ import { getCard, saveCard, useCards } from '../lib/cards';
 import { thumbFrom } from '../lib/image';
 import type { Card, DeepNote, Explore } from '../lib/types';
 import { CardBack, CardFace } from './CardFace';
-import { toast } from './Toast';
+import { toast } from '../lib/toast';
 import { Button, Icon } from './ui';
 import { haptic, onBack } from '../lib/native';
 

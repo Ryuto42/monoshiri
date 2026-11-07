@@ -20,7 +20,7 @@ const emit = () => listeners.forEach((l) => l());
 const sortCards = (list: Card[]) => [...list].sort((a, b) => b.createdAt - a.createdAt);
 
 async function firestore() {
-  const mod = await import('firebase/firestore');
+  const mod = await import('firebase/firestore/lite');
   return { ...mod, fs: mod.getFirestore(firebaseApp) };
 }
 

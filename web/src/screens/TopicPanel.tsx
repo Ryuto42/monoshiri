@@ -7,9 +7,9 @@ import { Markdown } from '../components/Markdown';
 import { RollingCards } from '../components/RollingCards';
 import { SearchEntry } from '../components/SearchEntry';
 import { Speak } from '../components/Speak';
-import { toast } from '../components/Toast';
-import { Button, Icon, IconButton, spring } from '../components/ui';
-import { TOPIC_COLORS } from './ExploreContent';
+import { toast } from '../lib/toast';
+import { Button, Icon, IconButton } from '../components/ui';
+import { spring, TOPIC_COLORS } from '../components/theme';
 import { haptic, onBack, openExternal } from '../lib/native';
 
 type Tab = 'photos' | 'videos' | 'diagram' | 'ai' | 'quiz';

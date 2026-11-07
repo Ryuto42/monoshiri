@@ -1,31 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useSyncExternalStore } from 'react';
 import { Icon } from './ui';
-
-type T = { id: number; text: string; icon: string };
-let items: T[] = [];
-const ls = new Set<() => void>();
-const emit = () => ls.forEach((l) => l());
-let seq = 0;
-
-export function toast(text: string, icon = 'info') {
-  const id = ++seq;
-  items = [...items, { id, text, icon }];
-  emit();
-  setTimeout(() => {
-    items = items.filter((t) => t.id !== id);
-    emit();
-  }, 3800);
-}
+import { useToasts } from '../lib/toast';
 
 export function Toaster() {
-  const list = useSyncExternalStore(
-    (l) => {
-      ls.add(l);
-      return () => ls.delete(l);
-    },
-    () => items,
-  );
+  const list = useToasts();
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),16px)] z-[100] flex flex-col items-center gap-2 px-4">
       <AnimatePresence>

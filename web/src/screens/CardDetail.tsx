@@ -7,8 +7,9 @@ import { api, errorMessage, mediaUrl } from '../lib/api';
 import { CardFace } from '../components/CardFace';
 import { Markdown } from '../components/Markdown';
 import { Speak } from '../components/Speak';
-import { toast } from '../components/Toast';
-import { Button, catStyle, Icon, IconButton } from '../components/ui';
+import { toast } from '../lib/toast';
+import { Button, Icon, IconButton } from '../components/ui';
+import { catStyle } from '../components/theme';
 import { onBack } from '../lib/native';
 
 export function CardDetail({ cardId }: { cardId: string }) {

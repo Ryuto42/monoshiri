@@ -11,7 +11,6 @@
 | Tailwind CSS v4 | スタイル | MIT |
 | Motion | アニメーション | MIT |
 | matter-js | ローディングの物理演算 | MIT |
-| mermaid | 流れ図の描画 | MIT |
 | marked | Markdown 変換 | MIT |
 | DOMPurify | HTML サニタイズ | Apache-2.0 / MPL-2.0 |
 | Dexie | IndexedDB | Apache-2.0 |
@@ -23,7 +22,7 @@
 | google-auth-library | 認証 | Apache-2.0 |
 | sharp | 画像の WebP 変換 | Apache-2.0 |
 | @google-cloud/billing / functions-framework | 予算キルスイッチ | Apache-2.0 |
-| Capacitor 8（core / ios / android / cli / assets） | iOS・Android アプリ化 | MIT |
+| Capacitor 8（core / ios / android / cli） | iOS・Android アプリ化 | MIT |
 | @capacitor/app, haptics, status-bar, splash-screen, browser, keyboard, network | ネイティブ機能 | MIT |
 | @fontsource/zen-maru-gothic | フォント同梱 | MIT（フォント本体は OFL 1.1） |
 

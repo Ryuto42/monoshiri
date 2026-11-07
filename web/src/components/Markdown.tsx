@@ -1,17 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { motion } from 'motion/react';
+import { parseFlow } from '../lib/flow-parse';
 
 const MERMAID = /```mermaid\s*([\s\S]*?)```/;
-
-export function splitMermaid(text: string) {
-  const m = MERMAID.exec(text);
-  const open = text.indexOf('```mermaid');
-  if (m) return { body: text.replace(MERMAID, '\n'), mermaid: m[1].trim() };
-  if (open >= 0) return { body: text.slice(0, open), mermaid: null, pending: true };
-  return { body: text, mermaid: null };
-}
 
 function Prose({ text, streaming }: { text: string; streaming?: boolean }) {
   const html = useMemo(() => {
@@ -38,59 +31,45 @@ export function Markdown({ text, streaming }: { text: string; streaming?: boolea
   return <Prose text={open >= 0 ? text.slice(0, open) : text} streaming={streaming} />;
 }
 
-let mermaidLoader: Promise<typeof import('mermaid').default> | null = null;
-let seq = 0;
-
 export function MermaidDiagram({ code }: { code: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading');
-
-  useEffect(() => {
-    let alive = true;
-    mermaidLoader ??= import('mermaid').then((m) => {
-      const dark = matchMedia('(prefers-color-scheme: dark)').matches;
-      m.default.initialize({
-        startOnLoad: false,
-        securityLevel: 'strict',
-        theme: 'base',
-        fontFamily: 'Zen Maru Gothic, sans-serif',
-        htmlLabels: false,
-        flowchart: { curve: 'basis', padding: 14, nodeSpacing: 28, rankSpacing: 36, htmlLabels: false },
-        themeVariables: {
-          primaryColor: dark ? '#2f271f' : '#fff7ea',
-          primaryBorderColor: dark ? '#ff8257' : '#ef6a3a',
-          primaryTextColor: dark ? '#f5ece0' : '#2a2017',
-          lineColor: dark ? '#c4b5a4' : '#66574a',
-          fontSize: '15px',
-        },
-      });
-      return m.default;
-    });
-    mermaidLoader
-      .then(async (mm) => {
-        const src = innerWidth < 700 ? code.replace(/^(flowchart|graph)\s+(LR|RL)/m, '$1 TD') : code;
-        const { svg } = await mm.render(`mmd-${++seq}`, src);
-        if (!alive || !ref.current) return;
-        ref.current.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
-        setState('ok');
-      })
-      .catch(() => alive && setState('error'));
-    return () => {
-      alive = false;
-    };
-  }, [code]);
-
-  if (state === 'error') return null;
+  const flow = useMemo(() => parseFlow(code), [code]);
+  if (!flow) return null;
+  const next = new Map(flow.edges.map((e) => [e.from, e]));
   return (
     <motion.figure
-      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 200, damping: 24 }}
-      className="my-5 rounded-3xl bg-paper-2 p-4 overflow-x-auto no-scrollbar"
+      className="my-5 rounded-3xl bg-paper-2 p-4"
     >
-      <figcaption className="mb-2 text-[12px] font-bold text-ink-3">流れで見てみよう</figcaption>
-      {state === 'loading' && <div className="skeleton h-24" />}
-      <div ref={ref} className="[&_svg]:mx-auto [&_svg]:max-w-full [&_svg]:h-auto" />
+      <figcaption className="mb-3 text-[12px] font-bold text-ink-3">流れで見てみよう</figcaption>
+      <ol className="flex flex-col items-stretch gap-1 sm:flex-row sm:flex-wrap sm:items-center">
+        {flow.nodes.map((n, i) => {
+          const edge = next.get(n.id);
+          const last = i === flow.nodes.length - 1;
+          return (
+            <motion.li
+              key={n.id}
+              className="flex flex-col items-center gap-1 sm:flex-row"
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 22, delay: 0.12 * i }}
+            >
+              <span className="flex w-full items-center gap-2 rounded-2xl border-2 border-accent/50 bg-paper px-3 py-2 text-[14px] font-bold leading-snug sm:w-auto">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-[12px] font-black text-accent-ink">{i + 1}</span>
+                {n.label}
+              </span>
+              {!last && (
+                <span className="flex items-center gap-1 text-ink-3 sm:px-1" aria-hidden>
+                  <span className="ms text-[20px] sm:hidden">arrow_downward</span>
+                  <span className="ms hidden text-[20px] sm:inline">arrow_forward</span>
+                  {edge?.label && <span className="text-[11px] font-bold">{edge.label}</span>}
+                </span>
+              )}
+            </motion.li>
+          );
+        })}
+      </ol>
     </motion.figure>
   );
 }

@@ -7,8 +7,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.0'
-        classpath 'com.google.gms:google-services:4.4.4'
+        classpath 'com.android.tools.build:gradle:9.5.1'
+        classpath 'com.google.gms:google-services:4.5.0'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
@@ -17,6 +17,22 @@ buildscript {
 
 apply from: "variables.gradle"
 
+subprojects { sub ->
+    // Declare shared versions on each module so plugin scripts' hasProperty() doesn't rely on deprecated parent lookup.
+    rootProject.ext.properties.each { key, value -> sub.ext.set(key, value) }
+
+    // Plugin modules only accept an integer compileSdk; the installed API 37 platform is the 37.1 minor release.
+    sub.plugins.withId('com.android.library') {
+        sub.androidComponents.finalizeDsl { android ->
+            android.compileSdk {
+                version = release(rootProject.ext.compileSdkVersion) {
+                    minorApiLevel = rootProject.ext.compileSdkMinorVersion
+                }
+            }
+        }
+    }
+}
+
 allprojects {
     repositories {
         google()
@@ -24,6 +40,6 @@ allprojects {
     }
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
 }

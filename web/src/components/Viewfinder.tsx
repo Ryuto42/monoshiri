@@ -12,19 +12,15 @@ const SAMPLES = [
 
 export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick: () => void; onSample: (src: string) => void }>(function Viewfinder({ active, onPick, onSample }, ref) {
   const video = useRef<HTMLVideoElement>(null);
-  const [status, setStatus] = useState<'starting' | 'live' | 'blocked'>('starting');
+  const [status, setStatus] = useState<'starting' | 'live' | 'blocked'>(() => ('getUserMedia' in (navigator.mediaDevices ?? {}) ? 'starting' : 'blocked'));
 
   useImperativeHandle(ref, () => ({ video: video.current, live: status === 'live' }), [status]);
 
   useEffect(() => {
     if (!active) return;
+    if (!('getUserMedia' in (navigator.mediaDevices ?? {}))) return;
     let stream: MediaStream | null = null;
     let cancelled = false;
-    setStatus('starting');
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setStatus('blocked');
-      return;
-    }
     navigator.mediaDevices
       .getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
       .then(async (s) => {

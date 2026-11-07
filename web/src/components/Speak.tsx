@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { api, errorMessage, mediaUrl } from '../lib/api';
-import { toast } from './Toast';
-import { Icon, spring } from './ui';
+import { toast } from '../lib/toast';
+import { Icon } from './ui';
+import { spring } from './theme';
 
 let current: HTMLAudioElement | null = null;
 

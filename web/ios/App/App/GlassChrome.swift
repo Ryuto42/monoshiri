@@ -11,8 +11,10 @@ class MainViewController: CAPBridgeViewController {
 
 /// Native camera chrome drawn above the web view so the controls get the system Liquid Glass material on iOS 26+
 /// (with a blur fallback on older iOS). Taps are forwarded to the web app as `tap` events.
+/// Capacitor calls plugin methods off the main thread; every UIKit touch hops to the main actor, and the
+/// mutable view references below are only read or written there.
 @objc(GlassChromePlugin)
-public class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControllerDelegate {
+public final class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, @unchecked Sendable {
     public let identifier = "GlassChromePlugin"
     public let jsName = "GlassChrome"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -22,13 +24,11 @@ public class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
         CAPPluginMethod(name: "pickPhoto", returnType: CAPPluginReturnPromise),
     ]
 
-    private let accent = UIColor(red: 0.937, green: 0.416, blue: 0.227, alpha: 1)
-    private var bar: UIStackView?
-    private var badge: UILabel?
-    private var closeButton: UIButton?
-    private var pendingPick: CAPPluginCall?
-
-    private var host: UIView? { bridge?.viewController?.view }
+    private static let accent = UIColor(red: 0.937, green: 0.416, blue: 0.227, alpha: 1)
+    @MainActor private var bar: UIStackView?
+    @MainActor private var badge: UILabel?
+    @MainActor private var closeButton: UIButton?
+    @MainActor private lazy var picker = PhotoPicker()
 
     @objc func isAvailable(_ call: CAPPluginCall) {
         if #available(iOS 26.0, *) {
@@ -41,55 +41,42 @@ public class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
     @objc func setCameraControls(_ call: CAPPluginCall) {
         let visible = call.getBool("visible") ?? false
         let count = call.getInt("count") ?? 0
-        DispatchQueue.main.async {
+        let call = CallBox(call)
+        Task { @MainActor in
             if visible, self.bar == nil { self.buildBar() }
             self.updateBadge(count)
             self.animate(self.bar, visible: visible, offset: 40)
-            call.resolve()
+            call.value.resolve()
         }
     }
 
     @objc func setCloseButton(_ call: CAPPluginCall) {
         let visible = call.getBool("visible") ?? false
-        DispatchQueue.main.async {
+        let call = CallBox(call)
+        Task { @MainActor in
             if visible, self.closeButton == nil { self.buildClose() }
             self.animate(self.closeButton, visible: visible, offset: -12)
-            call.resolve()
+            call.value.resolve()
         }
     }
 
     @objc func pickPhoto(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            var config = PHPickerConfiguration()
-            config.filter = .images
-            config.selectionLimit = 1
-            let picker = PHPickerViewController(configuration: config)
-            picker.delegate = self
-            self.pendingPick = call
-            self.bridge?.viewController?.present(picker, animated: true)
-        }
-    }
-
-    public func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-        picker.dismiss(animated: true)
-        guard let call = pendingPick else { return }
-        pendingPick = nil
-        guard let provider = results.first?.itemProvider, provider.canLoadObject(ofClass: UIImage.self) else {
-            call.resolve(["cancelled": true])
-            return
-        }
-        provider.loadObject(ofClass: UIImage.self) { object, _ in
-            guard let image = object as? UIImage, let data = Self.jpeg(image, maxSide: 1600) else {
-                call.reject("この画像は読み込めませんでした")
-                return
+        let call = CallBox(call)
+        Task { @MainActor in
+            guard let presenter = self.bridge?.viewController else { return call.value.reject("no view controller") }
+            switch await self.picker.pick(from: presenter) {
+            case .cancelled: call.value.resolve(["cancelled": true])
+            case .failed: call.value.reject("この画像は読み込めませんでした")
+            case .picked(let data): call.value.resolve(["data": data.base64EncodedString(), "mimeType": "image/jpeg"])
             }
-            call.resolve(["data": data.base64EncodedString(), "mimeType": "image/jpeg"])
         }
     }
 
     // MARK: - Views
 
-    private func glassConfig(prominent: Bool = false) -> UIButton.Configuration {
+    @MainActor private var host: UIView? { bridge?.viewController?.view }
+
+    @MainActor private func glassConfig(prominent: Bool) -> UIButton.Configuration {
         if #available(iOS 26.0, *) {
             var c: UIButton.Configuration = prominent ? .prominentGlass() : .glass()
             if prominent { c.baseBackgroundColor = .white }
@@ -101,11 +88,11 @@ public class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
         return c
     }
 
-    private func makeButton(id: String, symbol: String, size: CGFloat, prominent: Bool = false, label: String) -> UIButton {
+    @MainActor private func makeButton(id: String, symbol: String, size: CGFloat, prominent: Bool = false, label: String) -> UIButton {
         var c = glassConfig(prominent: prominent)
         c.cornerStyle = .capsule
         c.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: size * (prominent ? 0.36 : 0.4), weight: .semibold))
-        c.baseForegroundColor = prominent ? accent : .white
+        c.baseForegroundColor = prominent ? Self.accent : .white
         let b = UIButton(configuration: c, primaryAction: UIAction { [weak self] _ in
             self?.notifyListeners("tap", data: ["id": id])
         })
@@ -115,7 +102,7 @@ public class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
         return b
     }
 
-    private func buildBar() {
+    @MainActor private func buildBar() {
         guard let host else { return }
         let gallery = makeButton(id: "gallery", symbol: "photo.on.rectangle.angled", size: 58, label: "写真をえらぶ")
         let shutter = makeButton(id: "shutter", symbol: "magnifyingglass", size: 86, prominent: true, label: "撮影する")
@@ -124,7 +111,7 @@ public class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
         let badge = UILabel()
         badge.font = .systemFont(ofSize: 12, weight: .heavy)
         badge.textColor = .white
-        badge.backgroundColor = accent
+        badge.backgroundColor = Self.accent
         badge.textAlignment = .center
         badge.layer.cornerRadius = 11
         badge.layer.masksToBounds = true
@@ -154,7 +141,7 @@ public class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
         bar = stack
     }
 
-    private func buildClose() {
+    @MainActor private func buildClose() {
         guard let host else { return }
         let b = makeButton(id: "close", symbol: "xmark", size: 48, label: "カメラにもどる")
         b.alpha = 0
@@ -166,14 +153,17 @@ public class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
         closeButton = b
     }
 
-    private func updateBadge(_ count: Int) {
+    @MainActor private func updateBadge(_ count: Int) {
         badge?.isHidden = count <= 0
         badge?.text = count > 99 ? "99+" : " \(count) "
     }
 
-    private func animate(_ view: UIView?, visible: Bool, offset: CGFloat) {
+    @MainActor private func animate(_ view: UIView?, visible: Bool, offset: CGFloat) {
         guard let view else { return }
-        if visible { view.isHidden = false; view.superview?.bringSubviewToFront(view) }
+        if visible {
+            view.isHidden = false
+            view.superview?.bringSubviewToFront(view)
+        }
         UIView.animate(withDuration: 0.45, delay: 0, usingSpringWithDamping: 0.82, initialSpringVelocity: 0.4, options: [.allowUserInteraction]) {
             view.alpha = visible ? 1 : 0
             view.transform = visible ? .identity : CGAffineTransform(translationX: 0, y: offset).scaledBy(x: 0.92, y: 0.92)
@@ -181,8 +171,48 @@ public class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
             if !visible { view.isHidden = true }
         }
     }
+}
 
-    private static func jpeg(_ image: UIImage, maxSide: CGFloat) -> Data? {
+/// Capacitor's call object is not Sendable, but resolving it from the main actor is safe, so it is boxed to cross over.
+private struct CallBox: @unchecked Sendable {
+    let value: CAPPluginCall
+    init(_ value: CAPPluginCall) { self.value = value }
+}
+
+/// System photo picker; returns a JPEG no larger than 1600px on the long side.
+@MainActor
+final class PhotoPicker: NSObject, PHPickerViewControllerDelegate {
+    enum Result { case picked(Data), cancelled, failed }
+
+    private var continuation: CheckedContinuation<Result, Never>?
+
+    func pick(from presenter: UIViewController) async -> Result {
+        continuation?.resume(returning: .cancelled)
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        config.selectionLimit = 1
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        presenter.present(picker, animated: true)
+        return await withCheckedContinuation { continuation = $0 }
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        let done = continuation
+        continuation = nil
+        guard let provider = results.first?.itemProvider, provider.canLoadObject(ofClass: UIImage.self) else {
+            done?.resume(returning: .cancelled)
+            return
+        }
+        provider.loadObject(ofClass: UIImage.self) { object, _ in
+            let image = object as? UIImage
+            let data = image.flatMap { Self.jpeg($0, maxSide: 1600) }
+            done?.resume(returning: data.map(Result.picked) ?? .failed)
+        }
+    }
+
+    nonisolated private static func jpeg(_ image: UIImage, maxSide: CGFloat) -> Data? {
         let scale = min(1, maxSide / max(image.size.width, image.size.height))
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
         let format = UIGraphicsImageRendererFormat.default()

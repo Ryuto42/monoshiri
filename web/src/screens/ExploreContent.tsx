@@ -5,7 +5,8 @@ import type { Flow } from '../lib/flow';
 import { useCards } from '../lib/cards';
 import { RollingCards } from '../components/RollingCards';
 import { SearchEntry } from '../components/SearchEntry';
-import { Button, catStyle, Chip, Icon, IconButton, spring } from '../components/ui';
+import { Button, Chip, Icon, IconButton } from '../components/ui';
+import { catStyle, spring, TOPIC_COLORS } from '../components/theme';
 import { Speak } from '../components/Speak';
 import { haptic, openExternal } from '../lib/native';
 
@@ -235,10 +236,6 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
     </motion.div>
   );
 }
-
-export const TOPIC_COLORS: [string, string][] = [
-  ['#FDE3D6', '#B4441B'], ['#D9EFE6', '#23684F'], ['#DCE8F7', '#2A5C93'], ['#FBEBC2', '#8A6206'], ['#EADFF5', '#5B3F8C'], ['#F8DCE5', '#9A2F57'],
-];
 
 function ErrorState({ message, onRetry, onReset }: { message: string | null; onRetry: () => void; onReset: () => void }) {
   return (

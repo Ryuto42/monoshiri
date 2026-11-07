@@ -6,7 +6,8 @@ import { CardDetail } from './CardDetail';
 import { useCards } from '../lib/cards';
 import { CardFace } from '../components/CardFace';
 import { RollingCards } from '../components/RollingCards';
-import { Button, CATEGORY_STYLE, Icon, IconButton, spring } from '../components/ui';
+import { Button, Icon, IconButton } from '../components/ui';
+import { CATEGORY_STYLE, spring } from '../components/theme';
 import { Logo } from '../components/Logo';
 
 export function Zukan() {

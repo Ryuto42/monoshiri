@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'motion/react';
 import type { Card } from '../lib/types';
-import { catStyle, Icon } from './ui';
+import { Icon } from './ui';
+import { catStyle } from './theme';
 import { mediaUrl } from '../lib/api';
 
 type Item = { key: string; img?: string | null; icon: string; bg: string; ink: string; name: string };

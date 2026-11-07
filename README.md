@@ -14,14 +14,14 @@
 | カメラ | 撮影 / 写真選択 / ドラッグ&ドロップ / 貼り付け / サンプル写真 |
 | 見つける | Gemini が写真内のモノを最大6個検出し、Lens 風のマーカーで表示 |
 | 知る | 名前・ひとこと・やさしい説明・豆知識と、6つの「問い」。Google 検索の候補チップと Wikipedia 要約付き |
-| 深掘り | 検索で裏付けた解説をストリーミング表示。流れ図（Mermaid）、Wikimedia の写真、YouTube、AI 図解イラスト、AI 動画、3択クイズ、参考ページ |
+| 深掘り | 検索で裏付けた解説をストリーミング表示。流れ図、Wikimedia の写真、YouTube、AI 図解イラスト、AI 動画、3択クイズ、参考ページ |
 | カード | Nano Banana が描くイラストでカード化。深掘りしたテーマもノートとして保存 |
 | 図鑑 | カード一覧・ジャンル絞り込み・検索・カード詳細（裏返し、ノート） |
 
 ## 構成
 
 ```
-web/     Vite 8 + React 19 (React Compiler) + TanStack Router + Tailwind CSS v4 + Motion
+web/     Vite 8 + React 19 (React Compiler, Babel 8) + TanStack Router + Tailwind CSS v4 + Motion。iOS は Swift 6、Android は AGP 9.5 / Gradle 9.9 / targetSdk 37
 server/  Hono on Node.js 24 (Cloud Run) — Vertex AI / Firestore / Cloud Storage
 infra/   予算キルスイッチ関数、Hosting と Firestore ルールのデプロイスクリプト
 ```
