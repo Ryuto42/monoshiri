@@ -1,0 +1,46 @@
+# 著作物利用一覧（著作物利用シートの下書き）
+
+## ライブラリ
+
+| 名前 | 用途 | ライセンス |
+|---|---|---|
+| React / React DOM 19 | UI | MIT |
+| babel-plugin-react-compiler | 自動メモ化 | MIT |
+| Vite 8 / @vitejs/plugin-react | ビルド | MIT |
+| @tanstack/react-router | ルーティング | MIT |
+| Tailwind CSS v4 | スタイル | MIT |
+| Motion | アニメーション | MIT |
+| matter-js | ローディングの物理演算 | MIT |
+| mermaid | 流れ図の描画 | MIT |
+| marked | Markdown 変換 | MIT |
+| DOMPurify | HTML サニタイズ | Apache-2.0 / MPL-2.0 |
+| Dexie | IndexedDB | Apache-2.0 |
+| Firebase JS SDK | 認証・Firestore | Apache-2.0 |
+| Hono / @hono/node-server | API サーバー | MIT |
+| @google/genai | Gemini (Vertex AI) | Apache-2.0 |
+| firebase-admin | ID トークン検証・Firestore | Apache-2.0 |
+| @google-cloud/storage | メディア保存 | Apache-2.0 |
+| google-auth-library | 認証 | Apache-2.0 |
+| sharp | 画像の WebP 変換 | Apache-2.0 |
+| @google-cloud/billing / functions-framework | 予算キルスイッチ | Apache-2.0 |
+| Capacitor 8（core / ios / android / cli / assets） | iOS・Android アプリ化 | MIT |
+| @capacitor/app, haptics, status-bar, splash-screen, browser, keyboard, network | ネイティブ機能 | MIT |
+| @fontsource/zen-maru-gothic | フォント同梱 | MIT（フォント本体は OFL 1.1） |
+
+## フォント・アイコン
+
+| 名前 | 提供 | ライセンス |
+|---|---|---|
+| Zen Maru Gothic | Google Fonts（@fontsource 経由で同梱） | SIL Open Font License 1.1 |
+| Material Symbols Rounded | Google Fonts（使うアイコンだけを同梱） | Apache-2.0 |
+| SF Symbols | iOS 版のネイティブボタン（Apple 提供のシステムアイコン） | Apple の利用条件に従いアプリ内 UI でのみ使用 |
+
+## データ・コンテンツ
+
+| 名前 | 使い方 | 条件 |
+|---|---|---|
+| Google 検索（Grounding with Google Search） | 解説の裏付け。検索候補チップは規約どおり無加工で表示 | Vertex AI 利用規約 |
+| Wikimedia Commons | 深掘り画面の写真。作者・ライセンス・出典ページをアプリ内に表示 | 各画像のライセンス（CC BY / CC BY-SA / PD など） |
+| Wikipedia（日本語版） | 要約文とサムネイルを表示し、記事へリンク | CC BY-SA 4.0 |
+| YouTube | 動画の埋め込み（youtube-nocookie.com） | YouTube 利用規約 / YouTube API サービス利用規約 |
+| AI 生成画像・動画・音声 | カードイラスト、図解、サンプル写真、AI 動画、読み上げは Gemini（Vertex AI）で本プロジェクトが生成 | Google Cloud 利用規約 |

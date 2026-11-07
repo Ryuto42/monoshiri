@@ -1,0 +1,14 @@
+{
+  "name": "モノシリ",
+  "short_name": "モノシリ",
+  "description": "撮るだけで、身の回りが教科書になる。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#120e0b",
+  "theme_color": "#ef6a3a",
+  "lang": "ja",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

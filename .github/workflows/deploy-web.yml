@@ -1,0 +1,63 @@
+name: Deploy web to Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'firebase.json'
+      - 'infra/deploy-hosting.mjs'
+      - 'infra/write-web-env.mjs'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT: monoshiri-df26
+  VITE_API_BASE: https://monoshiri-api-557874444860.asia-northeast1.run.app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # Keyless: GitHub's OIDC token is exchanged for a short-lived token of a Hosting-only service account.
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/557874444860/locations/global/workloadIdentityPools/github/providers/monoshiri-repo
+          service_account: github-deployer@monoshiri-df26.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install
+        run: npm ci
+        working-directory: web
+
+      - name: Typecheck
+        run: npx tsc -b
+        working-directory: web
+
+      - name: Write build env
+        run: node infra/write-web-env.mjs
+
+      - name: Build
+        run: npx vite build
+        working-directory: web
+
+      - name: Deploy
+        run: node infra/deploy-hosting.mjs

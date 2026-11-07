@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/components/Viewfinder.tsx"
+        ],
+        "createdAt": "2026-11-07T12:33:37.617Z",
+        "reason": "Claude: L107-110 are camera reticle corner brackets (two-edge L shapes on empty spans), not accent-bordered cards"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "src/components/Viewfinder.tsx"
+        ],
+        "createdAt": "2026-11-07T12:33:37.632Z",
+        "reason": "Claude: camera reticle corner brackets; the rounded corner is the bracket's bend, not a card"
+      }
+    ]
+  }
+}

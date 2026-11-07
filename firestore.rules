@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Each visitor (anonymous Firebase Auth for now) can only touch their own cards.
+    match /users/{uid}/cards/{cardId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.id == cardId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.notes is list
+        && request.resource.data.notes.size() <= 12;
+    }
+    // Caches, usage meter and video jobs are written by the API server only.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

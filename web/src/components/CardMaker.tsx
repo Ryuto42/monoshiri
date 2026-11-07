@@ -1,0 +1,126 @@
+import { animate, motion, useMotionValue } from 'motion/react';
+import { useEffect, useRef, useState } from 'react';
+import { api, errorMessage } from '../lib/api';
+import { getCard, saveCard, useCards } from '../lib/cards';
+import { thumbFrom } from '../lib/image';
+import type { Card, DeepNote, Explore } from '../lib/types';
+import { CardBack, CardFace } from './CardFace';
+import { toast } from './Toast';
+import { Button, Icon } from './ui';
+import { haptic, onBack } from '../lib/native';
+
+export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
+  ex: Explore; crop: string | null; notes: DeepNote[]; onClose: () => void; flyTo: () => DOMRect | null;
+}) {
+  const existing = getCard(ex.id);
+  const cards = useCards();
+  const [illustration, setIllustration] = useState<string | null>(existing?.illustration ?? null);
+  const [flipped, setFlipped] = useState(!!existing);
+  const [busy, setBusy] = useState(!existing?.illustration);
+  const box = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0), y = useMotionValue(0), scale = useMotionValue(1), opacity = useMotionValue(1);
+  const no = existing ? cards.length - cards.findIndex((c) => c.id === ex.id) : cards.length + 1;
+
+  useEffect(() => onBack(onClose), [onClose]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setFlipped(true);
+      haptic('select');
+    }, 650);
+    if (!existing?.illustration) {
+      api
+        .illustrate(ex.name, ex.en)
+        .then(({ url }) => setIllustration(url))
+        .catch((e) => {
+          const m = errorMessage(e);
+          if (m) toast(m);
+        })
+        .finally(() => setBusy(false));
+    }
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ex.id]);
+
+  const store = async () => {
+    const photo = crop ? await thumbFrom(crop, 240) : existing?.photo ?? null;
+    const byTopic = new Map((existing?.notes ?? []).map((n) => [n.topicId, n]));
+    notes.forEach((n) => byTopic.set(n.topicId, { ...byTopic.get(n.topicId), ...n }));
+    const card: Card = {
+      id: ex.id, name: ex.name, reading: ex.reading, en: ex.en, category: ex.category, icon: ex.icon, oneLiner: ex.oneLiner,
+      summary: ex.summary, funFact: ex.funFact, topics: ex.topics, notes: [...byTopic.values()], illustration, photo,
+      createdAt: existing?.createdAt ?? Date.now(), updatedAt: Date.now(),
+    };
+    void saveCard(card);
+    haptic('success');
+    const target = flyTo();
+    const el = box.current?.getBoundingClientRect();
+    if (target && el) {
+      const dx = target.left + target.width / 2 - (el.left + el.width / 2);
+      const dy = target.top + target.height / 2 - (el.top + el.height / 2);
+      await Promise.all([
+        animate(x, dx, { duration: 0.65, ease: [0.5, 0, 0.2, 1] }),
+        animate(y, [0, -80, dy], { duration: 0.65, ease: [0.5, 0, 0.2, 1] }),
+        animate(scale, 0.12, { duration: 0.65, ease: [0.5, 0, 0.2, 1] }),
+        animate(opacity, [1, 1, 0], { duration: 0.7 }),
+      ]);
+    }
+    toast(existing ? 'カードを更新しました' : `図鑑 No.${String(no).padStart(3, '0')} に追加！`, 'auto_awesome');
+    onClose();
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-[70] grid place-items-center p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div className="absolute inset-0 bg-[#120e0b]/75 backdrop-blur-md" onClick={onClose} />
+      <div className="relative flex w-full max-w-[340px] flex-col items-center">
+        <Sparkles />
+        <motion.div ref={box} style={{ x, y, scale, opacity }} className="relative w-[min(78vw,300px)] [perspective:1200px]">
+          <motion.div
+            className="relative [transform-style:preserve-3d]"
+            initial={{ rotateY: 0, y: 60, scale: 0.6 }}
+            animate={{ rotateY: flipped ? 180 : 0, y: 0, scale: 1 }}
+            transition={{ rotateY: { type: 'spring', stiffness: 120, damping: 16 }, default: { type: 'spring', stiffness: 220, damping: 20 } }}
+          >
+            <div className="[backface-visibility:hidden]">
+              <CardBack size="lg" />
+            </div>
+            <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+              <CardFace card={{ ...ex, illustration, photo: crop }} no={no} size="lg" loadingArt={busy} />
+            </div>
+          </motion.div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.9 } }} className="mt-7 flex gap-2">
+          <Button icon="inventory_2" iconFill onClick={store} disabled={busy}>
+            {busy ? 'イラスト作成中…' : existing ? '図鑑を更新' : '図鑑にしまう'}
+          </Button>
+          <Button tone="glass" onClick={onClose} aria-label="とじる">
+            <Icon name="close" size={22} />
+          </Button>
+        </motion.div>
+        {notes.length > 0 && (
+          <p className="mt-3 text-[13px] font-bold text-white/70">深掘りした {notes.length} テーマもカードに記録されます</p>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function Sparkles() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 -z-0">
+      {Array.from({ length: 14 }, (_, i) => {
+        const a = (i / 14) * Math.PI * 2;
+        return (
+          <motion.span
+            key={i}
+            className="absolute left-1/2 top-[40%] h-2.5 w-2.5 rounded-full"
+            style={{ background: ['#ffd3b8', '#ffe7a3', '#cde8d2', '#ffffff'][i % 4] }}
+            initial={{ x: 0, y: 0, opacity: 0, scale: 0 }}
+            animate={{ x: Math.cos(a) * 190, y: Math.sin(a) * 230, opacity: [0, 1, 0], scale: [0, 1.4, 0.4] }}
+            transition={{ duration: 1.3, delay: 0.55 + (i % 3) * 0.05, ease: 'easeOut' }}
+          />
+        );
+      })}
+    </div>
+  );
+}
