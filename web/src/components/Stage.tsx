@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { DetectedObject } from '../lib/types';
-import { duplicateNumbers, layoutLabels, type Size } from '../lib/labelLayout';
+import { layoutLabels, type Size } from '../lib/labelLayout';
 
 type Fit = { w: number; h: number; x: number; y: number };
 
@@ -51,13 +51,9 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
   }, [objects, scanning]);
 
   const centers = objects.map((o) => ({ x: ((o.box[1] + o.box[3]) / 2000) * fit.w, y: ((o.box[0] + o.box[2]) / 2000) * fit.h }));
-  const nums = duplicateNumbers(
-    objects.map((o) => o.label),
-    centers.map((c) => c.x),
-  );
   const spots = layoutLabels(
     centers,
-    objects.map((o, i) => (sizes[i]?.w ? sizes[i] : { w: o.label.length * 12 + (nums[i] ? 30 : 20), h: 24 })),
+    objects.map((o, i) => (sizes[i]?.w ? sizes[i] : { w: o.label.length * 12 + 20, h: 24 })),
     fit.w,
     fit.h,
   );
@@ -95,12 +91,11 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
           objects.map((o, i) => {
             const c = centers[i];
             const isSel = i === selected;
-            const name = nums[i] ? `${o.label} ${nums[i]}` : o.label;
             return (
               <motion.button
                 key={`${o.label}-${i}`}
                 onClick={() => onSelect(i)}
-                aria-label={`${name}をしらべる`}
+                aria-label={`${o.label}をしらべる`}
                 className="absolute grid place-items-center"
                 style={{ left: c.x - 28, top: c.y - 28, width: 56, height: 56 }}
                 initial={{ scale: 0, opacity: 0 }}
@@ -114,15 +109,10 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
                   ref={(el) => {
                     labelEls.current[i] = el;
                   }}
-                  className="absolute flex items-center gap-1 whitespace-nowrap rounded-full bg-black/55 px-2.5 text-[12px] font-bold leading-6 text-white backdrop-blur-md"
+                  className="absolute whitespace-nowrap rounded-full bg-black/55 px-2.5 text-[12px] font-bold leading-6 text-white backdrop-blur-md"
                   style={{ left: spots[i].x - (c.x - 28), top: spots[i].y - (c.y - 28) }}
                 >
                   {o.label}
-                  {nums[i] != null && (
-                    <span aria-hidden className="grid h-4 min-w-4 place-items-center rounded-full bg-white/90 px-1 text-[10px] leading-none text-black/80 tabular-nums">
-                      {nums[i]}
-                    </span>
-                  )}
                 </span>
               </motion.button>
             );

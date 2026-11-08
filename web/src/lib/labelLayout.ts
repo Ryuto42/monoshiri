@@ -60,14 +60,3 @@ export function layoutLabels(points: Pt[], sizes: Size[], W: number, H: number):
   return out;
 }
 
-/** Numbers repeated names left to right ("鉛筆" ×2 → 1, 2). Unique names get null. */
-export function duplicateNumbers(labels: string[], xs: number[]): (number | null)[] {
-  const groups = new Map<string, number[]>();
-  labels.forEach((l, i) => groups.set(l, [...(groups.get(l) ?? []), i]));
-  const out: (number | null)[] = labels.map(() => null);
-  for (const idx of groups.values()) {
-    if (idx.length < 2) continue;
-    idx.sort((a, b) => xs[a] - xs[b]).forEach((i, n) => (out[i] = n + 1));
-  }
-  return out;
-}
