@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { DetectedObject } from '../lib/types';
+import { layoutLabels, type Size } from '../lib/labelLayout';
 
 type Fit = { w: number; h: number; x: number; y: number };
 
@@ -30,6 +31,32 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
   const rect = (b: DetectedObject['box']) => ({
     left: (b[1] / 1000) * fit.w, top: (b[0] / 1000) * fit.h, width: ((b[3] - b[1]) / 1000) * fit.w, height: ((b[2] - b[0]) / 1000) * fit.h,
   });
+
+  // Measure each label, then place them so they neither overlap nor get clipped at the photo edge.
+  const labelEls = useRef<(HTMLSpanElement | null)[]>([]);
+  const [sizes, setSizes] = useState<Size[]>([]);
+  useLayoutEffect(() => {
+    if (scanning) return;
+    let alive = true;
+    const measure = () => {
+      if (!alive) return;
+      const next = objects.map((_, i) => ({ w: labelEls.current[i]?.offsetWidth ?? 0, h: labelEls.current[i]?.offsetHeight ?? 0 }));
+      setSizes((prev) => (prev.length === next.length && prev.every((p, i) => p.w === next[i].w && p.h === next[i].h) ? prev : next));
+    };
+    measure();
+    document.fonts?.ready.then(measure);
+    return () => {
+      alive = false;
+    };
+  }, [objects, scanning]);
+
+  const centers = objects.map((o) => ({ x: ((o.box[1] + o.box[3]) / 2000) * fit.w, y: ((o.box[0] + o.box[2]) / 2000) * fit.h }));
+  const spots = layoutLabels(
+    centers,
+    objects.map((o, i) => (sizes[i]?.w ? sizes[i] : { w: o.label.length * 12 + 20, h: 24 })),
+    fit.w,
+    fit.h,
+  );
 
   return (
     <div ref={ref} className="absolute inset-x-0 top-0 transition-[bottom] duration-500" style={{ bottom: bottomInset }}>
@@ -62,7 +89,7 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
 
         {!scanning &&
           objects.map((o, i) => {
-            const r = rect(o.box);
+            const c = centers[i];
             const isSel = i === selected;
             return (
               <motion.button
@@ -70,7 +97,7 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
                 onClick={() => onSelect(i)}
                 aria-label={`${o.label}をしらべる`}
                 className="absolute grid place-items-center"
-                style={{ left: r.left + r.width / 2 - 28, top: r.top + r.height / 2 - 28, width: 56, height: 56 }}
+                style={{ left: c.x - 28, top: c.y - 28, width: 56, height: 56 }}
                 initial={{ scale: 0, opacity: 0 }}
                 animate={{ scale: isSel ? 0 : 1, opacity: isSel ? 0 : 1 }}
                 transition={{ type: 'spring', stiffness: 420, damping: 22, delay: selected == null ? 0.08 * i : 0 }}
@@ -78,7 +105,13 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
               >
                 <span className="absolute h-9 w-9 rounded-full bg-white/30 animate-ping" style={{ animationDuration: '1.8s', animationDelay: `${i * 0.2}s` }} />
                 <span className="relative h-[18px] w-[18px] rounded-full border-[3px] border-white bg-accent shadow-[0_2px_10px_rgb(0_0_0/0.35)]" />
-                <span className="absolute top-[46px] whitespace-nowrap rounded-full bg-black/55 px-2.5 text-[12px] font-bold leading-6 text-white backdrop-blur-md">
+                <span
+                  ref={(el) => {
+                    labelEls.current[i] = el;
+                  }}
+                  className="absolute whitespace-nowrap rounded-full bg-black/55 px-2.5 text-[12px] font-bold leading-6 text-white backdrop-blur-md"
+                  style={{ left: spots[i].x - (c.x - 28), top: spots[i].y - (c.y - 28) }}
+                >
                   {o.label}
                 </span>
               </motion.button>
