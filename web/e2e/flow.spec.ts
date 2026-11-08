@@ -128,10 +128,11 @@ test.describe('調べる流れ', () => {
     await page.getByRole('tab', { name: '教科でみる' }).click();
     const group = page.getByRole('region', { name: '小1-2 生活' });
     await expect(group).toContainText('1 単元・1まい');
-    const home = page.getByRole('button', { name: /『家庭の生活』/ });
-    await expect(home).toContainText('ペットボトル');
+    // Each unit lists its cards right there (no second step to open the unit).
+    const home = group.getByRole('region', { name: '『家庭の生活』' });
     await expect(home).toContainText('1まい');
-    await expect(page.getByRole('button', { name: /『学校生活と通学路』/ })).toHaveCount(0);
+    await expect(home.getByRole('button', { name: /ペットボトル/ })).toBeVisible();
+    await expect(page.getByRole('region', { name: '『学校生活と通学路』' })).toHaveCount(0);
     expect(api.of('/api/events').flatMap((c) => c.body.events as { name: string }[]).map((e) => e.name)).toContain('card_save');
   });
 

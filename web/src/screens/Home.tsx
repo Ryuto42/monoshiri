@@ -23,7 +23,7 @@ import { haptic, onBack } from '../lib/native';
 import { GlassChrome, nativeChrome, pickNativePhoto } from '../lib/glass';
 import { useMe } from '../lib/firebase';
 import { Avatar } from './account/parts';
-import { onSampleRequest, showWelcome, welcomeShowing } from '../lib/welcome';
+import { onSampleRequest, setHelpHint, showWelcome, welcomeShowing } from '../lib/welcome';
 import { StageChip } from '../components/StageChip';
 import { LeaveConfirm } from '../components/LeaveConfirm';
 import { unlockAudio } from '../components/Speak';
@@ -42,11 +42,16 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const vf = useRef<ViewfinderHandle>(null);
   const file = useRef<HTMLInputElement>(null);
   const zukanBtn = useRef<HTMLButtonElement>(null);
+  const zukanTop = useRef<HTMLButtonElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [making, setMaking] = useState(false);
   const [flash, setFlash] = useState(false);
   const [dragging, setDragging] = useState(false);
   const live = flow.stage === 'camera';
+  // The hint points at "?", which only the camera screen has: it must not stay over the next screen.
+  useEffect(() => {
+    if (!live) setHelpHint(false);
+  }, [live]);
   // Closing a result that isn't a card yet asks first (the photo isn't kept, so it would be gone).
   const [asking, setAsking] = useState(false);
   const leave = useCallback(() => {
@@ -265,7 +270,8 @@ export function Home({ paused = false }: { paused?: boolean }) {
 
       <AnimatePresence>{flash && <motion.div className="absolute inset-0 z-40 bg-white" initial={{ opacity: 0.9 }} animate={{ opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />}</AnimatePresence>
 
-      <header className="absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-[max(env(safe-area-inset-top),14px)] lg:px-8 lg:pr-[calc(min(480px,42vw)+32px)]">
+      {/* On a PC the result panel takes the right side, so the buttons step left of it only while it is open. */}
+      <header className={`absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-[max(env(safe-area-inset-top),14px)] lg:px-8 ${live ? '' : 'lg:pr-[calc(min(480px,42vw)+32px)]'}`}>
         <AnimatePresence mode="wait">
           {live ? (
             <motion.div key="logo" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="flex flex-col items-start">
@@ -281,8 +287,9 @@ export function Home({ paused = false }: { paused?: boolean }) {
         </AnimatePresence>
         {(live || desktop) && (
           <motion.div key="right" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2.5">
-            <div data-tour="zukan" className="relative hidden lg:block">
-              <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
+            {/* The camera screen keeps the zukan at the bottom right everywhere; on a PC this one shows with the result panel. */}
+            <div data-tour={live ? undefined : 'zukan'} className={`relative hidden ${live ? '' : 'lg:block'}`}>
+              <ZukanButton ref={zukanTop} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
               {!paused && <ReadyBubble placement="below" radius={999} tail={60} />}
             </div>
             {live && <IconButton data-tour="help" icon="help" label="使い方" tone="glass" size={44} onClick={showWelcome} />}
@@ -311,14 +318,11 @@ export function Home({ paused = false }: { paused?: boolean }) {
               <div data-tour="shutter">
                 <Shutter onClick={capture} />
               </div>
-              {desktop ? (
-                <IconButton icon="content_paste" label="画像を貼り付け（Ctrl+V）" tone="glass" size={56} onClick={() => toast('画像をコピーして Ctrl+V（⌘+V）で貼り付けできます', 'content_paste')} />
-              ) : (
-                <div data-tour="zukan" className="relative">
-                  <MiniZukan ref={zukanBtn} cards={cards} onClick={() => navigate({ to: '/zukan' })} />
-                  {!paused && <ReadyBubble placement="above" radius={10} tail={19} />}
-                </div>
-              )}
+              {/* The same zukan button on every device. Pasting (Ctrl+V / ⌘+V) and dropping a photo still work on a PC. */}
+              <div data-tour="zukan" className="relative">
+                <MiniZukan ref={zukanBtn} cards={cards} onClick={() => navigate({ to: '/zukan' })} />
+                {!paused && <ReadyBubble placement="above" radius={10} tail={19} />}
+              </div>
             </div>
           </motion.div>
         )}
@@ -393,8 +397,8 @@ export function Home({ paused = false }: { paused?: boolean }) {
               notes={Object.values(flow.notes)}
               onClose={() => setMaking(false)}
               flyTo={() => {
-                const r = zukanBtn.current?.getBoundingClientRect();
-                return r && r.width > 0 ? r : new DOMRect(window.innerWidth - 64, 16, 44, 44);
+                const r = [zukanTop.current, zukanBtn.current].map((b) => b?.getBoundingClientRect()).find((b) => b && b.width > 0);
+                return r ?? new DOMRect(window.innerWidth - 64, 16, 44, 44);
               }}
             />
           )}
