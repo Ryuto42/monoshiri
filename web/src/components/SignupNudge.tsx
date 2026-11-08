@@ -74,7 +74,7 @@ function Prompt({ kind }: { kind: keyof typeof COPY }) {
             whileTap={{ scale: 0.97 }}
             transition={spring}
             onClick={go}
-            className="flex h-13 items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink shadow-[0_8px_22px_-8px_color-mix(in_oklab,var(--accent)_75%,transparent)]"
+            className="flex h-13 items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink"
           >
             <Icon name="shield" size={22} fill />
             登録する
