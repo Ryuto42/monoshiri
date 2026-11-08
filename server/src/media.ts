@@ -65,12 +65,28 @@ export async function wikiSummary(title: string) {
 
 export type Video = { id: string; title: string; channel: string; thumb: string };
 
-// The topic's question ("小さな試験管からどうやって…？") is a poor search: YouTube fills it with unrelated shorts.
-// The thing's name plus a word for the kind of topic finds better videos, and only titles that name the thing are kept.
+// The search is the thing's name plus what the question is about, with the question words taken off
+// ("トイレに流してはいけない理由は？" -> "ティッシュ トイレに流してはいけない"). The whole question used to bring unrelated
+// shorts, and the name plus only a word for the kind of topic ("ティッシュ 体") lost what the question asks.
+// Only titles that name the thing are kept (youtubeVideos), and the kind word is the fallback when that leaves too few.
 const KIND_QUERY: Record<string, string> = {
   つくりかた: 'できるまで', しくみ: 'しくみ', れきし: '歴史', かんきょう: '環境', みらい: '未来', からだとけんこう: '体',
 };
-export const videoQuery = (name: string, kind?: string) => `${name} ${KIND_QUERY[kind ?? ''] ?? ''}`.trim();
+export const kindQuery = (name: string, kind?: string) => `${name} ${KIND_QUERY[kind ?? ''] ?? ''}`.trim();
+
+const ASKING = /なぜ|どうして|どうやって|どのように|どのくらい|どれくらい|どこで|どこから|どこに|いつから|いつ|だれが|誰が|なにで|何で|どんな|どう/g;
+export function videoQuery(name: string, title: string, kind?: string) {
+  const about = title
+    .replace(/[？?！!。、「」『』]/g, ' ')
+    .replace(ASKING, ' ')
+    .replace(/(は|って)\s/g, ' ')
+    .replace(/(の?理由|のは|とは|って|は|の|か|に|を|が)\s*$/u, '')
+    .replace(/(の?理由|のは|とは|って|は|の|か|に|を|が)\s*$/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Too little left ("どうやってできる？" -> "できる"): the kind word says it better.
+  return about.replace(/\s/g, '').length >= 4 ? `${name} ${about}` : kindQuery(name, kind);
+}
 
 // Compares without width, case or hiragana/katakana differences ("ﾍﾟｯﾄ" / "ぺっと" / "ペット").
 const fold = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\u30a1-\u30f6]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60)).replace(/\s+/g, '');
