@@ -3,15 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import { getCard, saveCard, useCards } from '../lib/cards';
 import { illustFor, notifyWhenReady, startIllust, usePendingIllust } from '../lib/illust';
 import { maybeNudge } from '../lib/account';
-import { thumbFrom } from '../lib/image';
 import type { Card, DeepNote, Explore } from '../lib/types';
 import { CardBack, CardFace } from './CardFace';
 import { toast } from '../lib/toast';
 import { Button, Icon } from './ui';
 import { haptic, onBack } from '../lib/native';
 
-export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
-  ex: Explore; crop: string | null; notes: DeepNote[]; onClose: () => void; flyTo: () => DOMRect | null;
+export function CardMaker({ ex, notes, onClose, flyTo }: {
+  ex: Explore; notes: DeepNote[]; onClose: () => void; flyTo: () => DOMRect | null;
 }) {
   const existing = getCard(ex.id);
   const cards = useCards();
@@ -39,12 +38,11 @@ export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
   }, [ex.id]);
 
   const store = async () => {
-    const photo = crop ? await thumbFrom(crop, 240) : existing?.photo ?? null;
     const byTopic = new Map((existing?.notes ?? []).map((n) => [n.topicId, n]));
     notes.forEach((n) => byTopic.set(n.topicId, { ...byTopic.get(n.topicId), ...n }));
     const card: Card = {
       id: ex.id, name: ex.name, reading: ex.reading, en: ex.en, category: ex.category, icon: ex.icon, oneLiner: ex.oneLiner,
-      summary: ex.summary, funFact: ex.funFact, topics: ex.topics, notes: [...byTopic.values()], illustration, photo,
+      summary: ex.summary, funFact: ex.funFact, topics: ex.topics, notes: [...byTopic.values()], illustration,
       ...((ex.firstFind || existing?.firstFind) && { firstFind: true }),
       createdAt: existing?.createdAt ?? Date.now(), updatedAt: Date.now(),
     };
@@ -85,7 +83,7 @@ export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
               <CardBack size="lg" />
             </div>
             <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-              <CardFace card={{ ...ex, illustration, photo: crop }} no={no} size="lg" loadingArt={busy} />
+              <CardFace card={{ ...ex, illustration }} no={no} size="lg" loadingArt={busy} />
             </div>
           </motion.div>
         </motion.div>

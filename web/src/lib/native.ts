@@ -102,6 +102,7 @@ export async function openExternal(url: string) {
 export async function setupNative(onOffline: (offline: boolean) => void) {
   const root = document.documentElement;
   root.classList.add(`platform-${platform}`);
+  if (platform === 'android' || /Android/i.test(navigator.userAgent)) root.classList.add('no-blur');
   if (!isNative) {
     setupWebKeyboard();
     return;

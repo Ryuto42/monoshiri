@@ -48,14 +48,3 @@ export function cropBox(shot: Shot, box: Box, max = 640, pad = 0.12): { base64: 
   return { base64: dataUrl.split(',')[1], dataUrl };
 }
 
-export function thumbFrom(dataUrl: string, size = 200): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const c = draw(img, img.width, img.height, size);
-      resolve(c.toDataURL('image/webp', 0.75));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}

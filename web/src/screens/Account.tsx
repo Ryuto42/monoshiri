@@ -23,6 +23,9 @@ import { toast } from '../lib/toast';
 import { Icon, IconButton } from '../components/ui';
 import { catStyle, spring } from '../components/theme';
 import type { Card } from '../lib/types';
+import { StagePicker } from '../components/StagePicker';
+import { STAGES, saveStage, useStage, type Stage } from '../lib/level';
+import { api } from '../lib/api';
 
 export function Account() {
   const me = useMe();
@@ -94,6 +97,7 @@ function GuestView() {
           {cards.length
             ? `いまの ${cards.length} 枚はそのまま引きつがれます。スマホでもパソコンでも、ログインすれば同じ図鑑が開けます。`
             : 'ログインすると、スマホでもパソコンでも同じ図鑑が開けます。'}
+          <span className="mt-1 block text-[12px] text-ink-3">新しいモノを調べられるのは、ゲストは約20円ぶん、登録すると約300円ぶんまで。年代に合わせた説明にもできます。</span>
         </p>
       )}
 
@@ -138,7 +142,7 @@ function GuestView() {
 
       <p className="mt-6 flex items-start gap-2 rounded-2xl bg-paper-2 px-4 py-3 text-[12px] leading-relaxed text-ink-2">
         <Icon name="shield_lock" size={18} className="mt-px shrink-0 text-leaf" fill />
-        撮った写真はこの端末の中だけに保存され、同期されません。パスワードは暗号化され、モノシリからも見られません。
+        撮った写真はどこにも保存されません（調べ終わったら消えます）。パスワードは暗号化され、モノシリからも見られません。
       </p>
     </div>
   );
@@ -189,8 +193,6 @@ function Art({ card }: { card: Card }) {
     <span className="grid h-full w-full place-items-center overflow-hidden rounded-[8px]" style={{ background: c.bg }}>
       {card.illustration ? (
         <img src={mediaUrl(card.illustration)} alt="" draggable={false} className="h-full w-full object-cover mix-blend-multiply" />
-      ) : card.photo ? (
-        <img src={card.photo} alt="" draggable={false} className="h-full w-full object-cover" />
       ) : (
         <Icon name={card.icon} size={30} fill style={{ color: c.ink }} />
       )}
@@ -382,11 +384,57 @@ function ResetForm({ onBack }: { onBack: () => void }) {
   );
 }
 
+const skipKey = (uid: string) => `monoshiri.stage.skip.${uid}`;
+const skipped = (uid: string) => {
+  try {
+    return !!localStorage.getItem(skipKey(uid));
+  } catch {
+    return false;
+  }
+};
+
 function MemberView({ me, onDone }: { me: Me; onDone: () => void }) {
   const cards = useCards();
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const needsVerify = me.provider === 'password' && !me.verified;
+  const st = useStage();
+  const [editing, setEditing] = useState(false);
+  const [skip, setSkip] = useState(() => skipped(me.uid));
+  const [usage, setUsage] = useState<{ mySpentJpy: number; myCapJpy: number } | null>(null);
+  useEffect(() => {
+    if (!needsVerify) api.usage().then(setUsage).catch(() => {});
+  }, [needsVerify]);
+
+  // Right after registering (or the first login on an account without one), ask for the learning stage.
+  const asking = !needsVerify && st.loaded && st.uid === me.uid && (editing || (!st.stage && !skip));
+  if (asking) {
+    return (
+      <StagePicker
+        initial={st.stage}
+        saving={busy === 'stage'}
+        onSave={(s: Stage) =>
+          act('stage', async () => {
+            await saveStage(s);
+            setEditing(false);
+            toast(`「${STAGES.find((x) => x.id === s)!.label}」向けの説明にしました`, 'school');
+          })
+        }
+        onSkip={
+          editing
+            ? () => setEditing(false)
+            : () => {
+                try {
+                  localStorage.setItem(skipKey(me.uid), '1');
+                } catch {
+                  /* ignore */
+                }
+                setSkip(true);
+              }
+        }
+      />
+    );
+  }
 
   async function act(kind: string, f: () => Promise<unknown>) {
     setBusy(kind);
@@ -435,6 +483,39 @@ function MemberView({ me, onDone }: { me: Me; onDone: () => void }) {
           />
         )}
       </div>
+
+      {!needsVerify && (
+        <div className="mt-3 flex items-center gap-3 rounded-3xl bg-paper-2 px-4 py-3.5">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent">
+            <Icon name="school" size={24} fill />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-black">{st.stage ? STAGES.find((x) => x.id === st.stage)!.label : '標準'}向けの説明</p>
+            <p className="text-[12px] leading-snug text-ink-2">年代に合わせて、ことばやくわしさを変えます</p>
+          </div>
+          <button onClick={() => setEditing(true)} className="h-9 shrink-0 rounded-full bg-paper px-3.5 text-[13px] font-bold text-ink shadow-[var(--shadow-card)]">
+            変更
+          </button>
+        </div>
+      )}
+
+      {usage && (
+        <div className="mt-3 rounded-3xl bg-paper-2 px-4 py-3.5">
+          <div className="flex items-baseline justify-between text-[13px] font-bold">
+            <span>新しく調べられる残り</span>
+            <span className="tabular-nums">約 {Math.max(0, Math.round(usage.myCapJpy - usage.mySpentJpy))} 円ぶん</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper-3">
+            <motion.div
+              className="h-full rounded-full bg-leaf"
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.max(0, Math.min(100, 100 - (usage.mySpentJpy / usage.myCapJpy) * 100))}%` }}
+              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+            />
+          </div>
+          <p className="mt-1.5 text-[11px] text-ink-3">みんなが調べたモノと、あつめたカードはいつでも見られます</p>
+        </div>
+      )}
 
       <button
         onClick={() => act('logout', async () => { await logOut(); toast('ログアウトしました', 'logout'); onDone(); })}

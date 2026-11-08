@@ -1,4 +1,6 @@
 import { idToken } from './firebase';
+import { currentLevel } from './level';
+import { nudgeForLimit } from './account';
 import type { CommonsImage, DeepMeta, DetectedObject, Explore, Quiz, Video } from './types';
 
 const BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -8,10 +10,12 @@ export const mediaUrl = <T extends string | null | undefined>(u: T): T => (u?.st
 export class ApiError extends Error {
   code: string;
   status: number;
-  constructor(status: number, code: string) {
+  tier?: string;
+  constructor(status: number, code: string, tier?: string) {
     super(code);
     this.status = status;
     this.code = code;
+    this.tier = tier;
   }
 }
 
@@ -22,7 +26,8 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.error ?? 'network');
+    if (body.error === 'user_limit' && body.tier === 'guest') nudgeForLimit();
+    throw new ApiError(res.status, body.error ?? 'network', body.tier);
   }
   return res.json();
 }
@@ -32,31 +37,33 @@ const post = <T>(path: string, body: object, signal?: AbortSignal) =>
 
 export const api = {
   detect: (image: string) => post<{ objects: DetectedObject[] }>('/api/detect', { image }),
-  explore: (label: string, image?: string, from?: string) => post<Explore>('/api/explore', { label, image, from }),
+  explore: (label: string, image?: string, from?: string) => post<Explore>('/api/explore', { label, image, from, level: currentLevel() }),
   known: (label: string) => call<{ known: boolean }>(`/api/known?${new URLSearchParams({ label })}`),
-  quiz: (name: string, context: string) => post<Quiz>('/api/quiz', { name, context }),
+  quiz: (name: string, context: string) => post<Quiz>('/api/quiz', { name, context, level: currentLevel() }),
   illustrate: (name: string, en: string) => post<{ url: string }>('/api/illustrate', { name, en }),
-  diagram: (b: { name: string; en: string; topic: string; outline: string }) => post<{ url: string }>('/api/diagram', b),
+  diagram: (b: { name: string; en: string; topic: string; outline: string }) => post<{ url: string }>('/api/diagram', { ...b, level: currentLevel() }),
   tts: (text: string) => post<{ url: string }>('/api/tts', { text }),
   video: (b: { name: string; en: string; topic: string; outline: string }) =>
-    post<{ status: string; id?: string; url?: string }>('/api/video', b),
+    post<{ status: string; id?: string; url?: string }>('/api/video', { ...b, level: currentLevel() }),
   videoStatus: (id: string) => call<{ status: string; url?: string }>(`/api/video/${encodeURIComponent(id)}`),
   media: (name: string, en: string, topic: string) =>
     call<{ images: CommonsImage[]; videos: Video[] }>(
-      `/api/media?${new URLSearchParams({ name, en, topic })}`,
+      `/api/media?${new URLSearchParams({ name, en, topic, level: currentLevel() })}`,
     ),
-  usage: () => call<{ spentJpy: number; capJpy: number; videoLeft: number }>('/api/usage'),
+  usage: () =>
+    call<{ spentJpy: number; capJpy: number; videoLeft: number; tier: 'guest' | 'member'; mySpentJpy: number; myCapJpy: number }>('/api/usage'),
 
   async deep(name: string, topic: string, onDelta: (t: string) => void, signal?: AbortSignal): Promise<DeepMeta & { cached?: boolean }> {
     const res = await fetch(`${BASE}/api/deep`, {
       method: 'POST',
       signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await idToken()}` },
-      body: JSON.stringify({ name, topic }),
+      body: JSON.stringify({ name, topic, level: currentLevel() }),
     });
     if (!res.ok || !res.body) {
       const body = await res.json().catch(() => ({}));
-      throw new ApiError(res.status, body.error ?? 'network');
+      if (body.error === 'user_limit' && body.tier === 'guest') nudgeForLimit();
+      throw new ApiError(res.status, body.error ?? 'network', body.tier);
     }
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buf = '';
@@ -87,7 +94,10 @@ export const api = {
 export function errorMessage(e: unknown) {
   if (e instanceof ApiError) {
     if (e.code === 'not_a_thing') return 'その名前では調べられませんでした。モノや生き物の名前で、もう一度ためしてください。';
-    if (e.code === 'budget') return '今月の学びパワーを使い切りました。保存したカードは見られます。';
+    if (e.code === 'budget') return 'アプリ全体で使える学びパワーを使い切りました。保存したカードと、みんなが調べたモノは見られます。';
+    if (e.code === 'user_limit' && e.tier === 'guest') return 'ゲストで調べられる分を使い切りました。登録すると、もっとたくさん調べられます。';
+    if (e.code === 'user_limit') return 'このアカウントで調べられる分を使い切りました。保存したカードと、みんなが調べたモノは見られます。';
+    if (e.code === 'unsafe_image') return 'この写真は調べられません。ちがう写真でためしてください。';
     if (e.code === 'rate_limited') return 'ちょっと急ぎすぎかも。少し待ってからもう一度どうぞ。';
     if (e.code === 'busy') return 'いま混み合っています。数十秒おいて、もう一度ためしてください。';
     if (e.code === 'video_limit') return 'AI動画は作れる本数の上限に達しました。';

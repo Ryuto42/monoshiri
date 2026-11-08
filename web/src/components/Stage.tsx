@@ -156,8 +156,8 @@ function ScanOverlay({ w, h }: { w: number; h: number }) {
       <motion.div
         className="absolute inset-x-0 h-1/3"
         style={{ background: 'linear-gradient(180deg, transparent, rgb(255 230 200 / 0.28) 55%, rgb(255 255 255 / 0.55) 60%, transparent 62%)' }}
-        initial={{ y: '-40%' }}
-        animate={{ y: '320%' }}
+        initial={{ transform: 'translateY(-40%)' }}
+        animate={{ transform: 'translateY(320%)' }}
         transition={{ duration: 1.6, repeat: Infinity, ease: [0.45, 0, 0.55, 1] }}
       />
       {dots.map((d) => (
@@ -165,7 +165,10 @@ function ScanOverlay({ w, h }: { w: number; h: number }) {
           key={d.i}
           className="absolute rounded-full"
           style={{ left: d.x, top: d.y, width: d.s, height: d.s, background: colors[d.i % colors.length], boxShadow: '0 0 12px rgb(255 255 255 / 0.8)' }}
-          animate={{ scale: [0, 1, 0.6, 1, 0], opacity: [0, 1, 0.7, 1, 0], y: [0, -10, 4, -6, 0] }}
+          animate={{
+            transform: ['translateY(0px) scale(0)', 'translateY(-10px) scale(1)', 'translateY(4px) scale(0.6)', 'translateY(-6px) scale(1)', 'translateY(0px) scale(0)'],
+            opacity: [0, 1, 0.7, 1, 0],
+          }}
           transition={{ duration: 2.2, repeat: Infinity, delay: d.d, ease: 'easeInOut' }}
         />
       ))}

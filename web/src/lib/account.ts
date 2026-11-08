@@ -195,7 +195,7 @@ async function startOver() {
   await clearLocalCards();
   try {
     Object.keys(localStorage)
-      .filter((k) => k.startsWith('monoshiri.sync.') || k.startsWith('monoshiri.nudge.'))
+      .filter((k) => k.startsWith('monoshiri.sync.') || k.startsWith('monoshiri.nudge.') || k.startsWith('monoshiri.stage.'))
       .forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
@@ -234,7 +234,7 @@ export async function deleteAccount(password?: string) {
 
 // --- Gentle prompt to create an account once the zukan has something worth keeping ---
 
-type Nudge = 'first' | 'more' | null;
+type Nudge = 'first' | 'more' | 'limit' | null;
 let nudge: Nudge = null;
 const nudgeListeners = new Set<() => void>();
 const MILESTONES: [number, Exclude<Nudge, null>][] = [
@@ -258,6 +258,15 @@ export function maybeNudge(count: number) {
     nudge = hit[1];
     nudgeListeners.forEach((l) => l());
   }, 1400);
+}
+
+// A guest used up the guest allowance: offer the bigger allowance that comes with an account (at most once a session).
+let limitShown = false;
+export function nudgeForLimit() {
+  if (!auth.currentUser?.isAnonymous || limitShown) return;
+  limitShown = true;
+  nudge = 'limit';
+  nudgeListeners.forEach((l) => l());
 }
 
 export function dismissNudge() {

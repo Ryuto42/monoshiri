@@ -1,10 +1,11 @@
-import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { CardDetail } from './CardDetail';
 import { useCards } from '../lib/cards';
+import type { Card } from '../lib/types';
 import { clearReady, useIllustReady } from '../lib/illust';
 import { CardFace } from '../components/CardFace';
 import { EmptySlots } from '../components/LoadingCard';
@@ -30,8 +31,10 @@ export function Zukan() {
     if (ready) clearReady();
   }, [ready]);
 
+  const open = (id: string) => navigate({ to: '/zukan/$cardId', params: { cardId: id } });
+
   return (
-    <LayoutGroup>
+    <>
       <div className="fixed inset-0 overflow-y-auto overscroll-contain bg-paper paper-grain" id="zukan-scroll">
         <header className="sticky top-0 z-20 bg-paper/85 backdrop-blur-xl">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 pb-3 pt-[max(env(safe-area-inset-top),14px)] sm:px-6">
@@ -86,41 +89,47 @@ export function Zukan() {
               </div>
             </div>
           ) : (
-            <motion.ul layout className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              <AnimatePresence mode="popLayout">
-                {shown.map((c, i) => (
-                  <motion.li
-                    key={c.id}
-                    layout
-                    initial={{ opacity: 0, y: 24, scale: 0.92 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ type: 'spring', stiffness: 320, damping: 28, delay: Math.min(i, 12) * 0.035 }}
-                  >
-                    <motion.button
-                      layoutId={`card-${c.id}`}
-                      onClick={() => navigate({ to: '/zukan/$cardId', params: { cardId: c.id } })}
-                      whileTap={{ scale: 0.96 }}
-                      className="block w-full text-left"
-                      style={{ visibility: params.cardId === c.id ? 'hidden' : 'visible' }}
-                    >
-                      <CardFace card={c} no={cards.length - cards.indexOf(c)} />
-                    </motion.button>
-                    {c.notes.length > 0 && (
-                      <p className="mt-2 flex items-center gap-1 px-1 text-[12px] font-bold text-ink-3">
-                        <Icon name="explore" size={14} fill /> {c.notes.length}テーマ深掘り
-                      </p>
-                    )}
-                  </motion.li>
-                ))}
-              </AnimatePresence>
-            </motion.ul>
+            <CardGrid shown={shown} cards={cards} onOpen={open} />
           )}
           {cards.length > 0 && shown.length === 0 && <p className="mt-10 text-center text-ink-3">見つかりませんでした</p>}
         </main>
       </div>
       <AnimatePresence>{params.cardId && cards.some((c) => c.id === params.cardId) && <CardDetail key={params.cardId} cardId={params.cardId} />}</AnimatePresence>
-    </LayoutGroup>
+    </>
+  );
+}
+
+// Kept apart from the route params so opening or closing a card does not re-render (and re-measure) every card.
+// CardDetail hides the card it is showing and flies back onto it (data-card-id).
+function CardGrid({ shown, cards, onOpen }: { shown: Card[]; cards: Card[]; onOpen: (id: string) => void }) {
+  // Layout animations only need a fresh measurement when the set of cards (or their height) changes.
+  const layoutKey = shown.map((c) => `${c.id}:${c.notes.length > 0}`).join();
+  return (
+    <motion.ul layout layoutDependency={layoutKey} className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      {/* No entrance pop on first open: the zukan is already sliding in, and two dozen JS-driven springs at once drop frames. */}
+      <AnimatePresence mode="popLayout" initial={false}>
+        {shown.map((c, i) => (
+          <motion.li
+            key={c.id}
+            layout
+            layoutDependency={layoutKey}
+            initial={{ opacity: 0, y: 24, scale: 0.92 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 28, delay: Math.min(i, 12) * 0.035 }}
+          >
+            <motion.button data-card-id={c.id} onClick={() => onOpen(c.id)} whileTap={{ scale: 0.96 }} className="block w-full text-left">
+              <CardFace card={c} no={cards.length - cards.indexOf(c)} />
+            </motion.button>
+            {c.notes.length > 0 && (
+              <p className="mt-2 flex items-center gap-1 px-1 text-[12px] font-bold text-ink-3">
+                <Icon name="explore" size={14} fill /> {c.notes.length}テーマ深掘り
+              </p>
+            )}
+          </motion.li>
+        ))}
+      </AnimatePresence>
+    </motion.ul>
   );
 }
 

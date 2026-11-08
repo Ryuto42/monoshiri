@@ -20,7 +20,7 @@ const emit = () => listeners.forEach((l) => l());
 const sortCards = (list: Card[]) => [...list].sort((a, b) => b.createdAt - a.createdAt);
 
 let emulated = false;
-async function firestore() {
+export async function firestore() {
   const mod = await import('firebase/firestore/lite');
   const fs = mod.getFirestore(firebaseApp);
   if (onEmulators && !emulated) {
@@ -33,7 +33,11 @@ async function firestore() {
 export async function loadCards() {
   if (loaded) return;
   loaded = true;
-  cards = sortCards(await db.cards.toArray().catch(() => []));
+  const stored = await db.cards.toArray().catch(() => [] as Card[]);
+  // Photos taken in the app are not kept anymore; drop thumbnails saved by earlier versions.
+  const withPhoto = stored.filter((c) => 'photo' in c);
+  cards = sortCards(stored.map(({ photo: _photo, ...c }: Card & { photo?: unknown }) => c));
+  if (withPhoto.length) await db.cards.bulkPut(cards).catch(() => {});
   emit();
   await syncCloud();
   let last = Date.now();
@@ -70,14 +74,13 @@ function patchState(uid: string, f: (s: { known: Set<string>; del: Set<string> }
 }
 
 const toCloud = (c: Card) => {
-  const { photo: _photo, ...cloud } = c;
-  return JSON.parse(JSON.stringify(cloud));
+  return JSON.parse(JSON.stringify(c));
 };
 
 let chain: Promise<void> = Promise.resolve();
 
 // Two-way merge with the signed-in account: newest updatedAt wins, cards deleted elsewhere disappear here,
-// and anything collected on this device (including as a guest before logging in) is uploaded. Photos never leave the device.
+// and anything collected on this device (including as a guest before logging in) is uploaded. Photos taken in the app are never stored.
 export function syncCloud(): Promise<void> {
   chain = chain.then(runSync);
   return chain;
@@ -102,7 +105,7 @@ async function runSync() {
         const r = d.data() as Card;
         remote.set(d.id, r.updatedAt);
         const local = byId.get(d.id);
-        if (!local || r.updatedAt > local.updatedAt) byId.set(d.id, { ...r, photo: local?.photo ?? null });
+        if (!local || r.updatedAt > local.updatedAt) byId.set(d.id, r);
       });
       const gone = [...byId.keys()].filter((id) => !remote.has(id) && known.has(id));
       gone.forEach((id) => byId.delete(id));
@@ -158,10 +161,11 @@ export async function clearLocalCards() {
 
 // Account deletion: remove every cloud card of the signed-in user before the auth account itself goes away.
 export async function deleteCloudCards() {
-  const [{ fs, collection, getDocs, deleteDoc }, user] = await Promise.all([firestore(), currentUser()]);
+  const [{ fs, collection, getDocs, deleteDoc, doc }, user] = await Promise.all([firestore(), currentUser()]);
   if (!canSync(user)) return;
   const snap = await getDocs(collection(fs, 'users', user.uid, 'cards'));
   await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+  await deleteDoc(doc(fs, 'users', user.uid)).catch(() => {});
   try {
     localStorage.removeItem(stateKey(user.uid));
   } catch {

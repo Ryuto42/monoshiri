@@ -35,8 +35,20 @@ export const PRICES: Record<string, { in: number; out: number; perImage?: number
 };
 
 // Hard stop for AI spend estimated by the app itself (the billing kill switch sits above this).
-export const CAP_JPY = Number(process.env.CAP_JPY ?? 200);
+export const CAP_JPY = Number(process.env.CAP_JPY ?? 1800);
 export const JPY_PER_USD = Number(process.env.JPY_PER_USD ?? 160);
 export const SAFETY = 1.2;
 export const CAP_USD = CAP_JPY / JPY_PER_USD;
 export const VIDEO_LIMIT = Number(process.env.VIDEO_LIMIT ?? 2);
+
+// Lifetime AI spend allowed per account (estimated, same meter as CAP_JPY). Cached results cost nothing and stay free.
+export const USER_CAP_JPY = {
+  guest: Number(process.env.USER_CAP_GUEST_JPY ?? 20),
+  member: Number(process.env.USER_CAP_MEMBER_JPY ?? 300),
+};
+
+// Learning stages the explanations are written for. 'std' is the original audience (upper elementary to junior high)
+// and is what guests and people who haven't picked a stage get.
+export const LEVELS = ['std', 'lower', 'upper', 'junior', 'senior'] as const;
+export type Level = (typeof LEVELS)[number];
+export const asLevel = (v: unknown): Level => (LEVELS.includes(v as Level) ? (v as Level) : 'std');
