@@ -1,12 +1,13 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { closeWelcome, trySample, useWelcome } from '../lib/welcome';
+import { skipTutorial, startTour, useWelcome } from '../lib/welcome';
+import { TOUR_PAGES } from '../lib/tour';
 import { saveStage, useStage, type Stage } from '../lib/level';
 import { haptic, onBack } from '../lib/native';
 import { toast } from '../lib/toast';
 import { StagePicker } from './StagePicker';
-import { Icon } from './ui';
+import { HelpHint, Tour } from './Tour';
 import { spring } from './theme';
 
 const SAMPLE = '/samples/desk.webp';
@@ -27,27 +28,32 @@ const STEPS = [
 
 export function Welcome() {
   const state = useWelcome();
-  return <AnimatePresence>{state === 'open' && <Panel key="welcome" />}</AnimatePresence>;
+  return (
+    <>
+      <AnimatePresence>
+        {state === 'open' && <Panel key="welcome" />}
+        {state === 'tour' && <Tour key="tour" />}
+      </AnimatePresence>
+      <HelpHint />
+    </>
+  );
 }
 
-// What to do once the welcome is over: open the camera, or try the sample photo.
-type Then = 'camera' | 'sample';
-
+// The welcome card is the tutorial's first page: "つぎへ" moves on to the pages that light up each camera button.
 function Panel() {
   const start = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
   const { stage } = useStage();
-  // The last step asks for the school year, only for people who have no stage yet.
-  const [asking, setAsking] = useState<Then | null>(null);
+  // Before the camera buttons, people who have no school year yet are asked for it once.
+  const [asking, setAsking] = useState(false);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     haptic('select');
     start.current?.focus({ preventScroll: true });
-    return onBack(closeWelcome, { history: false });
+    return onBack(skipTutorial, { history: false });
   }, []);
 
-  const finish = (then: Then) => (then === 'sample' ? void trySample(SAMPLE) : closeWelcome());
-  const next = (then: Then) => (stage ? finish(then) : setAsking(then));
+  const next = () => (stage ? startTour() : setAsking(true));
 
   async function save(s: Stage) {
     setSaving(true);
@@ -59,24 +65,24 @@ function Panel() {
     } finally {
       setSaving(false);
     }
-    if (asking) finish(asking);
+    startTour();
   }
 
   return (
     <motion.div
-      className="fixed inset-0 z-[55] flex items-end justify-center p-3 pb-[max(env(safe-area-inset-bottom),12px)] sm:items-center"
+      className="fixed inset-0 z-[55] flex items-center justify-center p-3 pt-[max(env(safe-area-inset-top),12px)] pb-[max(env(safe-area-inset-bottom),12px)]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <motion.button aria-label="とじる" tabIndex={-1} className="absolute inset-0 bg-black/45" onClick={closeWelcome} />
+      <motion.button aria-label="スキップ" tabIndex={-1} className="absolute inset-0 bg-black/45" onClick={skipTutorial} />
       <motion.section
         role="dialog"
         aria-modal
         aria-labelledby="welcome-title"
-        initial={{ y: 80, scale: 0.94, opacity: 0 }}
+        initial={{ y: 24, scale: 0.94, opacity: 0 }}
         animate={{ y: 0, scale: 1, opacity: 1 }}
-        exit={{ y: 60, scale: 0.96, opacity: 0 }}
+        exit={{ y: 16, scale: 0.96, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 340, damping: 28 }}
         className="relative max-h-[calc(100dvh-24px)] w-full max-w-[420px] overflow-y-auto rounded-[32px] bg-paper p-3 pb-4 text-ink shadow-[var(--shadow-float)] paper-grain"
       >
@@ -88,15 +94,29 @@ function Panel() {
                 saving={saving}
                 titleId="welcome-title"
                 onSave={(s) => void save(s)}
-                onSkip={() => finish(asking)}
-                saveLabel={asking === 'sample' ? 'これで ためしてみる' : 'これで はじめる'}
+                onSkip={startTour}
+                saveLabel="これで つぎへ"
               />
             </motion.div>
           ) : (
             <motion.div key="intro" exit={{ opacity: 0, x: -40 }} transition={spring}>
               <Photo />
               <div className="px-3">
-                <h2 id="welcome-title" className="mt-5 text-[24px] font-black leading-snug">
+                {/* The first page of the tutorial: the same dots and "スキップ" as the pages that light up each button. */}
+                <div className="mt-3 flex h-6 items-center justify-between">
+                  <ol aria-label={`${TOUR_PAGES}つ中 1つめ`} className="flex gap-1.5">
+                    {Array.from({ length: TOUR_PAGES }, (_, i) => (
+                      <li key={i} className={`h-1.5 rounded-full ${i === 0 ? 'w-5 bg-accent' : 'w-1.5 bg-ink/20'}`} />
+                    ))}
+                  </ol>
+                  <button
+                    onClick={skipTutorial}
+                    className="-mr-2 flex h-11 items-center rounded-full px-2 text-[13px] font-bold text-ink-3 hover:bg-ink/5 focus-visible:outline-2 focus-visible:outline-accent"
+                  >
+                    スキップ
+                  </button>
+                </div>
+                <h2 id="welcome-title" className="mt-2 text-[24px] font-black leading-snug">
                   撮るだけで、
                   <br />
                   モノシリになれる
@@ -117,31 +137,23 @@ function Panel() {
                     </li>
                   ))}
                 </ol>
-                <div className="mt-5 flex flex-col gap-2">
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => navigate({ to: '/privacy' })}
+                    className="-ml-1 flex h-11 items-center px-1 text-[12px] font-bold text-ink-3 underline decoration-ink/20 underline-offset-4"
+                  >
+                    プライバシーポリシー
+                  </button>
                   <motion.button
                     ref={start}
                     whileTap={{ scale: 0.97 }}
                     transition={spring}
-                    onClick={() => next('camera')}
-                    className="flex h-13 items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink shadow-[0_8px_22px_-8px_color-mix(in_oklab,var(--accent)_75%,transparent)] outline-offset-4 focus-visible:outline-2 focus-visible:outline-accent"
+                    onClick={next}
+                    className="flex h-11 items-center rounded-full bg-accent px-5 text-[15px] font-black text-accent-ink outline-offset-4 focus-visible:outline-2 focus-visible:outline-accent"
                   >
-                    <Icon name="photo_camera" size={22} fill />
-                    カメラではじめる
+                    つぎへ
                   </motion.button>
-                  <button
-                    onClick={() => next('sample')}
-                    className="flex h-12 items-center justify-center gap-2 rounded-full text-[15px] font-bold text-ink hover:bg-ink/5 focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    <Icon name="image" size={20} />
-                    この写真でためしてみる
-                  </button>
                 </div>
-                <button
-                  onClick={() => navigate({ to: '/privacy' })}
-                  className="mx-auto mt-1 flex h-11 items-center px-3 text-[12px] font-bold text-ink-3 underline decoration-ink/20 underline-offset-4"
-                >
-                  プライバシーポリシー
-                </button>
               </div>
             </motion.div>
           )}
