@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
 import { useNavigate, useParams } from '@tanstack/react-router';
@@ -10,6 +10,7 @@ import { clearReady, useIllustReady } from '../lib/illust';
 import { CardFace } from '../components/CardFace';
 import { EmptySlots } from '../components/LoadingCard';
 import { Button, Icon, IconButton } from '../components/ui';
+import { Phrases } from '../components/Phrases';
 import { CATEGORY_STYLE, spring } from '../components/theme';
 import { Logo } from '../components/Logo';
 import { api } from '../lib/api';
@@ -80,11 +81,22 @@ export function Zukan() {
   }, [ready]);
 
   const open = (id: string) => navigate({ to: '/zukan/$cardId', params: { cardId: id } });
+  // The filter bar sticks right under the header. Its height depends on the safe area, so it is measured: a guessed
+  // offset left a sliver between the two where cards showed through while scrolling. Both are opaque for the same reason.
+  const head = useRef<HTMLElement>(null);
+  const [headHeight, setHeadHeight] = useState(0);
+  useLayoutEffect(() => {
+    const el = head.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeadHeight(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <>
       <div className="fixed inset-0 overflow-y-auto overscroll-contain bg-paper paper-grain" id="zukan-scroll">
-        <header className="sticky top-0 z-20 bg-paper/85 backdrop-blur-xl">
+        <header ref={head} className="sticky top-0 z-20 bg-paper">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 pb-3 pt-[max(env(safe-area-inset-top),14px)] sm:px-6">
             <div className="flex items-center gap-2">
               <IconButton icon="arrow_back" label="カメラにもどる" onClick={toCamera} />
@@ -96,7 +108,8 @@ export function Zukan() {
         <main className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
           <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="pt-2">
             <h1 className="text-[clamp(28px,5vw,44px)] font-black leading-tight">モノシリ図鑑</h1>
-            <div className="mt-3 flex flex-wrap gap-3">
+            {/* On a phone the counts sit in an even 2 × 2 grid; wider screens keep them in one row. */}
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
               <Stat icon="style" label="あつめたカード" value={cards.length} />
               <Stat icon="explore" label="深掘りしたテーマ" value={notes} />
               <Stat icon="category" label="ジャンル" value={`${cats.length - 1}/${Object.keys(CATEGORY_STYLE).length}`} />
@@ -105,7 +118,7 @@ export function Zukan() {
           </motion.section>
 
           {(cards.length > 0 || UNITS.length > 0) && (
-            <div className="sticky top-[calc(max(env(safe-area-inset-top),14px)+60px)] z-10 -mx-4 mt-5 bg-paper/85 px-4 py-2 backdrop-blur-xl sm:-mx-6 sm:px-6">
+            <div className="sticky z-10 -mx-4 mt-5 bg-paper px-4 py-2 shadow-[0_10px_14px_-12px_rgb(0_0_0/0.45)] sm:-mx-6 sm:px-6" style={{ top: headHeight }}>
               <div className="flex items-center gap-2">
                 {UNITS.length > 0 && (
                   <div className="flex shrink-0 rounded-full bg-paper-2 p-1" role="tablist" aria-label="図鑑の見かた">
@@ -119,7 +132,7 @@ export function Zukan() {
                         transition={spring}
                         className="relative flex h-9 items-center gap-1 rounded-full px-3 text-[14px] font-bold"
                       >
-                        {mode === m && <motion.span layoutId="mode-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-card)]" transition={spring} />}
+                        {mode === m && <motion.span layoutId="mode-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-tab)]" transition={spring} />}
                         <span className={`relative flex items-center gap-1 ${mode === m ? 'text-ink' : 'text-ink-3'}`}>
                           <Icon name={icon} size={18} fill={mode === m} />
                           {label}
@@ -134,9 +147,9 @@ export function Zukan() {
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
-                      placeholder={mode === 'units' ? '単元やモノをさがす' : 'カードをさがす'}
+                      placeholder="さがす"
                       aria-label={mode === 'units' ? '単元やモノをさがす' : 'カードをさがす'}
-                      className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
+                      className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-ink-3"
                     />
                   </label>
                 )}
@@ -175,7 +188,9 @@ export function Zukan() {
               <EmptySlots />
               <div className="px-6 pb-8 text-center">
                 <p className="text-[20px] font-black">まだカードがありません</p>
-                <p className="mt-1 text-ink-2">身の回りのモノを撮って、最初の1枚を手に入れよう！</p>
+                <p className="phrase-wrap mt-1 text-ink-2">
+                  <Phrases text="身の回りのモノを撮って、最初の1枚を手に入れよう！" />
+                </p>
               </div>
             </div>
           ) : (

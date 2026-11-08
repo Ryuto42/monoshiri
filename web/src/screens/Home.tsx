@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { api, errorMessage, mediaUrl } from '../lib/api';
 import { saveCard, getCard, useCards } from '../lib/cards';
@@ -19,12 +19,13 @@ import { usePendingIllust } from '../lib/illust';
 import { ExploreContent } from './ExploreContent';
 import { TopicPanel } from './TopicPanel';
 import { Logo } from '../components/Logo';
-import { goBack, haptic, onBack } from '../lib/native';
+import { haptic, onBack } from '../lib/native';
 import { GlassChrome, nativeChrome, pickNativePhoto } from '../lib/glass';
 import { useMe } from '../lib/firebase';
 import { Avatar } from './account/parts';
-import { onSampleRequest, showWelcome, useWelcome, welcomeShowing } from '../lib/welcome';
+import { onSampleRequest, showWelcome, welcomeShowing } from '../lib/welcome';
 import { StageChip } from '../components/StageChip';
+import { LeaveConfirm } from '../components/LeaveConfirm';
 import { unlockAudio } from '../components/Speak';
 import { currentLevel } from '../lib/level';
 
@@ -46,8 +47,15 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const [flash, setFlash] = useState(false);
   const [dragging, setDragging] = useState(false);
   const live = flow.stage === 'camera';
-  const touring = useWelcome() === 'tour';
-  useEffect(() => (live ? undefined : onBack(resetFlow)), [live]);
+  // Closing a result that isn't a card yet asks first (the photo isn't kept, so it would be gone).
+  const [asking, setAsking] = useState(false);
+  const leave = useCallback(() => {
+    const f = getFlow();
+    if (f.stage === 'explore' && f.explore && !getCard(f.explore.id)) setAsking(true);
+    else resetFlow();
+  }, []);
+  useEffect(() => (live || asking ? undefined : onBack(leave)), [live, asking, leave]);
+  const stay = useCallback(() => setAsking(false), []);
   // Coming back from the zukan or account screen, restart the camera only after their slide-out:
   // starting a stream mid-animation drops frames, and the preview would be hidden until then anyway.
   const [cameraPaused, setCameraPaused] = useState(paused);
@@ -190,9 +198,9 @@ export function Home({ paused = false }: { paused?: boolean }) {
   });
   useEffect(() => onSampleRequest((src) => sampleRef.current(src)), []);
 
-  const handlers = useRef({ capture, pickPhoto, navigate });
+  const handlers = useRef({ capture, pickPhoto, navigate, leave });
   useEffect(() => {
-    handlers.current = { capture, pickPhoto, navigate };
+    handlers.current = { capture, pickPhoto, navigate, leave };
   });
   useEffect(() => {
     if (!nativeChrome) return;
@@ -202,14 +210,11 @@ export function Home({ paused = false }: { paused?: boolean }) {
       if (id === 'shutter') void h.capture();
       else if (id === 'gallery') void h.pickPhoto();
       else if (id === 'zukan') h.navigate({ to: '/zukan' });
-      else if (id === 'close') resetFlow();
+      else if (id === 'close') h.leave();
     });
     return () => void sub.then((x) => x.remove());
   }, []);
-  useEffect(() => {
-    if (nativeChrome) void GlassChrome.setCameraControls({ visible: live && !paused, count: cards.length });
-  }, [live, paused, cards.length]);
-  const showClose = !live && !paused && !topic && !making && !(expanded && !desktop);
+  const showClose = !live && !paused && !topic && !making && !asking && !(expanded && !desktop);
   useEffect(() => {
     if (nativeChrome) void GlassChrome.setCloseButton({ visible: showClose });
   }, [showClose]);
@@ -270,7 +275,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
             </motion.div>
           ) : (
             <motion.div key="back" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}>
-              {!nativeChrome && <IconButton icon="close" label="カメラにもどる" tone="glass" onClick={resetFlow} />}
+              {!nativeChrome && <IconButton icon="close" label="カメラにもどる" tone="glass" onClick={leave} />}
             </motion.div>
           )}
         </AnimatePresence>
@@ -299,19 +304,10 @@ export function Home({ paused = false }: { paused?: boolean }) {
             className="absolute inset-x-0 bottom-0 z-20 pb-[max(env(safe-area-inset-bottom),24px)]"
           >
             <p className="mb-5 text-center text-[15px] font-bold text-white/85 drop-shadow">気になるモノを撮ってみよう</p>
-            {/* The tour lights these buttons one by one, so it uses the web ones: native buttons would float above its dark layer. */}
-            {nativeChrome && !touring ? (
-              <div className="h-[98px]" aria-hidden />
-            ) : (
-            <div
-              className={
-                // On iOS the tour's web buttons take the native bar's exact place, so nothing jumps when the tour hands over.
-                nativeChrome
-                  ? 'mx-auto flex h-[98px] w-[min(320px,calc(100%-64px))] items-center justify-between pb-3'
-                  : 'mx-auto flex max-w-sm items-center justify-between px-8'
-              }
-            >
-              <IconButton data-tour="gallery" icon="photo_library" label="写真をえらぶ" tone="glass" size={56} onClick={() => file.current?.click()} />
+            {/* iOS uses these web buttons too (not native Liquid Glass ones), so the camera screen looks the same everywhere
+                and matches what the tour lights up. Picking a photo still opens the native photo picker on iOS. */}
+            <div className="mx-auto flex max-w-sm items-center justify-between px-8">
+              <IconButton data-tour="gallery" icon="photo_library" label="写真をえらぶ" tone="glass" size={56} onClick={() => void pickPhoto()} />
               <div data-tour="shutter">
                 <Shutter onClick={capture} />
               </div>
@@ -324,7 +320,6 @@ export function Home({ paused = false }: { paused?: boolean }) {
                 </div>
               )}
             </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -337,20 +332,12 @@ export function Home({ paused = false }: { paused?: boolean }) {
         )}
       </AnimatePresence>
 
-      {nativeChrome && live && !paused && (
-        <div
-          className="pointer-events-none absolute z-20 h-[58px] w-[58px]"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 26px)', right: 'calc(50% - min(160px, 50vw - 32px))' }}
-        >
-          <ReadyBubble placement="above" radius={29} tail={23} />
-        </div>
-      )}
-
       <input ref={file} type="file" accept="image/*" hidden onChange={(e) => fromFile(e.target.files?.[0])} />
 
       <div className="text-ink">
-        <Sheet open={!live} expanded={expanded} onExpandedChange={setExpanded} onDismiss={goBack} peek={peek}>
-          {(flow.stage === 'explore' || flow.stage === 'exploring') && (
+        <Sheet open={!live} expanded={expanded} onExpandedChange={setExpanded} peek={peek}>
+          {/* Not while it is still loading: changing the stage there would start the explanation over. */}
+          {flow.stage === 'explore' && (
             <div className="flex justify-end px-4 pb-1">
               <StageChip onChange={restage} />
             </div>
@@ -364,7 +351,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
             onTopic={(id) => setFlow({ topicId: id })}
             onMakeCard={() => setMaking(true)}
             onRetry={() => (flow.selected != null ? pick(flow.selected) : flow.shot ? analyze(flow.shot) : resetFlow())}
-            onReset={resetFlow}
+            onReset={leave}
           />
         </Sheet>
 
@@ -378,6 +365,23 @@ export function Home({ paused = false }: { paused?: boolean }) {
               note={flow.notes[topic.id]}
               onNote={onNote}
               onClose={() => setFlow({ topicId: null })}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {asking && flow.explore && (
+            <LeaveConfirm
+              name={flow.explore.name}
+              onStay={stay}
+              onMakeCard={() => {
+                setAsking(false);
+                setMaking(true);
+              }}
+              onLeave={() => {
+                setAsking(false);
+                resetFlow();
+              }}
             />
           )}
         </AnimatePresence>

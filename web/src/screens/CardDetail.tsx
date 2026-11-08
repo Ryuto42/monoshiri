@@ -6,8 +6,9 @@ import { getCard, removeCard, saveCard, useCards } from '../lib/cards';
 import { api } from '../lib/api';
 import type { Card, DeepNote, Explore, UnitLink } from '../lib/types';
 import { CardFace } from '../components/CardFace';
-import { SearchEntry } from '../components/SearchEntry';
+import { MoreSearch } from '../components/MoreSearch';
 import { Speak } from '../components/Speak';
+import { useFlip } from '../lib/flip';
 import { toast } from '../lib/toast';
 import { Button, Icon, IconButton } from '../components/ui';
 import { catStyle, spring, TOPIC_COLORS } from '../components/theme';
@@ -39,10 +40,13 @@ function landing(grid: HTMLElement) {
   return r;
 }
 
+const FLIP = { type: 'spring', stiffness: 140, damping: 18 } as const;
+
 export function CardDetail({ cardId }: { cardId: string }) {
   const cards = useCards();
   const card = cards.find((c) => c.id === cardId);
   const [flipped, setFlipped] = useState(false);
+  const flip = useFlip(flipped, FLIP);
   const [topicId, setTopicId] = useState<string | null>(null);
   const [explore, setExplore] = useState<Explore | null>(null);
   const backTo = useBackTo();
@@ -212,11 +216,11 @@ export function CardDetail({ cardId }: { cardId: string }) {
 
         <div className="w-[min(80vw,340px)] shrink-0 lg:sticky lg:top-16">
           <button ref={face} onClick={() => setFlipped((f) => !f)} className="block w-full origin-top-left [perspective:1400px]" aria-label="カードをうらがえす">
-            <motion.div className="relative [transform-style:preserve-3d]" animate={{ rotateY: flipped ? 180 : 0 }} transition={{ type: 'spring', stiffness: 140, damping: 18 }}>
-              <div className="[backface-visibility:hidden]">
+            <motion.div className="relative [transform-style:preserve-3d]" style={{ rotateY: flip.rotateY }}>
+              <motion.div className="[backface-visibility:hidden]" style={{ opacity: flip.front }}>
                 <CardFace card={card} no={no} size="lg" />
-              </div>
-              <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+              </motion.div>
+              <motion.div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={{ opacity: flip.back }}>
                 <div className="flex h-full flex-col rounded-[22px] bg-[#fffdf8] p-5 text-left text-[#2a2017] shadow-[var(--shadow-float)]">
                   <span className="text-[12px] font-black" style={{ color: c.ink }}>No.{String(no).padStart(3, '0')} ・ {card.category}</span>
                   <span className="text-[22px] font-black">{card.name}</span>
@@ -225,7 +229,7 @@ export function CardDetail({ cardId }: { cardId: string }) {
                     知ってた？ <RubyText text={card.funFact} />
                   </span>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
           </button>
           <p ref={(e) => void (fades.current[1] = e)} className="mt-3 text-center text-[13px] font-bold text-white/70">タップでうらがえす</p>
@@ -238,7 +242,10 @@ export function CardDetail({ cardId }: { cardId: string }) {
           className="w-full flex-1 rounded-[32px] bg-paper p-6 text-ink shadow-[var(--shadow-float)]"
         >
           <div ref={intro}>
-            <p className="text-[12px] font-bold tracking-wider text-ink-3">{card.reading}・{card.en}</p>
+            <div className="flex items-center gap-3">
+              <p className="min-w-0 flex-1 text-[12px] font-bold tracking-wider text-ink-3">{card.reading}・{card.en}</p>
+              <Speak target={intro} text={`知ってた？${stripRuby(card.funFact)}`} ttsRef={{ name: card.name }} compact />
+            </div>
             <h2 data-speak className="text-[30px] font-black leading-tight">{card.name}</h2>
             {card.firstFind && (
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklab,var(--sun)_30%,var(--paper))] py-1 pl-1.5 pr-3 text-[13px] font-black">
@@ -257,21 +264,6 @@ export function CardDetail({ cardId }: { cardId: string }) {
               <p className="text-[12px] font-black text-[#9a6b06]">知ってた？</p>
               <p className="text-[15px] font-bold leading-relaxed"><RubyText text={card.funFact} /></p>
             </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Speak target={intro} text={`知ってた？${stripRuby(card.funFact)}`} ttsRef={{ name: card.name }} />
-            <Button
-              tone="ghost"
-              icon="delete"
-              onClick={async () => {
-                if (!confirm(`「${card.name}」のカードを図鑑から外しますか？`)) return;
-                close();
-                await removeCard(card.id);
-                toast('カードを外しました', 'delete');
-              }}
-            >
-              外す
-            </Button>
           </div>
 
           <CardUnits links={links} ids={card.units} stage={stage} />
@@ -307,7 +299,23 @@ export function CardDetail({ cardId }: { cardId: string }) {
               </span>
             </a>
           )}
-          <SearchEntry html={explore?.entryPoint} />
+          <MoreSearch name={card.name} entry={explore?.entryPoint} />
+          {/* Rarely needed and can't be undone, so it is last and quiet. */}
+          <div className="mt-10 flex justify-center">
+            <Button
+              tone="subtle"
+              size="sm"
+              icon="delete"
+              onClick={async () => {
+                if (!confirm(`「${card.name}」のカードを図鑑から外しますか？`)) return;
+                close();
+                await removeCard(card.id);
+                toast('カードを外しました', 'delete');
+              }}
+            >
+              図鑑から外す
+            </Button>
+          </div>
         </motion.section>
       </motion.div>
       {createPortal(
