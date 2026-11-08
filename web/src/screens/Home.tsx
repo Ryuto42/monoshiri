@@ -23,7 +23,7 @@ import { goBack, haptic, onBack } from '../lib/native';
 import { GlassChrome, nativeChrome, pickNativePhoto } from '../lib/glass';
 import { useMe } from '../lib/firebase';
 import { Avatar } from './account/parts';
-import { onSampleRequest, showWelcome } from '../lib/welcome';
+import { onSampleRequest, showWelcome, useWelcome, welcomeShowing } from '../lib/welcome';
 import { StageChip } from '../components/StageChip';
 import { MissionBadge } from '../components/Mission';
 import { unlockAudio } from '../components/Speak';
@@ -47,6 +47,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const [flash, setFlash] = useState(false);
   const [dragging, setDragging] = useState(false);
   const live = flow.stage === 'camera';
+  const touring = useWelcome() === 'tour';
   useEffect(() => (live ? undefined : onBack(resetFlow)), [live]);
   // Coming back from the zukan or account screen, restart the camera only after their slide-out:
   // starting a stream mid-animation drops frames, and the preview would be hidden until then anyway.
@@ -197,6 +198,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
   useEffect(() => {
     if (!nativeChrome) return;
     const sub = GlassChrome.addListener('tap', ({ id }) => {
+      if (welcomeShowing()) return;
       const h = handlers.current;
       if (id === 'shutter') void h.capture();
       else if (id === 'gallery') void h.pickPhoto();
@@ -279,12 +281,14 @@ export function Home({ paused = false }: { paused?: boolean }) {
         </AnimatePresence>
         {(live || desktop) && (
           <motion.div key="right" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2.5">
-            <div className="relative hidden lg:block">
+            <div data-tour="zukan" className="relative hidden lg:block">
               <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
               {!paused && <ReadyBubble placement="below" radius={999} tail={60} />}
             </div>
-            {live && <IconButton icon="help" label="使い方" tone="glass" size={44} onClick={showWelcome} />}
-            <AccountButton hasCards={cards.length > 0} onClick={() => navigate({ to: '/account' })} />
+            {live && <IconButton data-tour="help" icon="help" label="使い方" tone="glass" size={44} onClick={showWelcome} />}
+            <div data-tour="account">
+              <AccountButton hasCards={cards.length > 0} onClick={() => navigate({ to: '/account' })} />
+            </div>
           </motion.div>
         )}
       </header>
@@ -300,16 +304,26 @@ export function Home({ paused = false }: { paused?: boolean }) {
             className="absolute inset-x-0 bottom-0 z-20 pb-[max(env(safe-area-inset-bottom),24px)]"
           >
             <p className="mb-5 text-center text-[15px] font-bold text-white/85 drop-shadow">気になるモノを撮ってみよう</p>
-            {nativeChrome ? (
+            {/* The tour lights these buttons one by one, so it uses the web ones: native buttons would float above its dark layer. */}
+            {nativeChrome && !touring ? (
               <div className="h-[98px]" aria-hidden />
             ) : (
-            <div className="mx-auto flex max-w-sm items-center justify-between px-8">
-              <IconButton icon="photo_library" label="写真をえらぶ" tone="glass" size={56} onClick={() => file.current?.click()} />
-              <Shutter onClick={capture} />
+            <div
+              className={
+                // On iOS the tour's web buttons take the native bar's exact place, so nothing jumps when the tour hands over.
+                nativeChrome
+                  ? 'mx-auto flex h-[98px] w-[min(320px,calc(100%-64px))] items-center justify-between pb-3'
+                  : 'mx-auto flex max-w-sm items-center justify-between px-8'
+              }
+            >
+              <IconButton data-tour="gallery" icon="photo_library" label="写真をえらぶ" tone="glass" size={56} onClick={() => file.current?.click()} />
+              <div data-tour="shutter">
+                <Shutter onClick={capture} />
+              </div>
               {desktop ? (
                 <IconButton icon="content_paste" label="画像を貼り付け（Ctrl+V）" tone="glass" size={56} onClick={() => toast('画像をコピーして Ctrl+V（⌘+V）で貼り付けできます', 'content_paste')} />
               ) : (
-                <div className="relative">
+                <div data-tour="zukan" className="relative">
                   <MiniZukan ref={zukanBtn} cards={cards} onClick={() => navigate({ to: '/zukan' })} />
                   {!paused && <ReadyBubble placement="above" radius={10} tail={19} />}
                 </div>
