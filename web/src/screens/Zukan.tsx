@@ -140,14 +140,14 @@ export function Zukan() {
                   </div>
                 )}
                 {(mode === 'units' ? !unitId && have.size > 0 : cards.length > 0) && (
-                  <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-paper-2 px-4 sm:max-w-xs">
+                  <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-paper-2 px-4 focus-within:ring-2 focus-within:ring-accent/60 sm:max-w-xs">
                     <Icon name="search" size={20} className="text-ink-3" />
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
                       placeholder="さがす"
                       aria-label={mode === 'units' ? '単元やモノをさがす' : 'カードをさがす'}
-                      className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-ink-3"
+                      className="min-w-0 flex-1 bg-transparent text-[16px] outline-none focus-visible:outline-none placeholder:text-ink-3"
                     />
                   </label>
                 )}
