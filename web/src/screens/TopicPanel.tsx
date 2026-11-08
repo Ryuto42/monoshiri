@@ -30,7 +30,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
   const [meta, setMeta] = useState<DeepMeta | null>(note ? { sources: note.sources, queries: [], entryPoint: null } : null);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('photos');
-  const [media, setMedia] = useState<{ images: CommonsImage[]; videos: Video[] } | null>(null);
+  const [media, setMedia] = useState<{ images: CommonsImage[]; videos: Video[]; query?: string } | null>(null);
   const [diagram, setDiagram] = useState<string | null>(note?.diagram ?? null);
   const [video, setVideo] = useState<string | null>(note?.video ?? null);
   const color = TOPIC_COLORS[index % TOPIC_COLORS.length];
@@ -162,7 +162,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
               <AnimatePresence mode="wait">
                 <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }} className="mt-4">
                   {tab === 'photos' && <Photos items={media?.images} />}
-                  {tab === 'videos' && <Videos items={media?.videos} query={stripRuby(`${ex.name} ${topic.title}`)} />}
+                  {tab === 'videos' && <Videos items={media?.videos} query={media?.query ?? stripRuby(ex.name)} />}
                   {tab === 'diagram' && (
                     <Diagram
                       url={diagram}
