@@ -188,7 +188,7 @@ export function Speak({ target, text, compact, ttsRef, autoStart }: {
       whileTap={{ scale: 0.94 }}
       transition={spring}
       aria-label={busy ? '読み上げを止める' : '読み上げる'}
-      className={`inline-flex h-12 items-center gap-2 rounded-full bg-paper px-4 font-bold shadow-[var(--shadow-card)] hover:bg-paper-2 ${compact ? 'w-12 justify-center px-0' : ''}`}
+      className={`inline-flex items-center gap-2 rounded-full bg-paper px-4 font-bold shadow-[var(--shadow-card)] hover:bg-paper-2 ${compact ? 'h-11 w-11 justify-center px-0' : 'h-12'}`}
     >
       {state === 'playing' ? (
         <span className="flex h-5 items-end gap-[3px]">

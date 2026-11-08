@@ -3,8 +3,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useDesktop } from '../lib/useDesktop';
 import { useSwipeDismiss } from '../lib/useSwipeDismiss';
 
-export function Sheet({ open, expanded, onExpandedChange, onDismiss, peek = 300, children }: {
-  open: boolean; expanded: boolean; onExpandedChange: (v: boolean) => void; onDismiss: () => void; peek?: number; children: ReactNode;
+// Pulling the sheet down only lowers it to the peek; it never closes it. What it shows (a photo and its result) is
+// gone once closed, so closing is left to the explicit close button, which can ask first.
+export function Sheet({ open, expanded, onExpandedChange, peek = 300, children }: {
+  open: boolean; expanded: boolean; onExpandedChange: (v: boolean) => void; peek?: number; children: ReactNode;
 }) {
   const desktop = useDesktop();
   const [vh, setVh] = useState(() => window.innerHeight);
@@ -18,7 +20,8 @@ export function Sheet({ open, expanded, onExpandedChange, onDismiss, peek = 300,
   const target = !open ? height + 40 : expanded ? 0 : height - Math.min(peek, height * 0.6);
   const y = useMotionValue(height + 40);
   const scroller = useRef<HTMLDivElement>(null);
-  useSwipeDismiss({ y, areas: [scroller], base: () => target, onDismiss, enabled: open && !desktop });
+  const settle = () => (expanded ? onExpandedChange(false) : void animate(y, target, { type: 'spring', stiffness: 420, damping: 38 }));
+  useSwipeDismiss({ y, areas: [scroller], base: () => target, onDismiss: settle, enabled: open && !desktop });
 
   // While only the peek shows, the content may still fit the full sheet, so it never scrolls and the rest stays hidden
   // below the screen. Pulling the content up (or scrolling the wheel down) opens the sheet all the way instead.
@@ -70,7 +73,7 @@ export function Sheet({ open, expanded, onExpandedChange, onDismiss, peek = 300,
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (info.velocity.y < -300 || info.offset.y < -60) onExpandedChange(true);
-    else if (info.velocity.y > 300 || info.offset.y > Math.min(150, vh * 0.2)) onDismiss();
+    else if (expanded && (info.velocity.y > 300 || info.offset.y > Math.min(150, vh * 0.2))) onExpandedChange(false);
     else animate(y, target, { type: 'spring', stiffness: 320, damping: 34 });
   };
 
