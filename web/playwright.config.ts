@@ -18,7 +18,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 420, height: 860 } } }],
+  // CI uses the Google Chrome that GitHub's Ubuntu image already has, so no browser download is needed there.
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], ...(process.env.CI && { channel: 'chrome' }), viewport: { width: 420, height: 860 } } }],
   webServer: {
     command: `npx vite --host localhost --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,

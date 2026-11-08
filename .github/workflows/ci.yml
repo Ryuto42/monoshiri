@@ -67,9 +67,8 @@ jobs:
       - run: npm run test:rules
 
   e2e:
-    # Playwright 1.60 ships browsers and system packages for Ubuntu up to 24.04 only.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    runs-on: ubuntu-26.04
+    timeout-minutes: 8
     defaults:
       run:
         working-directory: web
@@ -85,7 +84,8 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # Playwright drives the preinstalled Google Chrome (channel: 'chrome'); its own Chromium doesn't support this Ubuntu yet.
+      - run: google-chrome --version
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
