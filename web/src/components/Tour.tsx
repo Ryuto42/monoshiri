@@ -4,6 +4,7 @@ import { closeWelcome, setHelpHint, showWelcome, skipTutorial, useHelpHint, type
 import { STEPS, TOUR_PAGES } from '../lib/tour';
 import { haptic, onBack } from '../lib/native';
 import { Button } from './ui';
+import { Phrases } from './Phrases';
 import { spring } from './theme';
 
 // The lit area: the button's box plus a margin, drawn as a pill (a circle for round buttons).
@@ -131,7 +132,7 @@ export function Tour() {
               transition={{ duration: 0.18 }}
             >
               <h2 id="tour-title" className="mt-2 text-[20px] font-black leading-snug">{s.title}</h2>
-              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{s.body}</p>
+              <p className="phrase-wrap mt-2 text-[14px] leading-relaxed text-ink-2"><Phrases text={s.body} /></p>
             </motion.div>
           </AnimatePresence>
           <div className="mt-3 flex items-center justify-between gap-2">
@@ -183,7 +184,7 @@ export function HelpHint() {
           transition={{ type: 'spring', stiffness: 420, damping: 26 }}
         >
           <span aria-hidden className="absolute -top-1.5 h-3.5 w-3.5 rotate-45 bg-accent" style={{ right: tail - 7 }} />
-          <span className="relative">使い方は、ここからいつでも見られます</span>
+          <span className="phrase-wrap relative"><Phrases text="使い方は、ここからいつでも見られます" /></span>
         </motion.button>
       )}
     </AnimatePresence>

@@ -7,6 +7,7 @@ import { haptic } from '../../lib/native';
 import { toast } from '../../lib/toast';
 import type { Card } from '../../lib/types';
 import { Icon } from '../../components/ui';
+import { Phrases } from '../../components/Phrases';
 import { catStyle, spring } from '../../components/theme';
 import { EmailForm, ResetForm } from './EmailForm';
 import { GoogleMark, PrivacyLink, Spinner } from './parts';
@@ -42,11 +43,17 @@ export function GuestView() {
         {mode === 'reset' ? 'パスワードの再設定' : cards.length ? <>あつめた図鑑を<br />どの端末でも</> : 'ログイン'}
       </h2>
       {mode !== 'reset' && (
-        <p className="mt-2 text-center text-[14px] leading-relaxed text-ink-2">
-          {cards.length
-            ? `いまの ${cards.length} 枚はそのまま引きつがれます。スマホでもパソコンでも、ログインすれば同じ図鑑が開けます。`
-            : 'ログインすると、スマホでもパソコンでも同じ図鑑が開けます。'}
-          <span className="mt-1 block text-[12px] text-ink-3">ゲストは新しく調べられる数に限りがあります。登録すると、もっとたくさん調べられます。</span>
+        <p className="phrase-wrap mt-2 text-center text-[14px] leading-relaxed text-ink-2">
+          <Phrases
+            text={
+              cards.length
+                ? `いまの ${cards.length} 枚はそのまま引きつがれます。スマホでもパソコンでも、ログインすれば同じ図鑑が開けます。`
+                : 'ログインすると、スマホでもパソコンでも同じ図鑑が開けます。'
+            }
+          />
+          <span className="mt-1 block text-[12px] text-ink-3">
+            <Phrases text="ゲストは新しく調べられる数に限りがあります。登録すると、もっとたくさん調べられます。" />
+          </span>
         </p>
       )}
 

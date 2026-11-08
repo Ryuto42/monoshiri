@@ -47,7 +47,7 @@ function Panel() {
         aria-modal
         aria-labelledby="onboard-title"
         {...dialogMotion}
-        className={`${ui.dialog} max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain px-6 pt-4 pb-4 no-scrollbar`}
+        className={`${ui.dialog} phrase-wrap max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain px-6 pt-4 pb-4 no-scrollbar`}
       >
         <Dots at={step === 'age' ? 0 : 1} />
         <AnimatePresence mode="wait" initial={false}>

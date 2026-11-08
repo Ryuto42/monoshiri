@@ -28,6 +28,7 @@
     "@capgo/capacitor-social-login": "^8.7.7",
     "@fontsource/zen-maru-gothic": "^5.3.1",
     "@tanstack/react-router": "^1.170.46",
+    "budoux": "^0.10.3",
     "dexie": "^4.4.7",
     "dompurify": "^3.4.17",
     "firebase": "^13.2.0",
