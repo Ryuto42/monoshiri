@@ -2,7 +2,8 @@ import { useSyncExternalStore } from 'react';
 
 // First-run welcome. "pending" holds the camera back until we know whether this person is new,
 // so the camera permission prompt never appears on top of (or before) the welcome.
-type State = 'pending' | 'open' | 'closed';
+// "tour" walks through the camera screen's buttons; the camera (and its permission prompt) waits until it ends.
+type State = 'pending' | 'open' | 'tour' | 'closed';
 
 const KEY = 'monoshiri.welcome';
 
@@ -43,6 +44,37 @@ export function showWelcome() {
 
 export function closeWelcome() {
   set('closed');
+}
+
+export function startTour() {
+  set('tour');
+}
+
+/** True while the welcome or its tour is showing (read outside React, e.g. in native tap handlers). */
+export const welcomeShowing = () => state === 'open' || state === 'tour';
+
+export type TourTarget = 'gallery' | 'zukan' | 'shutter' | 'account' | 'help';
+
+// After skipping the tour, a small bubble under "?" points out where it can be opened again.
+let helpHint = false;
+export function setHelpHint(v: boolean) {
+  helpHint = v;
+  listeners.forEach((l) => l());
+}
+// Skipping misses the step that points at "?", so point at it once on the way out.
+export function skipTutorial() {
+  closeWelcome();
+  setHelpHint(true);
+}
+
+export function useHelpHint() {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => helpHint,
+  );
 }
 
 export function useWelcome() {
