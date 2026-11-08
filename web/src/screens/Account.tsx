@@ -269,7 +269,7 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
       </Field>
 
       {/* 登録とログインで同じ高さの枠を使い、切り替えてもシートの高さが変わらないようにする */}
-      <div data-kb-bottom className="mt-2.5 flex min-h-[30px] items-center">
+      <div className="mt-2.5 flex min-h-[30px] items-center">
         {signup ? (
           <Strength pw={pw} email={email.trim()} />
         ) : (
@@ -298,6 +298,7 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
       </AnimatePresence>
 
       <motion.button
+        data-kb-bottom
         type="submit"
         disabled={disabled}
         whileTap={{ scale: 0.97 }}
@@ -368,7 +369,7 @@ function ResetForm({ onBack }: { onBack: () => void }) {
             <input type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-ink-3" />
           </Field>
           {error && <p role="alert" className="mt-3 text-[13px] font-bold text-[#c2410c]">{error}</p>}
-          <button type="submit" disabled={state === 'busy'} className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-ink text-[15px] font-black text-paper disabled:opacity-60">
+          <button data-kb-bottom type="submit" disabled={state === 'busy'} className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-ink text-[15px] font-black text-paper disabled:opacity-60">
             {state === 'busy' ? <Spinner light /> : <Icon name="send" size={20} />}
             再設定のメールを送る
           </button>

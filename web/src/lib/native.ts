@@ -123,78 +123,77 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
   Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
 
   // The web view does not resize for the keyboard (Keyboard.resize = 'none'). A sheet that opts in
-  // (data-kb-lift wrapper, data-kb-sheet, data-kb-scroll, data-kb-bottom) keeps its form visible down to
-  // [data-kb-bottom] above the keyboard: the sheet slides up (--kb-lift, a transform) until its top would reach
-  // the status bar, and the rest is made up by scrolling its content (with --kb-pad as room to scroll).
-  // Nothing changes size, so there is no layout work while it moves. Both motions share one duration and curve.
-  // Moving focus between fields can fire hide→show back to back; the short delay on hide keeps the sheet still.
+  // (data-kb-lift wrapper, data-kb-sheet, data-kb-scroll, data-kb-bottom) is moved once when the keyboard opens so
+  // the whole form, down to [data-kb-bottom] (the submit button), sits above it: the sheet slides up (--kb-lift, a
+  // transform) until its top would reach the status bar, and the rest is made up by scrolling its content (--kb-pad
+  // gives room to scroll). While the keyboard stays up, moving between fields changes nothing, so the user can type
+  // email → password → submit without anything jumping. Nothing changes size, so there is no layout work while it
+  // moves, and both motions share one duration and curve.
   const KB_MS = 300; // keep in sync with duration-300 on [data-kb-lift] in Account.tsx
   const ease = (t: number) => 1 - (1 - t) ** 3; // = cubic-bezier(0.33,1,0.68,1)
   const probe = document.createElement('div');
   probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top)';
   document.body.append(probe);
   const safeTop = () => parseFloat(getComputedStyle(probe).paddingTop) || 0;
-  let kb = 0;
-  let lift = 0;
-  let extra = 0; // how far we scrolled the content ourselves
-  let hideTimer: ReturnType<typeof setTimeout> | undefined;
-  let padTimer: ReturnType<typeof setTimeout> | undefined;
+  type Session = { wrap: HTMLElement; sheet: HTMLElement; sc: HTMLElement; base: number; kb: number };
+  let session: Session | null = null;
   let anim = 0;
-  const scrollBy = (sc: HTMLElement, delta: number) => {
+  let padTimer: ReturnType<typeof setTimeout> | undefined;
+  const scrollTo = (sc: HTMLElement, to: number) => {
     cancelAnimationFrame(anim);
-    if (Math.abs(delta) < 1) return;
     const from = sc.scrollTop;
+    if (Math.abs(to - from) < 1) return;
     const t0 = performance.now();
     const step = (now: number) => {
       const t = Math.min(1, (now - t0) / KB_MS);
-      sc.scrollTop = from + delta * ease(t);
+      sc.scrollTop = from + (to - from) * ease(t);
       if (t < 1) anim = requestAnimationFrame(step);
     };
     anim = requestAnimationFrame(step);
   };
-  const apply = () => {
+  // The lift actually on screen right now (it may be mid-transition).
+  const liftNow = (wrap: HTMLElement) => -new DOMMatrixReadOnly(getComputedStyle(wrap).transform).m42 || 0;
+  const open = (kb: number) => {
     const el = document.activeElement;
     const wrap = el instanceof HTMLElement ? el.closest<HTMLElement>('[data-kb-lift]') : null;
     const sheet = wrap?.querySelector<HTMLElement>('[data-kb-sheet]');
     const sc = wrap?.querySelector<HTMLElement>('[data-kb-scroll]');
-    const sc0 = document.querySelector<HTMLElement>('[data-kb-scroll]');
-    if (!kb || !el || !wrap || !sheet || !sc) {
-      // Back to where things were.
-      root.style.setProperty('--kb-lift', '0px');
-      if (sc0 && extra) scrollBy(sc0, -extra);
-      extra = 0;
-      lift = 0;
-      clearTimeout(padTimer);
-      padTimer = setTimeout(() => root.style.setProperty('--kb-pad', '0px'), KB_MS + 50);
-      return;
-    }
+    if (!el || !wrap || !sheet || !sc) return;
+    // Already in place. A slightly shorter keyboard (e.g. without the passwords bar) does not move anything either.
+    if (session && session.wrap === wrap && kb <= session.kb + 1) return;
     clearTimeout(padTimer);
+    cancelAnimationFrame(anim);
+    const base = session?.wrap === wrap ? session.base : sc.scrollTop;
+    session = { wrap, sheet, sc, base, kb };
     root.style.setProperty('--kb-pad', `${kb}px`);
+    // Positions with no lift and no scrolling of ours, measured from what is on screen now.
+    const lifted = liftNow(wrap);
+    const scrolled = sc.scrollTop - base;
     const end = wrap.querySelector('[data-kb-bottom]') ?? el.closest('label') ?? el;
-    // Positions as they would be with no lift and no scrolling of ours.
-    const bottom = end.getBoundingClientRect().bottom + lift + extra;
-    const sheetTop = sheet.getBoundingClientRect().top + lift;
-    const need = Math.max(0, Math.round(bottom + 24 - (window.innerHeight - kb)));
-    const nextLift = Math.min(need, Math.max(0, Math.floor(sheetTop - safeTop() - 8)));
-    const nextExtra = need - nextLift;
-    if (Math.abs(nextLift - lift) >= 2) root.style.setProperty('--kb-lift', `${nextLift}px`);
-    scrollBy(sc, nextExtra - extra);
-    lift = nextLift;
-    extra = nextExtra;
+    const bottom = end.getBoundingClientRect().bottom + lifted + scrolled;
+    const sheetTop = sheet.getBoundingClientRect().top + lifted;
+    const need = Math.max(0, Math.round(bottom + 20 - (window.innerHeight - kb)));
+    const lift = Math.min(need, Math.max(0, Math.floor(sheetTop - safeTop() - 8)));
+    root.style.setProperty('--kb-lift', `${lift}px`);
+    scrollTo(sc, base + need - lift);
   };
-  Keyboard.addListener('keyboardWillShow', (info) => {
-    clearTimeout(hideTimer);
-    kb = Math.round(info.keyboardHeight);
-    apply();
-  });
-  Keyboard.addListener('keyboardWillHide', () => {
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-      kb = 0;
-      apply();
-    }, 40);
-  });
-  document.addEventListener('focusin', () => kb && apply());
+  const close = () => {
+    if (!session) return;
+    const { sc, base } = session;
+    session = null;
+    root.style.setProperty('--kb-lift', '0px');
+    scrollTo(sc, base);
+    clearTimeout(padTimer);
+    padTimer = setTimeout(() => root.style.setProperty('--kb-pad', '0px'), KB_MS + 50);
+  };
+  const typing = () => {
+    const el = document.activeElement;
+    return el instanceof HTMLInputElement && !!session && session.wrap.contains(el);
+  };
+  Keyboard.addListener('keyboardWillShow', (info) => open(Math.round(info.keyboardHeight)));
+  // Moving between fields can report hide→show; while a field in the sheet still has focus, stay put.
+  Keyboard.addListener('keyboardWillHide', () => !typing() && close());
+  Keyboard.addListener('keyboardDidHide', () => !typing() && close());
 
   const status = await Network.getStatus();
   onOffline(!status.connected);
