@@ -1,6 +1,6 @@
 // The look of Monoshiri's emails, shared by every template: the app's paper background, a rounded card and the orange
 // pill button. Email clients ignore stylesheets and web fonts, so everything is tables with inline styles.
-// %LINK%, %EMAIL% and %NEW_EMAIL% are filled in by Firebase Authentication when it sends the message.
+// The API server fills in the link and the address and sends the message itself (Firebase's own templates can't be edited).
 
 const C = {
   paper: '#fbf6ec',
@@ -15,30 +15,37 @@ const C = {
   accentSoft: '#fde3d6',
 };
 const FONT = `'Hiragino Maru Gothic ProN','Hiragino Sans','Zen Maru Gothic','Meiryo',sans-serif`;
-const SITE = 'https://monoshiri.web.app';
+import { APP_URL as SITE } from '../config.ts';
 
-/**
- * @param {{ preheader: string, badge: string, badgeTone?: 'leaf' | 'accent', title: string, lead: string,
- *   button?: string, after?: string, tip?: { title: string, body: string }, ignore: string }} m
- */
-export function layout(m) {
+export type MailParts = {
+  link: string;
+  preheader: string;
+  badge: string;
+  badgeTone?: 'leaf' | 'accent';
+  title: string;
+  lead: string;
+  button: string;
+  tip?: { title: string; body: string };
+  ignore: string;
+};
+
+export const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+export function layout(m: MailParts) {
+  const link = escapeHtml(m.link);
   const badgeBg = m.badgeTone === 'accent' ? C.accentSoft : C.leafSoft;
-  const button = m.button
-    ? `<tr><td align="center" style="padding:28px 0 8px;">
+  const button = `<tr><td align="center" style="padding:28px 0 8px;">
         <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
           <td align="center" bgcolor="${C.accent}" style="border-radius:999px;background:${C.accent};">
-            <a href="%LINK%" target="_blank" style="display:inline-block;padding:16px 36px;border-radius:999px;font-family:${FONT};font-size:17px;font-weight:800;line-height:1;color:#ffffff;text-decoration:none;letter-spacing:0.04em;">${m.button}</a>
+            <a href="${link}" target="_blank" style="display:inline-block;padding:16px 36px;border-radius:999px;font-family:${FONT};font-size:17px;font-weight:800;line-height:1;color:#ffffff;text-decoration:none;letter-spacing:0.04em;">${m.button}</a>
           </td>
         </tr></table>
       </td></tr>
       <tr><td align="center" style="padding:14px 4px 0;font-family:${FONT};font-size:12px;line-height:1.7;color:${C.ink3};">
         ボタンがおせないときは、このリンクをひらいてください<br>
-        <a href="%LINK%" target="_blank" style="color:${C.ink3};word-break:break-all;">%LINK%</a>
-      </td></tr>`
-    : '';
-  const after = m.after
-    ? `<tr><td style="padding:22px 0 0;font-family:${FONT};font-size:14px;line-height:1.8;color:${C.ink2};text-align:center;">${m.after}</td></tr>`
-    : '';
+        <a href="${link}" target="_blank" style="color:${C.ink3};word-break:break-all;">${link}</a>
+      </td></tr>`;
   const tip = m.tip
     ? `<tr><td style="padding:26px 0 0;">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
@@ -80,14 +87,13 @@ export function layout(m) {
         <tr><td align="center" style="padding:18px 0 0;font-family:${FONT};font-size:22px;font-weight:900;line-height:1.5;color:${C.ink};">${m.title}</td></tr>
         <tr><td align="center" style="padding:10px 0 0;font-family:${FONT};font-size:15px;line-height:1.85;color:${C.ink2};">${m.lead}</td></tr>
         ${button}
-        ${after}
         ${tip}
       </table>
     </td></tr>
     <tr><td align="center" style="padding:22px 12px 0;font-family:${FONT};font-size:12px;line-height:1.8;color:${C.ink3};">
       ${m.ignore}<br>
       このメールは送信専用です。<br>
-      <a href="${SITE}" target="_blank" style="color:${C.ink3};">monoshiri.web.app</a> ・ 撮るだけで、身の回りが教科書になる。
+      <a href="${SITE}" target="_blank" style="color:${C.ink3};">${SITE.replace(/^https?:\/\//, '')}</a> ・ 撮るだけで、身の回りが教科書になる。
     </td></tr>
   </table>
 </td></tr>
