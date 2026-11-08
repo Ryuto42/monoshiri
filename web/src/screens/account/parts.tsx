@@ -53,12 +53,14 @@ export function GoogleMark({ size = 20 }: { size?: number }) {
 }
 
 // Opens the policy on top of the account sheet (not as a route), so a half-filled form stays as it was.
-export function PrivacyLink({ className = '', children = 'プライバシーポリシー' }: { className?: string; children?: ReactNode }) {
+// Only the words are underlined: a trailing icon stays clear of the line, so it never looks broken at the gap.
+export function PrivacyLink({ className = '', children = 'プライバシーポリシー', icon }: { className?: string; children?: ReactNode; icon?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={`font-bold underline decoration-current/30 underline-offset-4 ${className}`}>
-        {children}
+      <button type="button" onClick={() => setOpen(true)} className={`font-bold ${className}`}>
+        <span className="underline decoration-current/30 underline-offset-4">{children}</span>
+        {icon && <Icon name={icon} size={18} />}
       </button>
       {createPortal(<AnimatePresence>{open && <PrivacySheet key="privacy" onClose={() => setOpen(false)} />}</AnimatePresence>, document.body)}
     </>
