@@ -23,6 +23,8 @@
 | @google-cloud/billing / functions-framework | 予算キルスイッチ | Apache-2.0 |
 | Capacitor 8（core / ios / android / cli） | iOS・Android アプリ化 | MIT |
 | @capacitor/app, haptics, status-bar, splash-screen, browser, keyboard, network | ネイティブ機能 | MIT |
+| @capgo/capacitor-social-login | ネイティブの Google ログイン | MPL-2.0 |
+| @playwright/test | E2E テスト（開発時のみ） | Apache-2.0 |
 | @fontsource/zen-maru-gothic | フォント同梱 | MIT（フォント本体は OFL 1.1） |
 
 ## フォント・アイコン
@@ -38,6 +40,8 @@
 | 名前 | 使い方 | 条件 |
 |---|---|---|
 | Google 検索（Grounding with Google Search） | 解説の裏付け。検索候補チップは規約どおり無加工で表示 | Vertex AI 利用規約 |
+| 学習指導要領（文部科学省。小学校・中学校は平成29年告示、高等学校は平成30年告示） | 単元一覧（`curriculum.json`）の単元名と構成の出典。https://www.mext.go.jp/a_menu/shotou/new-cs/1384661.htm | 告示（著作権法第13条により権利の目的とならない著作物）。単元名の一部は意味を保って短くした |
+| reCAPTCHA Enterprise（Firebase App Check） | Web 版の API 呼び出しがアプリからのものかの確認 | Google Cloud 利用規約 |
 | Wikimedia Commons | 深掘り画面の写真。作者・ライセンス・出典ページをアプリ内に表示 | 各画像のライセンス（CC BY / CC BY-SA / PD など） |
 | Wikipedia（日本語版） | 要約文とサムネイルを表示し、記事へリンク | CC BY-SA 4.0 |
 | YouTube | 動画の埋め込み（youtube-nocookie.com） | YouTube 利用規約 / YouTube API サービス利用規約 |

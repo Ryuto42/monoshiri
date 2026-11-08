@@ -312,6 +312,15 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
   };
 
   const live = status === 'live';
+  // Only after a moment: when permission is already granted the camera starts before this would show.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!active || status !== 'starting') return;
+    const t = setTimeout(() => setSlow(true), 1200);
+    return () => clearTimeout(t);
+  }, [active, status]);
+  const waiting = slow && active && status === 'starting';
+  const controlsRow = live && (presets.length > 1 || canFlip);
 
   return (
     <div
@@ -340,7 +349,7 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 grid place-items-center overflow-y-auto px-8 pb-56 pt-20 text-center text-white/90"
+            className="absolute inset-0 grid place-items-center overflow-y-auto px-8 pb-56 pt-48 text-center text-white/90"
           >
             <div className="max-w-sm">
               <motion.button
@@ -376,6 +385,24 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {waiting && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="pointer-events-none absolute inset-x-0 top-[38%] grid -translate-y-1/2 place-items-center px-8 text-center text-white"
+          >
+            <span className="grid h-16 w-16 place-items-center rounded-[22px] bg-white/10">
+              <Icon name="photo_camera" size={34} fill />
+            </span>
+            <p className="mt-4 text-[20px] font-black">カメラを許可してね</p>
+            <p className="mt-1.5 max-w-xs text-[14px] leading-relaxed text-white/70">
+              「許可」をおすと、カメラで しらべられるよ。下の サンプルでも ためせるよ。
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {status === 'live' && <Reticle />}
       <AnimatePresence>
         {focus && status === 'live' && (
@@ -393,6 +420,11 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
         )}
       </AnimatePresence>
       <AnimatePresence>
+        {active && status !== 'blocked' && (
+          <SampleStrip key="samples" raised={controlsRow} onSample={onSample} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
         {live && (
           <CameraControls
             presets={presets}
@@ -407,6 +439,45 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
     </div>
   );
 });
+
+// Always within reach of the shutter, so trying the app never depends on the camera.
+function SampleStrip({ raised, onSample }: { raised: boolean; onSample: (src: string) => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 10 }}
+      transition={spring}
+      className={`pointer-events-none absolute inset-x-0 z-10 flex justify-center px-4 transition-[bottom] duration-300 ${
+        raised
+          ? 'bottom-[calc(max(env(safe-area-inset-bottom),24px)+238px)] lg:bottom-[calc(24px+230px)]'
+          : 'bottom-[calc(max(env(safe-area-inset-bottom),24px)+174px)] lg:bottom-[calc(24px+166px)]'
+      }`}
+    >
+      <div role="group" aria-label="サンプル写真でためす" className="glass pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/15 bg-black/35 py-1 pl-3 pr-1 backdrop-blur-xl">
+        <span className="mr-0.5 whitespace-nowrap text-[11px] font-bold text-white/80">ためす</span>
+        {SAMPLES.map((x) => (
+          <motion.button
+            key={x.src}
+            type="button"
+            aria-label={`サンプル写真「${x.label}」でためす`}
+            title={x.label}
+            onClick={(e) => {
+              e.stopPropagation();
+              haptic('tap');
+              onSample(x.src);
+            }}
+            whileTap={{ scale: 0.9 }}
+            transition={spring}
+            className="h-11 w-14 overflow-hidden rounded-full border-2 border-white/70"
+          >
+            <img src={x.src} alt="" className="h-full w-full object-cover" loading="lazy" draggable={false} />
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
 
 function CameraControls({ presets, shown, canFlip, switching, onPreset, onFlip }: {
   presets: number[]; shown: number; canFlip: boolean; switching: boolean; onPreset: (z: number) => void; onFlip: () => void;
@@ -435,9 +506,9 @@ function CameraControls({ presets, shown, canFlip, switching, onPreset, onFlip }
                 aria-label={`${formatZoom(p)}倍`}
                 aria-pressed={on}
                 whileTap={{ scale: 0.9 }}
-                animate={{ width: on ? 46 : 36, height: on ? 36 : 32 }}
+                animate={{ width: on ? 54 : 44, height: 44 }}
                 transition={spring}
-                className={`grid place-items-center rounded-full text-[12px] font-black tabular-nums ${on ? 'bg-white/90 text-[#1f1a15]' : 'text-white/90'}`}
+                className={`grid place-items-center rounded-full text-[13px] font-black tabular-nums ${on ? 'bg-white/90 text-[#1f1a15]' : 'text-white/90'}`}
               >
                 {on ? `${formatZoom(shown)}×` : formatZoom(p)}
               </motion.button>
