@@ -123,35 +123,65 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
   Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
 
   // The web view does not resize for the keyboard (Keyboard.resize = 'none'), so expose its height as --kb.
-  // Screens that opt in with data-kb-lift move above the keyboard and keep the focused field in view.
+  // Screens that opt in with data-kb-lift / data-kb-sheet / data-kb-scroll move above the keyboard, and the
+  // focused field is scrolled into view in the same motion (computed up front, not after the keyboard settles).
   // Moving focus between fields can fire hide→show back to back; the short delay on hide keeps the sheet still.
   let kb = 0;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
-  const setKb = (h: number) => {
-    if (h === kb) return;
-    kb = h;
-    root.style.setProperty('--kb', `${h}px`);
+  let scrollAnim = 0;
+  const KB_MS = 250; // keep in sync with the duration-[250ms] transitions in Account.tsx
+  const ease = (t: number) => 1 - (1 - t) ** 3; // = cubic-bezier(0.33,1,0.68,1)
+  const scrollTo = (el: HTMLElement, to: number) => {
+    cancelAnimationFrame(scrollAnim);
+    const from = el.scrollTop;
+    if (Math.abs(to - from) < 1) return;
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / KB_MS);
+      el.scrollTop = from + (to - from) * ease(t);
+      if (t < 1) scrollAnim = requestAnimationFrame(step);
+    };
+    scrollAnim = requestAnimationFrame(step);
   };
-  const reveal = () => {
+  const reveal = (nextKb: number) => {
     const el = document.activeElement;
-    if (!kb || !(el instanceof HTMLElement) || !el.closest('[data-kb-lift]')) return;
-    // Reveal the whole field (its label carries scroll-margin), not just the caret line.
+    if (!nextKb || !(el instanceof HTMLElement) || !el.closest('[data-kb-lift]')) return;
+    const sheet = el.closest<HTMLElement>('[data-kb-sheet]');
+    const sc = el.closest<HTMLElement>('[data-kb-scroll]');
+    if (!sheet || !sc) return;
     const target = el.closest('label') ?? el;
-    const r = target.getBoundingClientRect();
-    // Scroll only when the field is actually hidden, and only as far as needed.
-    if (r.top < 72 || r.bottom > window.innerHeight - kb - 16) target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const H = window.innerHeight;
+    const sr = sheet.getBoundingClientRect();
+    // Where the sheet will be once it has moved above the keyboard (max-height: 94dvh - kb).
+    const natural = sheet.offsetHeight + (sc.scrollHeight - sc.clientHeight);
+    const newH = Math.min(natural, H * 0.94 - nextKb);
+    const shift = H - nextKb - newH - sr.top;
+    const top = sc.getBoundingClientRect().top + shift;
+    const bottom = H - nextKb;
+    const tr = target.getBoundingClientRect();
+    let d = 0;
+    if (tr.bottom + shift + 56 > bottom) d = tr.bottom + shift + 56 - bottom; // room for the hints under the field
+    else if (tr.top + shift - 16 < top) d = tr.top + shift - 16 - top;
+    const max = sc.scrollHeight - (sc.clientHeight - (sheet.offsetHeight - newH));
+    scrollTo(sc, Math.max(0, Math.min(max, sc.scrollTop + d)));
   };
   Keyboard.addListener('keyboardWillShow', (info) => {
     clearTimeout(hideTimer);
-    setKb(Math.round(info.keyboardHeight));
+    const h = Math.round(info.keyboardHeight);
+    reveal(h); // measure before --kb changes the layout
+    if (h !== kb) {
+      kb = h;
+      root.style.setProperty('--kb', `${h}px`);
+    }
   });
   Keyboard.addListener('keyboardWillHide', () => {
     clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => setKb(0), 120);
+    hideTimer = setTimeout(() => {
+      kb = 0;
+      root.style.setProperty('--kb', '0px');
+    }, 40);
   });
-  // Wait for the sheet to finish moving (Account.tsx animates for 280ms) before measuring.
-  Keyboard.addListener('keyboardDidShow', () => setTimeout(reveal, 300));
-  document.addEventListener('focusin', () => kb && setTimeout(reveal, 50));
+  document.addEventListener('focusin', () => kb && reveal(kb));
 
   const status = await Network.getStatus();
   onOffline(!status.connected);

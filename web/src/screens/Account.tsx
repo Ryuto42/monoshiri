@@ -31,23 +31,24 @@ export function Account() {
   useEffect(() => onBack(close, { history: false }));
 
   return (
-    <motion.div data-kb-lift className="fixed inset-0 z-[50] flex items-end justify-center pb-[var(--kb,0px)] transition-[padding] duration-[280ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] lg:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.div data-kb-lift className="fixed inset-0 z-[50] flex items-end justify-center pb-[var(--kb,0px)] transition-[padding] duration-[250ms] ease-[cubic-bezier(0.33,1,0.68,1)] lg:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.button aria-label="とじる" tabIndex={-1} className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={close} />
       <motion.section
         role="dialog"
         aria-modal
         aria-labelledby="account-title"
+        data-kb-sheet
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 34 }}
-        className="relative flex max-h-[calc(94dvh-var(--kb,0px))] w-full flex-col transition-[max-height] duration-[280ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] overflow-hidden rounded-t-[32px] bg-paper text-ink shadow-[var(--shadow-float)] paper-grain lg:max-h-[min(860px,92dvh)] lg:max-w-[440px] lg:rounded-[32px]"
+        className="relative flex max-h-[calc(94dvh-var(--kb,0px))] w-full flex-col transition-[max-height] duration-[250ms] ease-[cubic-bezier(0.33,1,0.68,1)] overflow-hidden rounded-t-[32px] bg-paper text-ink shadow-[var(--shadow-float)] paper-grain lg:max-h-[min(860px,92dvh)] lg:max-w-[440px] lg:rounded-[32px]"
       >
         <div className="relative flex h-14 shrink-0 items-start justify-center pt-3">
           <span className="h-1.5 w-10 rounded-full bg-ink/15 lg:hidden" />
           <IconButton icon="close" label="とじる" onClick={close} className="absolute right-3 top-2" />
         </div>
-        <div className="overflow-y-auto overscroll-contain px-6 pb-[max(env(safe-area-inset-bottom),24px)] no-scrollbar">
+        <div data-kb-scroll className="overflow-y-auto overscroll-contain px-6 pb-[max(env(safe-area-inset-bottom),24px)] no-scrollbar">
           {!me ? <Spinner big /> : me.guest ? <GuestView /> : <MemberView me={me} onDone={close} />}
         </div>
       </motion.section>
@@ -573,7 +574,7 @@ export function Avatar({ me, size = 72 }: { me: Me; size?: number }) {
 
 function Field({ icon, label, className = '', children }: { icon: string; label: string; className?: string; children: ReactNode }) {
   return (
-    <label className={`block scroll-mb-14 scroll-mt-4 ${className}`}>
+    <label className={`block ${className}`}>
       <span className="mb-1 block px-1 text-[12px] font-bold text-ink-2">{label}</span>
       <span className="field flex h-13 items-center gap-2 rounded-2xl border border-line bg-paper px-3.5 transition-shadow focus-within:border-accent/60 focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]">
         <Icon name={icon} size={20} className="shrink-0 text-ink-3" />
