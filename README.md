@@ -34,11 +34,12 @@
 | カメラ | 撮影（タップでピント合わせ）/ 写真選択 / ドラッグ&ドロップ / 貼り付け / サンプル写真 |
 | 見つける | Gemini が写真内のモノを最大6個検出し、Lens 風のマーカーで表示 |
 | 知る | 名前・ひとこと・やさしい説明・豆知識と、6つの「問い」。Google 検索の候補チップと Wikipedia 要約付き |
-| 深掘り | 検索で裏付けた解説をストリーミング表示。流れ図、Wikimedia の写真、YouTube、AI 図解イラスト、AI 動画、3択クイズ、参考ページ |
+| 深掘り | 検索で裏付けた解説をストリーミング表示。流れ図、テーマに合う写真（Wikimedia Commons から Gemini が選び、SafeSearch で確認）、YouTube、AI 図解イラスト、AI 動画、3択クイズ、参考ページ |
 | 読み上げ | 文ごとに分けて音声を作り、読んでいる段落をハイライトしながら再生 |
 | カード | Nano Banana が描くイラストでカード化。イラストの完成を待たずに保存でき、できあがると図鑑ボタンから吹き出しで知らせる |
 | 図鑑 | カード一覧・ジャンル絞り込み・検索・カード詳細（裏返し、ノート） |
-| アカウント | メールアドレス＋パスワード / Google でログイン。ゲストで集めたカードを引き継ぎ、どの端末でも同じ図鑑を開ける。最初のカードと5枚目で登録をすすめる |
+| アカウント | メールアドレス＋パスワード / Google でログイン。ゲストで集めたカードを引き継ぎ、どの端末でも同じ図鑑を開ける。最初のカードと5枚目、ゲストの上限に達したときに登録をすすめる |
+| 年代 | 登録後に年齢を聞き、「小学校低学年・高学年・中学生・高校生以上」の段階だけを保存。段階ごとに漢字・表現・くわしさを変えた解説・深掘り・クイズを作り、段階ごとにキャッシュする（未設定とゲストは標準の説明） |
 
 操作面では、詳細画面を下にスワイプして閉じられます。戻る操作（ブラウザの戻る、Android の戻るボタン、Esc）は、開いた順に1段ずつ閉じます。
 
@@ -246,7 +247,7 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 | 触覚 | 撮影・選択・クイズの正誤・カード保存で Haptics |
 | 戻る操作（Android） | 戻るボタンで「深掘り → 解説 → カメラ → アプリを背面へ」と1段ずつ閉じる |
 | 外部リンク | 検索候補・出典・YouTube・Wikipedia はアプリ内ブラウザで開く |
-| 描画負荷 | Android の WebView では背景ブラーを切る |
+| 描画負荷 | Android（アプリとブラウザ）では背景ブラーを切る |
 | 起動 | フォントとアイコンをアプリ内に同梱し、ネイティブのスプラッシュから即表示。縦画面固定 |
 | 通信 | オフラインになったら通知。図鑑は端末内（IndexedDB）から表示 |
 
@@ -256,17 +257,17 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 
 ## API
 
-`/api/health` 以外は `Authorization: Bearer <Firebase ID トークン>` が必要です。POST は 1 ユーザーあたり 5 分 120 回まで、本文は 4MB までです。
+`/api/health` 以外は `Authorization: Bearer <Firebase ID トークン>` が必要です。POST は 1 ユーザーあたり 5 分 120 回まで、本文は 4MB までです。解説・深掘り・クイズ・写真と動画・図解・動画は `level`（`std`・`lower`・`upper`・`junior`・`senior`）を受け取り、`std` 以外は段階ごとのキャッシュを使います。
 
 | メソッドとパス | 内容 | キャッシュ | 費用 |
 |---|---|---|---|
 | `GET /api/health` | 死活確認 | — | なし |
-| `GET /api/usage` | 推定利用額と残りの動画本数 | — | なし |
-| `POST /api/detect` | 画像からモノと位置を検出（`{ image }`） | なし | 小 |
-| `POST /api/explore` | 解説と6つの問い（`{ label, image? }`） | `cache_explore`・`explore_alias` | 中 |
+| `GET /api/usage` | 推定利用額（全体と自分）と上限、残りの動画本数 | — | なし |
+| `POST /api/detect` | SafeSearch で確認してから、画像からモノと位置を検出（`{ image }`）。画像は保存しない | なし | 小 |
+| `POST /api/explore` | 解説と6つの問い（`{ label, image?, level? }`）。カードの ID は段階によらず同じ | `cache_explore`・`explore_alias` | 中 |
 | `POST /api/deep` | 問いの深掘り（SSE: `delta` / `done` / `error`） | `cache_deep` | 中 |
 | `POST /api/quiz` | 3択クイズ | `cache_quiz` | 小 |
-| `GET /api/media` | Wikimedia の写真と YouTube 動画 | `cache_media` | なし（YouTube の割り当てを使う） |
+| `GET /api/media` | テーマに合う写真（Commons から Gemini が選び SafeSearch で確認）と YouTube 動画（セーフサーチ厳格） | `cache_media` | 小 |
 | `POST /api/illustrate` | カードイラスト | `cache_illust` | 大 |
 | `POST /api/diagram` | 図解イラスト | `cache_diagram` | 大 |
 | `POST /api/tts` | 読み上げ音声（最大 900 字） | `cache_tts` | 小 |
@@ -275,30 +276,33 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 
 深掘り・クイズ・写真と動画・イラスト・図解・動画は、解説のキャッシュにあるモノ（深掘り・図解・動画・写真と動画は、その解説に含まれる問いも）に対してだけ動きます。
 
-主なエラーは `401 unauthenticated`、`400 unknown_subject`、`402 budget`、`413 too_large`、`429 rate_limited`、`503 busy` です。
+主なエラーは `401 unauthenticated`、`400 unknown_subject`、`402 budget`（アプリ全体の上限）、`402 user_limit`（そのアカウントの上限）、`413 too_large`、`422 unsafe_image`（SafeSearch で不適切）、`429 rate_limited`、`503 busy` です。
 
 ## データの保存先
 
 | 場所 | 中身 | 書き込める人 |
 |---|---|---|
-| Firestore `users/{uid}/cards/{id}` | 集めたカード（写真は除く） | 本人のみ。メール登録はアドレス確認後（`firestore.rules`） |
+| Firestore `users/{uid}/cards/{id}` | 集めたカード | 本人のみ。メール登録はアドレス確認後（`firestore.rules`） |
+| Firestore `users/{uid}` | 学びの段階（`stage`）だけ。年齢は保存しない | 本人のみ（ログインしたアカウント） |
 | localStorage `monoshiri.sync.<uid>` | 同期済みのカード ID（ほかの端末での削除を反映するため） | 端末内 |
-| IndexedDB `monoshiri.cards` | カード（写真の縮小版を含む） | 端末内 |
+| IndexedDB `monoshiri.cards` | カード | 端末内 |
 | Firestore `cache_*`、`explore_alias` | 生成結果の共有キャッシュ | API サーバーのみ |
 | Firestore `meta/usage`、`meta/counters` | 推定利用額、動画の本数 | API サーバーのみ |
+| Firestore `meter_users/{uid}` | アカウントごとの推定利用額 | API サーバーのみ |
 | Firestore `video_jobs` | 動画生成ジョブ | API サーバーのみ |
 | Cloud Storage `<project>-media`（非公開） | 生成した画像・音声・動画 | API サーバーのみ（`/media/*` で配信） |
 
 ## コストの守り方
 
-本番は合計 ¥300 を上限にしています。
+本番は合計 ¥2,000 を上限にしています。
 
-1. **予算 ¥300**（クレジット適用前の総額、2026/11/1〜2027/3/31 通算）を Cloud Billing に設定
-2. **キルスイッチ**: 予算通知（Pub/Sub）を受けた Cloud Run 関数が、実費 ¥250 到達でプロジェクトの課金を自動で外す（`infra/budget-guard`）
-3. **アプリ内メーター**: API サーバーがトークン数から推定額を Firestore に積算し、推定 ¥200（`CAP_JPY`）で生成 API を止める
-4. **キャッシュ**: 同じモノ・同じ問いの結果は Firestore に保存して全ユーザーで再利用（2回目以降は無料・即表示）
-5. **事前生成**: よく撮られるモノは `infra/prewarm.mjs` で先に作っておく
-6. AI 動画は合計 2 本まで（`VIDEO_LIMIT`）
+1. **予算 ¥2,000**（クレジット適用前の総額、2026/11/1 から期限なし）を Cloud Billing に設定。10・20・30・50・80・100% でメールと Pub/Sub に通知
+2. **キルスイッチ**: 予算通知（Pub/Sub）を受けた Cloud Run 関数が、実費 ¥1,900 到達でプロジェクトの課金を自動で外す（`infra/budget-guard`、`KILL_AT_JPY`）
+3. **アプリ内メーター**: API サーバーがトークン数から推定額を Firestore に積算し、推定 ¥1,800（`CAP_JPY`）で生成 API を止める
+4. **アカウントごとの上限**: 新しく生成した分の推定額をアカウントごとに積算し、ゲストは ¥20、ログインしたアカウント（Google、または確認済みのメールアドレス）は ¥300 で止める（累計。`USER_CAP_GUEST_JPY`・`USER_CAP_MEMBER_JPY`）。キャッシュ済みの内容は上限に達しても見られる
+5. **キャッシュ**: 同じモノ・同じ問いの結果は Firestore に保存して全ユーザーで再利用（2回目以降は無料・即表示。年代の段階ごとに保存）
+6. **事前生成**: よく撮られるモノは `infra/prewarm.mjs` で先に作っておく
+7. AI 動画は合計 2 本まで（`VIDEO_LIMIT`）
 
 単価は `server/src/config.ts` の `PRICES`、円換算は `JPY_PER_USD` です。
 
@@ -314,7 +318,9 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 - パスワードは 10 文字以上で、英字と数字が必須です。メールアドレスに似たもの、よくあるものは断ります。ログインやパスワード再設定のエラーは、アドレスが登録済みかどうかが分からない文面にしています（Firebase のメール列挙保護も有効）。
 - API は ID トークンの失効も確かめます（削除・無効化したアカウントやパスワード変更後のトークンは、5 分以内に使えなくなります）。
 - ログアウトすると、端末内の図鑑を消します。アカウントを削除するときは、もう一度ログインしてもらってから、クラウドのカードとアカウントを消します。
-- 写真は端末の中だけに保存し、クラウドには送りません。
+- 撮影・選択した写真はどこにも保存しません（端末にもクラウドにも）。検出と解説のときだけ API に送り、処理が終われば捨てます。
+- 写真は Cloud Vision の SafeSearch で確認し、不適切なものは検出も解説もしません。深掘りに出す写真も SafeSearch を通したものだけで、YouTube の検索はセーフサーチを厳格にしています。
+- アカウントごとに使える生成の額に上限があります（ゲスト ¥20・ログイン ¥300）。
 - Hosting は HSTS・`X-Frame-Options: DENY`・`frame-ancestors 'none'` などのヘッダーを付けます。
 - 脆弱性は Issue ではなく、GitHub の Private vulnerability reporting で報告してください。
 
@@ -351,11 +357,11 @@ gcloud secrets add-iam-policy-binding youtube-api-key --member=serviceAccount:$S
 ```bash
 cd server && gcloud run deploy monoshiri-api --source=. --region=asia-northeast1 \
   --service-account=monoshiri-api@<project>.iam.gserviceaccount.com --allow-unauthenticated \
-  --set-env-vars=GOOGLE_CLOUD_PROJECT=<project>,MEDIA_BUCKET=<project>-media,CAP_JPY=200 \
+  --set-env-vars=GOOGLE_CLOUD_PROJECT=<project>,MEDIA_BUCKET=<project>-media,CAP_JPY=1800 \
   --set-secrets=YOUTUBE_API_KEY=youtube-api-key:latest
 ```
 
-`--allow-unauthenticated` は Cloud Run の入口を開けるだけで、各 API はアプリ側で Firebase の ID トークンを検証します。独自ドメインで Web を配信するときは `ALLOWED_ORIGINS` にそのオリジンを足してください。
+SafeSearch のため、プロジェクトで Cloud Vision API（`vision.googleapis.com`）を有効にしてください。`--allow-unauthenticated` は Cloud Run の入口を開けるだけで、各 API はアプリ側で Firebase の ID トークンを検証します。独自ドメインで Web を配信するときは `ALLOWED_ORIGINS` にそのオリジンを足してください。
 
 ### 3. Web（Firebase Hosting）と Firestore ルール
 

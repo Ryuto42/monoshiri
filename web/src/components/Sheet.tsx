@@ -49,7 +49,7 @@ export function Sheet({ open, expanded, onExpandedChange, onDismiss, peek = 300,
   return (
     <motion.section
       className="fixed inset-x-0 bottom-0 z-30 flex flex-col rounded-t-[32px] bg-paper shadow-[0_-10px_40px_-10px_rgb(0_0_0/0.35)]"
-      style={{ height, y }}
+      style={{ height, y, willChange: 'transform' }}
       aria-hidden={!open}
     >
       <motion.div

@@ -17,6 +17,10 @@ const COPY = {
     title: '5枚あつまったね！',
     body: 'ここまでの図鑑を守りませんか？ 登録すれば、どの端末でもログインするだけで同じ図鑑が開けます。',
   },
+  limit: {
+    title: 'ゲストで調べられる分を\n使い切りました',
+    body: '登録すると、もっとたくさん新しいモノを調べられます。みんなが調べたモノと、あつめたカードは今も見られます。',
+  },
 };
 
 export function SignupNudge() {
@@ -24,7 +28,7 @@ export function SignupNudge() {
   return <AnimatePresence>{nudge && <Prompt key={nudge} kind={nudge} />}</AnimatePresence>;
 }
 
-function Prompt({ kind }: { kind: 'first' | 'more' }) {
+function Prompt({ kind }: { kind: keyof typeof COPY }) {
   const navigate = useNavigate();
   const card = useCards()[0];
   const copy = COPY[kind];
@@ -97,8 +101,6 @@ function Badge({ card }: { card?: ReturnType<typeof useCards>[number] }) {
         <span className="grid h-full w-full place-items-center overflow-hidden rounded-[10px]" style={{ background: c.bg }}>
           {card?.illustration ? (
             <img src={mediaUrl(card.illustration)} alt="" className="h-full w-full object-cover mix-blend-multiply" />
-          ) : card?.photo ? (
-            <img src={card.photo} alt="" className="h-full w-full object-cover" />
           ) : (
             <Icon name={card?.icon ?? 'auto_awesome'} size={40} fill style={{ color: c.ink }} />
           )}
