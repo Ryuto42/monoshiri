@@ -201,7 +201,7 @@ function Tabs({ mode, onChange }: { mode: 'login' | 'signup'; onChange: (m: 'log
         {(['signup', 'login'] as const).map((m) => (
           <button key={m} role="tab" aria-selected={mode === m} onClick={() => onChange(m)} className="relative h-10 rounded-full text-[14px] font-bold">
             {mode === m && <motion.span layoutId="account-tab" className="absolute inset-0 rounded-full bg-paper shadow-[0_0_0_1px_rgb(60_40_20/0.06),0_1px_6px_rgb(0_0_0/0.18)]" transition={spring} />}
-            <span className={`relative ${mode === m ? 'text-ink' : 'text-ink-3'}`}>{m === 'signup' ? 'はじめて登録' : 'ログイン'}</span>
+            <span className={`relative ${mode === m ? 'text-ink' : 'text-ink-3'}`}>{m === 'signup' ? '新規登録' : 'ログイン'}</span>
           </button>
         ))}
       </div>
