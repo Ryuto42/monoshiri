@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { motion } from 'motion/react';
 import { api, errorMessage, mediaUrl } from '../lib/api';
+import { currentLevel } from '../lib/level';
+import { stripRuby } from '../lib/ruby';
 import { toast } from '../lib/toast';
+import type { TtsRef } from '../lib/types';
 import { Icon } from './ui';
 import { spring } from './theme';
 
@@ -26,32 +29,61 @@ function chunks(text: string, max = 110) {
   return out.map((t) => t.trim()).filter((t) => /[\p{L}\p{N}]/u.test(t));
 }
 
+// Furigana (<rt>) is for the eyes only: reading it too would voice "水みず".
+function spokenText(el: Element) {
+  if (!el.querySelector('rt, rp')) return el.textContent ?? '';
+  const copy = el.cloneNode(true) as Element;
+  copy.querySelectorAll('rt, rp').forEach((r) => r.remove());
+  return copy.textContent ?? '';
+}
+
 function partsOf(root: HTMLElement | null | undefined, extra: string[]): Part[] {
   const els = root ? [...root.querySelectorAll(BLOCKS)].filter((el) => !el.querySelector(BLOCKS)) : [];
   return [
-    ...els.flatMap((el) => chunks(el.textContent ?? '').map((text) => ({ text, el }))),
-    ...extra.flatMap((t) => chunks(t).map((text) => ({ text }))),
+    ...els.flatMap((el) => chunks(stripRuby(spokenText(el))).map((text) => ({ text, el }))),
+    ...extra.flatMap((t) => chunks(stripRuby(t)).map((text) => ({ text }))),
   ];
+}
+
+// One element for every read-aloud: iOS lets an element play freely only after it has played inside a tap.
+let shared: HTMLAudioElement | null = null;
+const player = () => (shared ??= new Audio());
+
+/** Call inside a tap (e.g. choosing a marker) so a read-aloud that starts on its own later is allowed to play. */
+// oxlint-disable-next-line react/only-export-components -- shares the player above; costs only fast refresh of this file
+export function unlockAudio() {
+  const a = player();
+  if (!a.paused) return;
+  a.src = SILENT;
+  a.play().catch(() => {});
 }
 
 let stopOther: (() => void) | null = null;
 
-export function Speak({ target, text, compact }: { target?: RefObject<HTMLElement | null>; text?: string; compact?: boolean }) {
+// How long the text has to stay unchanged before an automatic read-aloud starts (streamed text keeps changing).
+const SETTLE_MS = 700;
+
+export function Speak({ target, text, compact, ttsRef, autoStart }: {
+  target?: RefObject<HTMLElement | null>; text?: string; compact?: boolean; ttsRef?: TtsRef; autoStart?: boolean;
+}) {
   const [state, setState] = useState<'idle' | 'loading' | 'playing'>('idle');
   const [pos, setPos] = useState({ at: 0, of: 0 });
   const stopRef = useRef<(() => void) | null>(null);
+  const touched = useRef(false);
 
   useEffect(() => () => stopRef.current?.(), []);
 
-  const start = async () => {
+  const start = async (auto = false) => {
     const parts = partsOf(target?.current, text ? [text] : []);
     if (!parts.length) return;
     stopOther?.();
 
-    const audio = new Audio();
+    const audio = player();
     // Unlock playback inside the tap so later chunks can start after network waits (iOS).
-    audio.src = SILENT;
-    audio.play().catch(() => {});
+    if (!auto) {
+      audio.src = SILENT;
+      audio.play().catch(() => {});
+    }
 
     let stopped = false;
     let wake: (() => void) | null = null;
@@ -65,6 +97,7 @@ export function Speak({ target, text, compact }: { target?: RefObject<HTMLElemen
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     };
     const stop = () => {
+      if (stopped) return;
       stopped = true;
       audio.pause();
       wake?.();
@@ -78,7 +111,7 @@ export function Speak({ target, text, compact }: { target?: RefObject<HTMLElemen
     const fetchPart = (i: number) => {
       if (i >= parts.length) return;
       if (!urls.has(i)) {
-        const p = api.tts(parts[i].text).then((r) => mediaUrl(r.url));
+        const p = api.tts(parts[i].text, ttsRef).then((r) => mediaUrl(r.url));
         p.catch(() => {});
         urls.set(i, p);
       }
@@ -105,7 +138,9 @@ export function Speak({ target, text, compact }: { target?: RefObject<HTMLElemen
         });
       }
     } catch (e) {
-      if (!stopped) {
+      // A blocked autoplay just leaves the button for a tap; it is not worth a message.
+      const blocked = auto && e instanceof DOMException && e.name === 'NotAllowedError';
+      if (!stopped && !blocked) {
         const m = errorMessage(e);
         toast(m || '読み上げできませんでした');
       }
@@ -114,10 +149,42 @@ export function Speak({ target, text, compact }: { target?: RefObject<HTMLElemen
     }
   };
 
+  const startRef = useRef(start);
+  useEffect(() => {
+    startRef.current = start;
+  });
+  // Youngest readers get the explanation read to them as soon as it has settled on screen.
+  useEffect(() => {
+    if (!autoStart || currentLevel() !== 'lower') return;
+    const root = target?.current;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (touched.current) return;
+        if (!partsOf(target?.current, text ? [text] : []).length) return;
+        touched.current = true;
+        obs?.disconnect();
+        void startRef.current(true);
+      }, SETTLE_MS);
+    };
+    const obs = root ? new MutationObserver(arm) : null;
+    obs?.observe(root!, { childList: true, subtree: true, characterData: true });
+    arm();
+    return () => {
+      clearTimeout(timer);
+      obs?.disconnect();
+    };
+  }, [autoStart, target, text]);
+
   const busy = state !== 'idle';
   return (
     <motion.button
-      onClick={() => (busy ? stopRef.current?.() : void start())}
+      onClick={() => {
+        touched.current = true;
+        if (busy) stopRef.current?.();
+        else void start();
+      }}
       whileTap={{ scale: 0.94 }}
       transition={spring}
       aria-label={busy ? '読み上げを止める' : '読み上げる'}

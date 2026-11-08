@@ -2,12 +2,12 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { LOCAL, PROJECT, CAP_USD, JPY_PER_USD, USER_CAP_JPY } from './config.ts';
+import { APPCHECK_ENFORCE, LOCAL, PROJECT, CAP_USD, JPY_PER_USD, USER_CAP_JPY } from './config.ts';
 
 const app = initializeApp({ projectId: PROJECT });
 export const auth = getAuth(app);
 
-const db: Firestore | null = LOCAL ? null : getFirestore(app);
+export const db: Firestore | null = LOCAL ? null : getFirestore(app);
 const mem = new Map<string, any>();
 
 export async function getCached<T>(col: string, id: string): Promise<T | null> {
@@ -47,9 +47,10 @@ export async function getSpent(): Promise<number> {
   return spentCache.usd;
 }
 
-export type Tier = 'guest' | 'member';
+export type Tier = 'guest' | 'member' | 'admin';
 // Who the current API request is for, so every cost recorded during it is also charged to that account.
-export const requester = new AsyncLocalStorage<{ uid: string; tier: Tier }>();
+// attested: the request carried a valid App Check token (it came from our own app).
+export const requester = new AsyncLocalStorage<{ uid: string; tier: Tier; attested: boolean }>();
 
 const userCache = new Map<string, { usd: number; at: number }>();
 
@@ -84,15 +85,21 @@ export async function addSpent(usd: number, kind: string) {
   );
 }
 
-export async function incrCounter(name: string): Promise<number> {
+// Takes one of `limit` slots atomically, so two requests at the same moment can't both take the last one.
+export async function reserveCounter(name: string, limit: number): Promise<boolean> {
   if (!db) {
-    const v = (mem.get(`c:${name}`) ?? 0) + 1;
-    mem.set(`c:${name}`, v);
-    return v;
+    const v = mem.get(`c:${name}`) ?? 0;
+    if (v >= limit) return false;
+    mem.set(`c:${name}`, v + 1);
+    return true;
   }
   const ref = db.collection('meta').doc('counters');
-  await ref.set({ [name]: FieldValue.increment(1) }, { merge: true });
-  return (await ref.get()).get(name) ?? 0;
+  return db.runTransaction(async (tx) => {
+    const v = ((await tx.get(ref)).get(name) as number | undefined) ?? 0;
+    if (v >= limit) return false;
+    tx.set(ref, { [name]: v + 1 }, { merge: true });
+    return true;
+  });
 }
 
 export async function getCounter(name: string): Promise<number> {
@@ -103,6 +110,12 @@ export async function getCounter(name: string): Promise<number> {
 export class BudgetError extends Error {
   constructor() {
     super('budget_exceeded');
+  }
+}
+
+export class AttestError extends Error {
+  constructor() {
+    super('attest_required');
   }
 }
 
@@ -117,7 +130,16 @@ export class UserLimitError extends Error {
 export const userCapUsd = (tier: Tier) => USER_CAP_JPY[tier] / JPY_PER_USD;
 
 export async function ensureBudget(reserveUsd: number) {
-  if ((await getSpent()) + reserveUsd > CAP_USD) throw new BudgetError();
   const who = requester.getStore();
+  // Anonymous accounts are free to create, so new generation for guests needs proof that the request came from the app itself.
+  if (APPCHECK_ENFORCE && who && who.tier === 'guest' && !who.attested) throw new AttestError();
+  if ((await getSpent()) + reserveUsd > CAP_USD) throw new BudgetError();
   if (who && (await getUserSpent(who.uid)) + reserveUsd > userCapUsd(who.tier)) throw new UserLimitError(who.tier);
+}
+
+// Tests start from an empty in-memory store.
+export function resetMemory() {
+  mem.clear();
+  userCache.clear();
+  spentCache = { usd: 0, at: 0 };
 }

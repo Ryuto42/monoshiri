@@ -1,113 +1,121 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useState, type ReactNode } from 'react';
-import { STAGES, stageForAge, type Stage } from '../lib/level';
+import { useState } from 'react';
+import { GRADES, stageInfo, type Grade, type Stage } from '../lib/level';
 import { haptic } from '../lib/native';
+import { RubyText } from './RubyText';
 import { Icon } from './ui';
 import { spring } from './theme';
 
-const AGES = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
-
-// Asks for an age only to suggest a stage; the age stays in this component's memory and is never saved or sent.
-export function StagePicker({ initial, saving, onSave, onSkip }: {
-  initial: Stage | null; saving: boolean; onSave: (s: Stage) => void; onSkip?: () => void;
+// Asks for the school year only to pick a stage; the year stays in this component's memory and is never saved or sent.
+export function StagePicker({ initial, saving, onSave, onSkip, titleId = 'account-title', compact = false, saveLabel, skipLabel }: {
+  initial: Stage | null;
+  saving: boolean;
+  onSave: (s: Stage) => void;
+  onSkip?: () => void;
+  titleId?: string;
+  compact?: boolean;
+  saveLabel?: string;
+  skipLabel?: string;
 }) {
-  const [age, setAge] = useState<number | null>(null);
-  const [stage, setStage] = useState<Stage | null>(initial);
+  const [grade, setGrade] = useState<Grade | null>(null);
+  const stage = grade?.stage ?? null;
 
-  const pickAge = (a: number) => {
+  const pick = (g: Grade) => {
     haptic('select');
-    setAge(a);
-    setStage(stageForAge(a));
+    setGrade(g);
   };
 
   return (
     <div className="pb-2">
-      <motion.div
-        initial={{ scale: 0.6, rotate: -10 }}
-        animate={{ scale: 1, rotate: 0 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 16 }}
-        className="mx-auto mt-2 grid h-16 w-16 place-items-center rounded-[22px] bg-accent-soft text-accent"
-      >
-        <Icon name="school" size={36} fill />
-      </motion.div>
-      <h2 id="account-title" className="mt-4 text-center text-[22px] font-black leading-snug">なんさいですか？</h2>
-      <p className="mt-2 text-center text-[13px] leading-relaxed text-ink-2">
-        年齢に合わせて、説明のことばやくわしさを変えます。
-        <br />
-        年齢そのものは保存せず、「中学生」などの段階だけを保存します。
+      {!compact && (
+        <motion.div
+          initial={{ scale: 0.6, rotate: -10 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 16 }}
+          className="mx-auto mt-2 grid h-16 w-16 place-items-center rounded-[22px] bg-accent-soft text-accent"
+        >
+          <Icon name="school" size={36} fill />
+        </motion.div>
+      )}
+      <h2 id={titleId} className={`${compact ? 'mt-1' : 'mt-4'} text-center text-[24px] font-black leading-snug`}>
+        なんねんせい？
+      </h2>
+      <p className="mt-2 text-center text-[14px] leading-relaxed text-ink-2">
+        <RubyText text="学年《がくねん》に あわせて、ことばや くわしさを かえるよ。" />
+        <span className="mt-1 block text-[12px] text-ink-3">
+          <RubyText text="学年《がくねん》は おぼえないで、「低学年《ていがくねん》むけ」などの だんかいだけ ほぞんするよ。" />
+        </span>
       </p>
+      {initial && (
+        <p className="mt-3 text-center text-[13px] font-bold text-ink-2">
+          いま：<RubyText text={stageInfo(initial).ruby} />むけ
+        </p>
+      )}
 
-      <div role="group" aria-label="年齢" className="mt-5 grid grid-cols-5 gap-2">
-        {AGES.map((a) => (
-          <AgeChip key={a} on={age === a} onClick={() => pickAge(a)}>
-            {a}
-          </AgeChip>
+      <div className="mt-4 flex flex-col gap-3">
+        {GRADES.map((g) => (
+          <div key={g.group} role="group" aria-label={g.group.replace(/《[^》]*》/g, '')}>
+            <p className="mb-1.5 px-1 text-[12px] font-bold text-ink-2">
+              <RubyText text={g.group} />
+            </p>
+            <div className={`grid gap-2 ${g.grades.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              {g.grades.map((x) => {
+                const on = grade?.id === x.id;
+                return (
+                  <motion.button
+                    key={x.id}
+                    type="button"
+                    aria-pressed={on}
+                    whileTap={{ scale: 0.92 }}
+                    transition={spring}
+                    onClick={() => pick(x)}
+                    className={`h-12 rounded-2xl text-[17px] font-black ${on ? 'bg-ink text-paper' : 'bg-paper-2 text-ink'}`}
+                  >
+                    {x.label}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
         ))}
-        <AgeChip on={age === 19} onClick={() => pickAge(19)} wide>
-          19〜
-        </AgeChip>
       </div>
 
-      <p className="mt-6 px-1 text-[12px] font-bold text-ink-2">学びの段階（ちがうときは選びなおせます）</p>
-      <div role="radiogroup" aria-label="学びの段階" className="mt-2 grid grid-cols-2 gap-2">
-        {STAGES.map((s) => {
-          const on = stage === s.id;
-          return (
-            <motion.button
-              key={s.id}
-              role="radio"
-              aria-checked={on}
-              whileTap={{ scale: 0.97 }}
-              transition={spring}
-              onClick={() => {
-                haptic('select');
-                setStage(s.id);
-              }}
-              className={`relative overflow-hidden rounded-2xl border px-3 py-2.5 text-left ${on ? 'border-accent bg-accent-soft' : 'border-line bg-paper'}`}
+      <div className="mt-4 min-h-[48px]" aria-live="polite">
+        <AnimatePresence mode="wait" initial={false}>
+          {stage && (
+            <motion.p
+              key={stage}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-accent-soft px-4 py-3 text-[14px] font-bold text-ink"
             >
-              <span className="block text-[14px] font-black text-ink">{s.label}</span>
-              <span className="block text-[11px] font-bold text-ink-2">{s.hint}</span>
-              <AnimatePresence>
-                {on && (
-                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={spring} className="absolute right-2 top-2 text-accent">
-                    <Icon name="check_circle" size={18} fill />
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          );
-        })}
+              <Icon name="check_circle" size={20} fill className="text-accent" />
+              <span>
+                「<RubyText text={stageInfo(stage).ruby} />むけ」の せつめいに するよ
+              </span>
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
 
       <motion.button
+        type="button"
         whileTap={{ scale: 0.97 }}
         transition={spring}
         disabled={!stage || saving}
         onClick={() => stage && onSave(stage)}
-        className="mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink disabled:opacity-50"
+        className="mt-4 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink disabled:opacity-50"
       >
-        <Icon name="check" size={22} />
-        この段階で始める
+        {saving ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <Icon name="check" size={22} />}
+        {saveLabel ?? 'これで はじめる'}
       </motion.button>
       {onSkip && (
-        <button onClick={onSkip} className="mx-auto mt-3 block text-[13px] font-bold text-ink-2 underline decoration-ink/20 underline-offset-4">
-          あとで決める（いまの標準の説明のまま）
+        <button type="button" onClick={onSkip} className="mx-auto mt-2 flex h-11 items-center px-4 text-[14px] font-bold text-ink-2 underline decoration-ink/20 underline-offset-4">
+          {skipLabel ?? 'あとで（ふつうの せつめいの まま）'}
         </button>
       )}
     </div>
-  );
-}
-
-function AgeChip({ on, wide, onClick, children }: { on: boolean; wide?: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <motion.button
-      whileTap={{ scale: 0.9 }}
-      transition={spring}
-      aria-pressed={on}
-      onClick={onClick}
-      className={`h-11 rounded-2xl text-[15px] font-black tabular-nums ${wide ? 'col-span-2' : ''} ${on ? 'bg-ink text-paper' : 'bg-paper-2 text-ink'}`}
-    >
-      {children}
-    </motion.button>
   );
 }

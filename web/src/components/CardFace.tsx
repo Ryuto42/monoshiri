@@ -4,6 +4,9 @@ import { Icon } from './ui';
 import { catStyle } from './theme';
 import { mediaUrl } from '../lib/api';
 import { usePendingIllust } from '../lib/illust';
+import { nearestUnit } from '../lib/units';
+import { useStage } from '../lib/level';
+import { RubyText } from './RubyText';
 
 // Tilt follows a mouse; on touch screens it never moves, yet its 3D transform would still give every card its own GPU layer.
 const canHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -17,6 +20,7 @@ export type CardLike = {
   oneLiner?: string;
   illustration?: string | null;
   firstFind?: boolean;
+  units?: string[];
 };
 
 export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
@@ -47,6 +51,8 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
   };
 
   const big = size === 'lg', small = size === 'sm';
+  const stage = useStage().stage;
+  const unit = nearestUnit(card.units, stage);
 
   return (
     <motion.div
@@ -90,6 +96,16 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
               <span className="sr-only">はじめて見つけたモノ</span>
             </span>
           )}
+          {unit && !small && (
+            <span
+              className={`absolute bottom-3 left-[7%] z-[1] inline-flex max-w-[66%] items-center gap-1 rounded-full bg-white/80 px-2 font-bold ${big ? 'text-[12px] leading-6' : 'text-[10px] leading-5'}`}
+              style={{ color: c.ink }}
+              title={`学校でならう：${unit.grade} ${unit.subject}『${unit.unit}』`}
+            >
+              <Icon name="school" size={big ? 15 : 12} fill />
+              <span className="truncate">{unit.grade} {unit.subject}</span>
+            </span>
+          )}
           {drawing && (
             <div className="absolute inset-0 grid place-items-center">
               {small ? (
@@ -108,7 +124,7 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
         <div className={`flex flex-1 flex-col justify-center bg-[#fffdf8]/92 px-[7%] ${small ? 'py-[5%]' : 'py-[6%]'}`}>
           {card.reading && !small && <div className="text-[11px] font-bold tracking-wider text-[#9a8a7a]">{card.reading}</div>}
           <div className={`font-black leading-tight ${big ? 'text-[28px]' : small ? 'text-[13px] truncate' : 'text-[20px]'}`}>{card.name}</div>
-          {card.oneLiner && !small && <div className={`mt-1 text-[#66574a] leading-snug ${big ? 'text-[14px]' : 'text-[12px] line-clamp-2'}`}>{card.oneLiner}</div>}
+          {card.oneLiner && !small && <div className={`mt-1 text-[#66574a] leading-snug ${big ? 'text-[14px]' : 'text-[12px] line-clamp-2'}`}><RubyText text={card.oneLiner} /></div>}
         </div>
       </div>
       {tilts && <motion.div aria-hidden className="pointer-events-none absolute inset-0 rounded-[22px] mix-blend-soft-light" style={{ background: glare }} />}

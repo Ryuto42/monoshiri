@@ -35,3 +35,11 @@ npm-debug.log*
 !.vscode/extensions.json
 *.sw?
 .claude/
+infra/.appcheck-debug-token
+infra/.prewarm-auth.json
+
+# Playwright
+web/test-results/
+web/playwright-report/
+test-results/
+playwright-report/

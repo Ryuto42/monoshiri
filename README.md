@@ -2,7 +2,7 @@
 
 撮るだけで、身の回りが教科書になる。
 
-写真に写ったモノを Gemini が見つけ、「どうやってできる？」「なぜリサイクルする？」「いつから使われている？」といった問いを Google 検索で裏付けながら深掘りします。説明は文章だけでなく、流れ図・写真・YouTube 動画・AI が描く図解イラスト・AI 動画・読み上げ・クイズで届けます。調べたモノは絵本風のイラストカードになり、「モノシリ図鑑」に集まります。
+写真に写ったモノを Gemini が見つけ、「どうやってできる？」「なぜリサイクルする？」「いつから使われている？」といった問いを Google 検索で裏付けながら深掘りします。説明は文章だけでなく、流れ図・写真・YouTube 動画・AI が描く図解イラスト・AI 動画・読み上げ・クイズで届けます。そのモノが**学校のどの単元で出てくるか**（学習指導要領の 219 単元から）も示します。調べたモノは絵本風のイラストカードになり、「モノシリ図鑑」に集まります。図鑑は教科・学年ごとにも並べられ、まだ集めていない単元は「今日のミッション」になります。
 
 > **English summary:** Monoshiri is a learning app that turns everyday objects into lessons. Take a photo and Gemini (on Vertex AI) finds the objects, explains each one with Google Search grounding, and lets you dig into questions such as "how is it made?" with diagrams, photos, videos, read-aloud and quizzes. Explored objects become illustrated cards in your collection. Web + iOS + Android (Capacitor), with a Hono API on Cloud Run. The UI and docs are in Japanese. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -39,7 +39,12 @@
 | カード | Nano Banana が描くイラストでカード化。イラストの完成を待たずに保存でき、できあがると図鑑ボタンから吹き出しで知らせる |
 | 図鑑 | カード一覧・ジャンル絞り込み・検索・カード詳細（裏返し、ノート） |
 | アカウント | メールアドレス＋パスワード / Google でログイン。ゲストで集めたカードを引き継ぎ、どの端末でも同じ図鑑を開ける。最初のカードと5枚目、ゲストの上限に達したときに登録をすすめる |
-| 年代 | 登録後に年齢を聞き、「小学校低学年・高学年・中学生・高校生以上」の段階だけを保存。段階ごとに漢字・表現・くわしさを変えた解説・深掘り・クイズを作り、段階ごとにキャッシュする（未設定とゲストは標準の説明） |
+| 年代 | 最初に「なんねんせい？」と学年で聞き（ゲストも可）、「小学校低学年・高学年・中学生・高校生以上」の段階だけを保存。段階ごとに漢字・表現・くわしさを変えた解説・深掘り・クイズを作り、段階ごとにキャッシュする。画面上のチップでいつでも切り替えられ、表示中の解説も作り直す（未設定は標準の説明） |
+| ふりがな | 低学年・高学年向けの文章は Gemini が `漢字《かんじ》` の形で読みを付け、`<ruby>` で表示する。読み上げはふりがなを除いて読む。低学年は文字を大きくし、解説を自動で読み上げる |
+| 学校の単元 | 解説したモノを、学習指導要領（小・中は平成29年、高は平成30年告示）から作った 219 単元に Gemini が結び付ける（一覧の id からだけ選ぶ）。「小5 理科『物の溶け方』」のように表示し、段階に応じて「もう習った／いま習う／もうすぐ習う」を出す |
+| 教科でみる・ミッション | 図鑑を教科×学年で並べ、単元ごとの達成度（例: 小5 理科 3/8 単元）を出す。まだカードの無い単元から、段階に合う「今日のミッション」を毎日1つ出し、そのモノを調べると達成 |
+| 学びの記録 | 問いを開いた・クイズに答えた／正解した・カードを保存した、などを**日ごとの合計回数だけ**サーバーで数える（個人とは結び付けない）。`node infra/stats.mjs` で見られる |
+| プライバシー | `/privacy` に子どもにも読める「かんたん版」と詳しい版。13歳未満は保護者の同意のうえで登録するよう、登録画面で確認する |
 
 操作面では、詳細画面を下にスワイプして閉じられます。戻る操作（ブラウザの戻る、Android の戻るボタン、Esc）は、開いた順に1段ずつ閉じます。
 
@@ -52,20 +57,23 @@
 | API サーバー | Hono on Node.js 24（TypeScript をそのまま実行）、Cloud Run |
 | AI | Vertex AI の Gemini（物体検出・解説・深掘り・クイズ・画像・読み上げ・動画）、Grounding with Google Search |
 | データ | Firebase Auth（匿名・メール／パスワード・Google）、Firestore、Cloud Storage（非公開バケット）、Secret Manager |
+| 保護 | Firebase App Check（reCAPTCHA Enterprise）、Cloud Vision SafeSearch |
+| 監視 | Cloud Monitoring（稼働確認・5xx のアラート）、Cloud Billing の予算通知 |
+| テスト | `node --test`（API）、Firestore エミュレーター（ルール）、Playwright（E2E） |
 | 配信・CI | Firebase Hosting、GitHub Actions（Workload Identity Federation で鍵なしデプロイ） |
 | 外部データ | Wikimedia Commons、Wikipedia、YouTube Data API |
 
 ## しくみ
 
 ```
-ブラウザ / iOS / Android ──(Firebase Auth の ID トークン)──▶ Cloud Run: monoshiri-api
+ブラウザ / iOS / Android ──(Firebase Auth の ID トークン + App Check)──▶ Cloud Run: monoshiri-api
    │                                          ├─ Vertex AI (global)
-   │                                          │   ├ gemini-3.1-flash-lite   物体検出 (box_2d)・クイズ
+   │                                          │   ├ gemini-3.1-flash-lite   物体検出 (box_2d)・クイズ・単元の選択
    │                                          │   ├ gemini-3.8-flash        解説・深掘り + Grounding with Google Search
    │                                          │   ├ gemini-nano-banana-2.1  カードイラスト / 図解
    │                                          │   ├ gemini-3.8-flash-lite-tts 読み上げ
    │                                          │   └ gemini-omni-1.2-flash   AI 動画 (Interactions API)
-   │                                          ├─ Firestore   生成結果キャッシュ・利用額メーター
+   │                                          ├─ Firestore   生成結果キャッシュ・利用額メーター・日別の学びの集計
    │                                          ├─ Cloud Storage (非公開)  生成メディア → /media/* で配信
    │                                          ├─ Secret Manager  YouTube Data API キー
    │                                          └─ Wikimedia Commons / Wikipedia / YouTube Data API
@@ -79,8 +87,9 @@
 1. **撮影**: `Viewfinder` がカメラ映像を出し、撮った画像を `lib/image.ts` で縮小して JPEG（base64）にする
 2. **検出**: `POST /api/detect` で写っているモノと位置（0〜1000 の座標）を受け取り、`Stage` がマーカーを重ねる
 3. **解説**: 選んだモノの切り抜きとラベルを `POST /api/explore` に送る。サーバーは別名キャッシュと解説キャッシュを引き、なければ Gemini + Google 検索で生成して保存する
-4. **深掘り**: 問いを選ぶと `POST /api/deep` が SSE で本文を流す。写真・動画は `GET /api/media`、図解・動画・クイズは必要になったときにだけ生成する
-5. **カード化**: `POST /api/illustrate` を裏で走らせつつ、カードはすぐ IndexedDB と Firestore に保存する（`lib/illust.ts`）。完成したらカードを更新して吹き出しで知らせる
+4. **単元**: 解説を表示すると `POST /api/units` で学校の単元（最大3つ）を受け取り、チップで表示する（年代によらず共通のキャッシュ）
+5. **深掘り**: 問いを選ぶと `POST /api/deep` が SSE で本文を流す。写真・動画は `GET /api/media`、図解・動画・クイズは必要になったときにだけ生成する
+6. **カード化**: `POST /api/illustrate` を裏で走らせつつ、カードは単元と一緒にすぐ IndexedDB と Firestore に保存する（`lib/illust.ts`）。完成したらカードを更新して吹き出しで知らせる
 
 画面の状態は `lib/flow.ts` の `Flow`（`camera` → `detecting` → `picked` → `exploring` → `explore`、失敗時は `error`）で管理しています。
 
@@ -91,10 +100,13 @@
 ├─ web/                      フロントエンド（Web と iOS / Android で共通）
 │  ├─ src/
 │  │  ├─ App.tsx             画面の土台（カメラの上に図鑑を重ねる）
-│  │  ├─ router.tsx          ルート定義（/、/zukan、/zukan/$cardId）
-│  │  ├─ screens/            Home（カメラと調べる流れ）、ExploreContent、TopicPanel（深掘り）、Zukan、CardDetail、Account（ログイン）
+│  │  ├─ router.tsx          ルート定義（/、/zukan、/zukan/$cardId、/account、/privacy）
+│  │  ├─ screens/            Home（カメラと調べる流れ）、ExploreContent、TopicPanel（深掘り）、Zukan、ZukanUnits（教科でみる）、
+│  │  │                      CardDetail、Account と account/（ログイン・登録・段階）、Privacy
+│  │  ├─ data/curriculum.json 学習指導要領の単元一覧（server/src/curriculum.json と同じ内容。テストで一致を確認）
 │  │  ├─ components/         CardFace / CardMaker（カード）、Sheet（下から出るパネル）、Speak（読み上げ）、
-│  │  │                      LoadingCard、ReadyBubble、SignupNudge、Viewfinder、Stage、Markdown、SearchEntry、ui、theme
+│  │  │                      LoadingCard、ReadyBubble、SignupNudge、Viewfinder、Stage、Markdown、SearchEntry、ui、theme、
+│  │  │                      StagePicker / StageChip（学年）、UnitChips / Mission（単元）、RubyText（ふりがな）、Welcome
 │  │  ├─ lib/
 │  │  │  ├─ api.ts           API クライアント（ID トークン付き fetch、SSE）
 │  │  │  ├─ firebase.ts      Firebase 初期化、ゲストログイン、ログイン状態
@@ -104,25 +116,40 @@
 │  │  │  ├─ flow.ts          調べる流れの状態
 │  │  │  ├─ native.ts        Capacitor 連携、戻る操作のスタック
 │  │  │  ├─ glass.ts         iOS ネイティブボタン（GlassChrome プラグイン）とのやりとり
+│  │  │  ├─ level.ts         学びの段階（ゲストは端末、ログイン後は Firestore にも保存）
+│  │  │  ├─ units.ts         単元の一覧・判定・キャッシュ、日替わりミッション
+│  │  │  ├─ ruby.ts          ふりがな（漢字《かんじ》）の変換
 │  │  └─ styles.css          Tailwind とデザイントークン
 │  ├─ public/                サンプル写真、アイコン画像、PWA マニフェスト
 │  ├─ ios/                   Xcode プロジェクト（App/App/GlassChrome.swift がネイティブボタン）
 │  ├─ android/               Android Studio プロジェクト
 │  └─ capacitor.config.ts
 ├─ server/                   API サーバー
-│  └─ src/
-│     ├─ index.ts            ルーティング、認証、レート制限、各エンドポイント
-│     ├─ ai.ts               Gemini クライアント、プロンプト、利用額の計算
-│     ├─ store.ts            Firestore（開発時はメモリ）のキャッシュとメーター
-│     ├─ media.ts            Cloud Storage（開発時は .local-media/）、Wikimedia / YouTube
-│     └─ config.ts           環境変数・モデル名・単価
+│  ├─ src/
+│  │  ├─ index.ts            起動（createApp() を serve するだけ）
+│  │  ├─ app.ts              ミドルウェア・エラー処理・ルートの組み立て
+│  │  ├─ auth.ts             ID トークンと App Check の検証、レート制限（検証部分は差し替え可能でテストから使う）
+│  │  ├─ http.ts             共通の型・入力の整形・「調べたモノか」の確認
+│  │  ├─ routes/             files（/media）、detect、explore、deep（深掘り・クイズ）、media（写真・イラスト・図解）、
+│  │  │                      speech（読み上げ）、video、learn（単元・学びの記録・利用状況）
+│  │  ├─ ai.ts               Gemini クライアント、プロンプト、利用額の計算
+│  │  ├─ store.ts            Firestore（開発時はメモリ）のキャッシュとメーター
+│  │  ├─ stats.ts            日別の学びの集計（stats_daily、個人と結び付けない）
+│  │  ├─ media.ts            Cloud Storage（開発時は .local-media/）、Wikimedia / YouTube
+│  │  ├─ curriculum.json     学習指導要領の単元一覧
+│  │  └─ config.ts           環境変数・モデル名・単価
+│  └─ test/                 node --test の API テスト
 ├─ infra/
 │  ├─ budget-guard/          予算通知で課金を外す Cloud Run 関数
 │  ├─ deploy-hosting.mjs     Firebase Hosting へのデプロイ（REST API）
 │  ├─ deploy-rules.mjs       Firestore ルールのデプロイ
 │  ├─ write-web-env.mjs      Firebase の Web 設定を取得して web/.env.*.local を書く
 │  ├─ icons.mjs              使っているアイコンだけのフォントを作る
-│  └─ prewarm.mjs            よく撮られるモノの解説を事前生成する
+│  ├─ prewarm.mjs            よく撮られるモノの解説・単元を事前生成する（--levels で段階ごとにも）
+│  ├─ stats.mjs              日別の学びの集計を表で見る
+│  ├─ setup-appcheck.mjs     reCAPTCHA Enterprise のキーと App Check の登録
+│  ├─ setup-monitoring.mjs   稼働確認とアラート（Cloud Monitoring）
+│  └─ setup-auth-quota.mjs   新規登録の上限（IP ごと 1 時間 100 件）
 ├─ firestore.rules
 ├─ firebase.json             Hosting の設定とセキュリティヘッダー
 └─ .github/workflows/        ci.yml（PR のチェック）、branch-flow.yml（main は dev からだけ）、deploy-web.yml（main への push で Web をデプロイ）
@@ -223,10 +250,14 @@ cd web && npm run dev:emu
 | `web/` | `npx tsc -b && npx oxlint --deny-warnings src` | 型チェックと lint（CI と同じ） |
 | `web/` | `npm run build` | 本番ビルド（`web/dist`） |
 | `web/` | `npm run ios` / `npm run android` | ネイティブ用にビルド → 同期 → Xcode / Android Studio を開く |
+| `web/` | `npm run test:rules` | Firestore ルールのテスト（Java 21 が必要） |
+| `web/` | `npm run test:e2e` | Playwright の E2E テスト（API はモック、Auth / Firestore はエミュレーター。Java 21 が必要） |
 | `server/` | `npm run dev` | API を開発モードで起動（ファイル変更で再起動） |
 | `server/` | `npm run typecheck` | 型チェック |
+| `server/` | `npm test` | API のテスト（Google Cloud には接続しない） |
 | ルート | `node infra/icons.mjs` | ソース中のアイコン名を集めてアイコンフォントを作り直す |
-| ルート | `node infra/prewarm.mjs [--no-illust] [品名...]` | よく撮られるモノを事前生成する（`API_BASE` で接続先を指定） |
+| ルート | `node infra/prewarm.mjs [--no-illust] [--levels std,lower,upper] [品名...]` | よく撮られるモノを事前生成する（`API_BASE` で接続先を指定。表示される uid を Cloud Run の `ADMIN_UIDS` に入れると、ゲストの上限なしで実行できる） |
+| ルート | `node infra/stats.mjs [--days 7]` | 日別の学びの集計を表示する |
 
 ## iOS / Android アプリ
 
@@ -257,7 +288,7 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 
 ## API
 
-`/api/health` 以外は `Authorization: Bearer <Firebase ID トークン>` が必要です。POST は 1 ユーザーあたり 5 分 120 回まで、本文は 4MB までです。解説・深掘り・クイズ・写真と動画・図解・動画は `level`（`std`・`lower`・`upper`・`junior`・`senior`）を受け取り、`std` 以外は段階ごとのキャッシュを使います。
+`/api/health` 以外は `Authorization: Bearer <Firebase ID トークン>` が必要です。Web 版は `X-Firebase-AppCheck`（App Check のトークン）も付けます。POST は 1 ユーザーあたり 5 分 120 回まで、本文は 4MB までです。解説・深掘り・クイズ・写真と動画・図解・動画は `level`（`std`・`lower`・`upper`・`junior`・`senior`）を受け取り、`std` 以外は段階ごとのキャッシュを使います。
 
 | メソッドとパス | 内容 | キャッシュ | 費用 |
 |---|---|---|---|
@@ -270,26 +301,31 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 | `GET /api/media` | テーマに合う写真（Commons から Gemini が選び SafeSearch で確認）と YouTube 動画（セーフサーチ厳格） | `cache_media` | 小 |
 | `POST /api/illustrate` | カードイラスト | `cache_illust` | 大 |
 | `POST /api/diagram` | 図解イラスト | `cache_diagram` | 大 |
-| `POST /api/tts` | 読み上げ音声（最大 900 字） | `cache_tts` | 小 |
+| `POST /api/tts` | 読み上げ音声（最大 900 字。`ref: { name, topic?, level }` の解説・深掘り本文に含まれる文だけ） | `cache_tts` | 小 |
+| `POST /api/units` | 学校の単元（最大3つ、`{ id, why }`。id は curriculum.json のもの） | `cache_units` | 小 |
+| `POST /api/events` | 学びのイベント（日ごとの合計回数だけを数える） | — | なし |
 | `POST /api/video`、`GET /api/video/:id` | AI 動画の開始と状態確認（合計 `VIDEO_LIMIT` 本まで） | `cache_video` | 特大 |
 | `GET /media/*` | 生成したメディアの配信（Range 対応） | ブラウザに1年 | なし |
 
 深掘り・クイズ・写真と動画・イラスト・図解・動画は、解説のキャッシュにあるモノ（深掘り・図解・動画・写真と動画は、その解説に含まれる問いも）に対してだけ動きます。
 
-主なエラーは `401 unauthenticated`、`400 unknown_subject`、`402 budget`（アプリ全体の上限）、`402 user_limit`（そのアカウントの上限）、`413 too_large`、`422 unsafe_image`（SafeSearch で不適切）、`429 rate_limited`、`503 busy` です。
+主なエラーは `401 unauthenticated`、`400 unknown_subject`、`400 unknown_text`（読み上げの文が本文に無い）、`402 budget`（アプリ全体の上限）、`402 user_limit`（そのアカウントの上限）、`403 attest_required`（App Check の強制中に、確認できないゲストが新しく生成しようとした）、`413 too_large`、`422 unsafe_image`（SafeSearch で不適切）、`429 rate_limited`、`503 busy` です。
 
 ## データの保存先
 
 | 場所 | 中身 | 書き込める人 |
 |---|---|---|
 | Firestore `users/{uid}/cards/{id}` | 集めたカード | 本人のみ。メール登録はアドレス確認後（`firestore.rules`） |
-| Firestore `users/{uid}` | 学びの段階（`stage`）だけ。年齢は保存しない | 本人のみ（ログインしたアカウント） |
+| Firestore `users/{uid}` | 学びの段階（`stage`）だけ。年齢・学年は保存しない | 本人のみ（ログインしたアカウント） |
+| localStorage `monoshiri.stage.<uid>` | 学びの段階（ゲストはここだけ） | 端末内 |
 | localStorage `monoshiri.sync.<uid>` | 同期済みのカード ID（ほかの端末での削除を反映するため） | 端末内 |
 | IndexedDB `monoshiri.cards` | カード | 端末内 |
 | Firestore `cache_*`、`explore_alias` | 生成結果の共有キャッシュ | API サーバーのみ |
 | Firestore `meta/usage`、`meta/counters` | 推定利用額、動画の本数 | API サーバーのみ |
 | Firestore `meter_users/{uid}` | アカウントごとの推定利用額 | API サーバーのみ |
 | Firestore `video_jobs` | 動画生成ジョブ | API サーバーのみ |
+| Firestore `cache_units` | モノごとの単元（年代によらず共通） | API サーバーのみ |
+| Firestore `stats_daily/{日付}_{0-9}` | 日別の学びの合計回数（イベント別・段階別・利用者数）。uid は保存しない | API サーバーのみ |
 | Cloud Storage `<project>-media`（非公開） | 生成した画像・音声・動画 | API サーバーのみ（`/media/*` で配信） |
 
 ## コストの守り方
@@ -298,11 +334,12 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 
 1. **予算 ¥2,000**（クレジット適用前の総額、2026/11/1 から期限なし）を Cloud Billing に設定。10・20・30・50・80・100% でメールと Pub/Sub に通知
 2. **キルスイッチ**: 予算通知（Pub/Sub）を受けた Cloud Run 関数が、実費 ¥1,900 到達でプロジェクトの課金を自動で外す（`infra/budget-guard`、`KILL_AT_JPY`）
-3. **アプリ内メーター**: API サーバーがトークン数から推定額を Firestore に積算し、推定 ¥1,800（`CAP_JPY`）で生成 API を止める
+3. **アプリ内メーター**: API サーバーがトークン数・Google 検索グラウンディングの検索回数（$14/1,000 件。月 5,000 件の無料枠は引かずに多めに見積もる）・SafeSearch の枚数から推定額を Firestore に積算し、推定 ¥1,800（`CAP_JPY`）で生成 API を止める
 4. **アカウントごとの上限**: 新しく生成した分の推定額をアカウントごとに積算し、ゲストは ¥20、ログインしたアカウント（Google、または確認済みのメールアドレス）は ¥300 で止める（累計。`USER_CAP_GUEST_JPY`・`USER_CAP_MEMBER_JPY`）。キャッシュ済みの内容は上限に達しても見られる
 5. **キャッシュ**: 同じモノ・同じ問いの結果は Firestore に保存して全ユーザーで再利用（2回目以降は無料・即表示。年代の段階ごとに保存）
 6. **事前生成**: よく撮られるモノは `infra/prewarm.mjs` で先に作っておく
-7. AI 動画は合計 2 本まで（`VIDEO_LIMIT`）
+7. AI 動画は合計 2 本まで（`VIDEO_LIMIT`。トランザクションで数える）
+8. **App Check**: 匿名アカウントはいくらでも作れるので、`APPCHECK_ENFORCE=1` のとき、ゲストの新しい生成は App Check で確かめた Web アプリからだけ受け付ける。新規登録も IP ごと 1 時間 100 件まで
 
 単価は `server/src/config.ts` の `PRICES`、円換算は `JPY_PER_USD` です。
 
@@ -311,7 +348,8 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 詳しくは [SECURITY.md](SECURITY.md) にあります。要点は次のとおりです。
 
 - 秘密情報はリポジトリに置きません。Firebase の Web 設定は公開前提の値で、`write-web-env.mjs` がビルド時に取得します。YouTube キーは Secret Manager に置き、CI は Workload Identity Federation を使うので鍵ファイルがありません。
-- API は Firebase の ID トークンを検証し、ユーザーごとにレート制限します。
+- API は Firebase の ID トークンと App Check のトークンを検証し、ユーザーごとにレート制限します。
+- 読み上げも「アプリで調べたモノ」の本文に含まれる文だけを音声にします。
 - 生成 API は「アプリで調べたモノ」に限定し、共有キャッシュは上書きできないようにしています。
 - ゲストはそのまま、メール登録はアドレスの確認後にだけクラウドの図鑑を使えます。他人のアドレスで登録して図鑑を受け取ることはできません。
 - Firestore ルールは、カードの項目・型・長さ・ID の形・イラストの URL（`/media/` のみ）・更新時刻（未来は 5 分まで）を検証します。テスト（`web/tests/firestore-rules.test.mjs`）は `cd web && npm run test:rules` で、Firestore エミュレーター上で動き、CI でも走ります。
@@ -321,6 +359,8 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 - 撮影・選択した写真はどこにも保存しません（端末にもクラウドにも）。検出と解説のときだけ API に送り、処理が終われば捨てます。
 - 写真は Cloud Vision の SafeSearch で確認し、不適切なものは検出も解説もしません。深掘りに出す写真も SafeSearch を通したものだけで、YouTube の検索はセーフサーチを厳格にしています。
 - アカウントごとに使える生成の額に上限があります（ゲスト ¥20・ログイン ¥300）。
+- 学びの記録は日ごとの合計回数だけで、個人とは結び付けません。外部の解析ツールは使っていません。
+- 13歳未満の人には、保護者の同意のうえで登録するよう登録画面とプライバシーポリシーで案内します。
 - Hosting は HSTS・`X-Frame-Options: DENY`・`frame-ancestors 'none'` などのヘッダーを付けます。
 - 脆弱性は Issue ではなく、GitHub の Private vulnerability reporting で報告してください。
 
@@ -359,6 +399,8 @@ cd server && gcloud run deploy monoshiri-api --source=. --region=asia-northeast1
   --service-account=monoshiri-api@<project>.iam.gserviceaccount.com --allow-unauthenticated \
   --set-env-vars=GOOGLE_CLOUD_PROJECT=<project>,MEDIA_BUCKET=<project>-media,CAP_JPY=1800 \
   --set-secrets=YOUTUBE_API_KEY=youtube-api-key:latest
+# App Check を強制するのは、App Check に対応した Web を公開してから:
+#   gcloud run services update monoshiri-api --region=asia-northeast1 --update-env-vars=APPCHECK_ENFORCE=1
 ```
 
 SafeSearch のため、プロジェクトで Cloud Vision API（`vision.googleapis.com`）を有効にしてください。`--allow-unauthenticated` は Cloud Run の入口を開けるだけで、各 API はアプリ側で Firebase の ID トークンを検証します。独自ドメインで Web を配信するときは `ALLOWED_ORIGINS` にそのオリジンを足してください。
@@ -376,13 +418,15 @@ PROJECT=<project> node infra/deploy-hosting.mjs
 PROJECT=<project> node infra/deploy-rules.mjs
 ```
 
+App Check（reCAPTCHA Enterprise のキー作成と Web アプリの登録）は `PROJECT=<project> node infra/setup-appcheck.mjs`、監視は `node infra/setup-monitoring.mjs` で設定できます（どちらも再実行しても重複しません）。
+
 ### 4. 予算のキルスイッチ（任意）
 
 Cloud Billing で予算と Pub/Sub 通知を作り、`infra/budget-guard` を Cloud Run 関数としてデプロイします（環境変数 `TARGET_PROJECT`、`KILL_AT_JPY`）。関数のサービスアカウントには、対象プロジェクトの課金設定を変更できる権限（`roles/billing.projectManager` など）が必要です。
 
 ### 自動デプロイ（GitHub Actions）
 
-- `ci.yml`: プルリクエストと `dev`・`main` への push で、Web の型チェック・lint・ビルド、サーバーの型チェック、Firestore ルールのテストを行います。
+- `ci.yml`: プルリクエストと `dev`・`main` への push で、Web の型チェック・lint・ビルド、サーバーの型チェックとテスト、Firestore ルールのテスト、Playwright の E2E テストを行います。
 - `branch-flow.yml`: `main` へのプルリクエストが `dev` から来ているかを確かめます。作業ブランチ → `dev` → `main` の順にしか入りません。
 - `deploy-web.yml`: `main` への push で Web を Firebase Hosting に出します。認証は Workload Identity Federation（鍵なし）で、このリポジトリの `main` からだけ Hosting のデプロイ権限しかないサービスアカウントになれます。fork では動かないようにしています。
 - API サーバー（Cloud Run）は変更頻度が低いので手動デプロイです。
