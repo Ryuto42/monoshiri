@@ -6,7 +6,8 @@
     "start": "node src/index.ts",
     "dev": "LOCAL_DEV=1 node --env-file-if-exists=.env --watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "LOCAL_DEV=1 node --test --test-concurrency=1 'test/**/*.test.ts'"
+    "test": "LOCAL_DEV=1 node --test --test-concurrency=1 'test/**/*.test.ts'",
+    "mail:preview": "node src/mail/preview.ts"
   },
   "type": "module",
   "dependencies": {
@@ -16,10 +17,12 @@
     "firebase-admin": "^14.5.0",
     "google-auth-library": "^11.3.3",
     "hono": "^4.13.17",
+    "nodemailer": "10.2.1",
     "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
     "typescript": "^7.0.2"
   },
   "private": true,
