@@ -7,6 +7,7 @@ import { haptic } from '../../lib/native';
 import { toast } from '../../lib/toast';
 import type { Card } from '../../lib/types';
 import { Icon } from '../../components/ui';
+import { Phrases } from '../../components/Phrases';
 import { catStyle, spring } from '../../components/theme';
 import { EmailForm, ResetForm } from './EmailForm';
 import { GoogleMark, PrivacyLink, Spinner } from './parts';
@@ -42,11 +43,17 @@ export function GuestView() {
         {mode === 'reset' ? 'パスワードの再設定' : cards.length ? <>あつめた図鑑を<br />どの端末でも</> : 'ログイン'}
       </h2>
       {mode !== 'reset' && (
-        <p className="mt-2 text-center text-[14px] leading-relaxed text-ink-2">
-          {cards.length
-            ? `いまの ${cards.length} 枚はそのまま引きつがれます。スマホでもパソコンでも、ログインすれば同じ図鑑が開けます。`
-            : 'ログインすると、スマホでもパソコンでも同じ図鑑が開けます。'}
-          <span className="mt-1 block text-[12px] text-ink-3">ゲストは新しく調べられる数に限りがあります。登録すると、もっとたくさん調べられます。</span>
+        <p className="phrase-wrap mt-2 text-center text-[14px] leading-relaxed text-ink-2">
+          <Phrases
+            text={
+              cards.length
+                ? `いまの ${cards.length} 枚はそのまま引きつがれます。スマホでもパソコンでも、ログインすれば同じ図鑑が開けます。`
+                : 'ログインすると、スマホでもパソコンでも同じ図鑑が開けます。'
+            }
+          />
+          <span className="mt-1 block text-[12px] text-ink-3">
+            <Phrases text="ゲストは新しく調べられる数に限りがあります。登録すると、もっとたくさん調べられます。" />
+          </span>
         </p>
       )}
 
@@ -173,7 +180,7 @@ function Tabs({ mode, onChange }: { mode: 'login' | 'signup'; onChange: (m: 'log
       <div role="tablist" className="mt-5 grid grid-cols-2 rounded-full bg-paper-2 p-1">
         {(['signup', 'login'] as const).map((m) => (
           <button key={m} role="tab" aria-selected={mode === m} onClick={() => onChange(m)} className="relative h-11 rounded-full text-[14px] font-bold">
-            {mode === m && <motion.span layoutId="account-tab" className="absolute inset-0 rounded-full bg-paper shadow-[0_0_0_1px_rgb(60_40_20/0.06),0_1px_6px_rgb(0_0_0/0.18)]" transition={spring} />}
+            {mode === m && <motion.span layoutId="account-tab" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-tab)]" transition={spring} />}
             <span className={`relative ${mode === m ? 'text-ink' : 'text-ink-3'}`}>{m === 'signup' ? '新規登録' : 'ログイン'}</span>
           </button>
         ))}

@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { readMedia } from '../media.ts';
+import { cleanWav } from '../wav.ts';
 
 // Generated media from the private bucket, with Range support for audio and video.
 export const files = new Hono();
@@ -12,7 +13,8 @@ files.get('/media/*', async (c) => {
   if (!m) {
     const got = await readMedia(name);
     if (!got) return c.notFound();
-    m = got;
+    // Speech saved before the WAV fix still has a whole WAV file inside it; serve just the samples.
+    m = name.startsWith('tts/') ? { ...got, data: cleanWav(got.data) } : got;
     if (m.data.length < 2_000_000) mediaCache.set(name, m);
     if (mediaCache.size > 300) mediaCache.delete(mediaCache.keys().next().value!);
   }

@@ -6,6 +6,7 @@ import { useCards } from '../lib/cards';
 import { mediaUrl } from '../lib/api';
 import { haptic, onBack } from '../lib/native';
 import { Button, Icon } from './ui';
+import { Phrases } from './Phrases';
 import { catStyle, dialogMotion, spring, ui } from './theme';
 
 const COPY = {
@@ -63,8 +64,8 @@ function Prompt({ kind }: { kind: keyof typeof COPY }) {
         >
           {copy.title}
         </motion.h2>
-        <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.24 }} className={ui.lead}>
-          {copy.body}
+        <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.24 }} className={`phrase-wrap ${ui.lead}`}>
+          <Phrases text={copy.body} />
         </motion.p>
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.3 }} className="mt-5 flex flex-col gap-2">
           <Button size="lg" icon="shield" iconFill onClick={go}>

@@ -7,6 +7,7 @@ import { PrivacyLink } from '../screens/account/parts';
 import { HelpHint, Tour } from './Tour';
 import { dialogMotion, ui } from './theme';
 import { Button } from './ui';
+import { Phrases } from './Phrases';
 
 const SAMPLE = '/samples/desk.webp';
 
@@ -82,10 +83,10 @@ function Panel() {
             <br />
             モノシリになれる
           </h2>
-          <p className={ui.lead}>
-            身の回りのモノを撮ると、写っているモノを見つけて、その「なぜ？」を教えてくれます。
+          <p className={`phrase-wrap ${ui.lead}`}>
+            <Phrases text="身の回りのモノを撮ると、写っているモノを見つけて、その「なぜ？」を教えてくれます。" />
           </p>
-          <ol className="mt-4 flex flex-col gap-2">
+          <ol className="phrase-wrap mt-4 flex flex-col gap-2">
             {STEPS.map((s, i) => (
               <li key={s.title} className="flex gap-3">
                 <span aria-hidden className="w-5 shrink-0 text-right text-[20px] font-black leading-7 text-accent">
@@ -93,7 +94,7 @@ function Panel() {
                 </span>
                 <p className="text-[14px] leading-7 text-ink-2">
                   <span className="mr-2 text-[15px] font-black text-ink">{s.title}</span>
-                  {s.body}
+                  <Phrases text={s.body} />
                 </p>
               </li>
             ))}
