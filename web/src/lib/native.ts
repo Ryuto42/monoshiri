@@ -124,12 +124,30 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
 
   // The web view does not resize for the keyboard (Keyboard.resize = 'none'), so expose its height as --kb.
   // Screens that opt in with data-kb-lift move above the keyboard and keep the focused field in view.
-  Keyboard.addListener('keyboardWillShow', (info) => root.style.setProperty('--kb', `${info.keyboardHeight}px`));
-  Keyboard.addListener('keyboardWillHide', () => root.style.setProperty('--kb', '0px'));
-  Keyboard.addListener('keyboardDidShow', () => {
+  // Moving focus between fields can fire hide→show back to back; the short delay on hide keeps the sheet still.
+  let kb = 0;
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+  const setKb = (h: number) => {
+    if (h === kb) return;
+    kb = h;
+    root.style.setProperty('--kb', `${h}px`);
+  };
+  const reveal = () => {
     const el = document.activeElement;
-    if (el instanceof HTMLElement && el.closest('[data-kb-lift]')) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (!kb || !(el instanceof HTMLElement) || !el.closest('[data-kb-lift]')) return;
+    const r = el.getBoundingClientRect();
+    // Scroll only when the field is actually hidden, and only as far as needed.
+    if (r.top < 72 || r.bottom > window.innerHeight - kb - 16) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+  Keyboard.addListener('keyboardWillShow', (info) => {
+    clearTimeout(hideTimer);
+    setKb(Math.round(info.keyboardHeight));
   });
+  Keyboard.addListener('keyboardWillHide', () => {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => setKb(0), 120);
+  });
+  Keyboard.addListener('keyboardDidShow', reveal);
 
   const status = await Network.getStatus();
   onOffline(!status.connected);
