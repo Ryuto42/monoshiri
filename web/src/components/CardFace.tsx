@@ -56,14 +56,16 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
       className={`relative aspect-[5/7] w-full select-none rounded-[22px] bg-[#fffdf8] p-[6%] shadow-[var(--shadow-float)] text-[#2a2017] ${small ? 'rounded-[16px]' : ''}`}
     >
       <div className="relative h-full w-full overflow-hidden rounded-[16px] flex flex-col" style={{ background: c.bg }}>
-        <div className="flex items-center justify-between px-[7%] pt-[6%]" style={{ color: c.ink }}>
-          <span className={`inline-flex items-center gap-1 rounded-full bg-white/70 px-2 font-bold ${small ? 'text-[9px] leading-4' : 'text-[11px] leading-6'}`}>
-            <Icon name={c.icon} size={small ? 11 : 14} fill />
-            {card.category}
-          </span>
-          {no != null && <span className={`font-black tabular-nums opacity-70 ${small ? 'text-[9px]' : 'text-[12px]'}`}>No.{String(no).padStart(3, '0')}</span>}
-        </div>
-        <div className="relative flex-1 grid place-items-center">
+        {/* The illustration is square, so its area is square too: nothing is cropped and no band of a different
+            colour sits above it. The category and number sit on top of the art. */}
+        <div className="relative aspect-square w-full min-h-0 shrink grid place-items-center">
+          <div className="absolute inset-x-0 top-0 z-[1] flex items-center justify-between px-[7%] pt-[6%]" style={{ color: c.ink }}>
+            <span className={`inline-flex items-center gap-1 rounded-full bg-white/70 px-2 font-bold ${small ? 'text-[9px] leading-4' : 'text-[11px] leading-6'}`}>
+              <Icon name={c.icon} size={small ? 11 : 14} fill />
+              {card.category}
+            </span>
+            {no != null && <span className={`font-black tabular-nums opacity-70 ${small ? 'text-[9px]' : 'text-[12px]'}`}>No.{String(no).padStart(3, '0')}</span>}
+          </div>
           {card.illustration ? (
             <motion.img
               key={card.illustration}
@@ -81,7 +83,7 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
           )}
           {card.firstFind && (
             <span
-              className={`absolute z-[1] grid place-items-center rounded-full bg-sun text-[#5a3b00] shadow-[var(--shadow-card)] ${small ? 'right-1.5 top-1.5 h-5 w-5' : 'right-3 top-3 h-8 w-8'}`}
+              className={`absolute z-[1] grid place-items-center rounded-full bg-sun text-[#5a3b00] shadow-[var(--shadow-card)] ${small ? 'bottom-1.5 right-1.5 h-5 w-5' : 'bottom-3 right-3 h-8 w-8'}`}
               title="はじめて見つけたモノ"
             >
               <Icon name="flag" size={small ? 13 : big ? 20 : 18} fill />
@@ -103,7 +105,7 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
             </div>
           )}
         </div>
-        <div className={`bg-[#fffdf8]/92 px-[7%] ${small ? 'py-[5%]' : 'py-[6%]'}`}>
+        <div className={`flex flex-1 flex-col justify-center bg-[#fffdf8]/92 px-[7%] ${small ? 'py-[5%]' : 'py-[6%]'}`}>
           {card.reading && !small && <div className="text-[11px] font-bold tracking-wider text-[#9a8a7a]">{card.reading}</div>}
           <div className={`font-black leading-tight ${big ? 'text-[28px]' : small ? 'text-[13px] truncate' : 'text-[20px]'}`}>{card.name}</div>
           {card.oneLiner && !small && <div className={`mt-1 text-[#66574a] leading-snug ${big ? 'text-[14px]' : 'text-[12px] line-clamp-2'}`}>{card.oneLiner}</div>}

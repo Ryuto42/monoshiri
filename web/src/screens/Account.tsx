@@ -305,7 +305,7 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
         disabled={disabled}
         whileTap={{ scale: 0.97 }}
         transition={spring}
-        className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink shadow-[0_8px_22px_-8px_color-mix(in_oklab,var(--accent)_75%,transparent)] disabled:opacity-60"
+        className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink disabled:opacity-60"
       >
         {busy ? <Spinner light /> : <Icon name={signup ? 'person_add' : 'login'} size={22} />}
         {signup ? '登録する' : 'ログイン'}
