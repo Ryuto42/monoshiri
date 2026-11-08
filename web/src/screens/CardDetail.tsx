@@ -1,5 +1,5 @@
-import { AnimatePresence, motion, useMotionValue } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { animate, AnimatePresence, motion, useMotionValue, usePresence, useTransform } from 'motion/react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from '@tanstack/react-router';
 import { getCard, removeCard, saveCard, useCards } from '../lib/cards';
@@ -15,7 +15,24 @@ import { haptic } from '../lib/native';
 import { TopicPanel } from './TopicPanel';
 import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
-import { slideOut, useSwipeDismiss } from '../lib/useSwipeDismiss';
+import { useSwipeDismiss } from '../lib/useSwipeDismiss';
+
+const gridCard = (id: string) => document.querySelector<HTMLElement>(`#zukan-scroll [data-card-id="${CSS.escape(id)}"]`);
+
+// Where the card should land in the zukan; scrolls it into view (under the cover of the detail) when it is off screen.
+function landing(grid: HTMLElement) {
+  const scroller = document.getElementById('zukan-scroll');
+  let r = grid.getBoundingClientRect();
+  if (!r.width) return null;
+  if (scroller) {
+    const top = Math.max(0, ...[...scroller.querySelectorAll('.sticky')].map((e) => e.getBoundingClientRect().bottom));
+    if (r.top < top || r.bottom > window.innerHeight) {
+      scroller.scrollTop += r.top - (top + (window.innerHeight - top - r.height) / 2);
+      r = grid.getBoundingClientRect();
+    }
+  }
+  return r;
+}
 
 export function CardDetail({ cardId }: { cardId: string }) {
   const cards = useCards();
@@ -26,18 +43,24 @@ export function CardDetail({ cardId }: { cardId: string }) {
   const backTo = useBackTo();
   const close = () => backTo('/zukan');
   const router = useRouter();
+  // Every way of closing (button, swipe, back button, Escape, browser back) only changes the route;
+  // the exit below then flies the card back onto its place in the grid before the detail is removed.
+  const [isPresent, safeToRemove] = usePresence();
 
   // Registered once (the router is stable) so a topic panel opened later stays above this layer in the back stack.
+  // Dropped as soon as the exit starts, so a second back press goes to the zukan's layer, not here again.
   useEffect(
     () =>
-      onBack(
-        () => {
-          if (router.history.canGoBack()) router.history.back();
-          else void router.navigate({ to: '/zukan', replace: true });
-        },
-        { history: false },
-      ),
-    [router],
+      isPresent
+        ? onBack(
+            () => {
+              if (router.history.canGoBack()) router.history.back();
+              else void router.navigate({ to: '/zukan', replace: true });
+            },
+            { history: false },
+          )
+        : undefined,
+    [router, isPresent],
   );
   // The explanation is cached on the server once explored, so this only fetches the extras (Wikipedia, Google suggestions).
   const name = card?.name;
@@ -49,10 +72,102 @@ export function CardDetail({ cardId }: { cardId: string }) {
       live = false;
     };
   }, [name]);
-  const y = useMotionValue(0);
   const scroller = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const face = useRef<HTMLButtonElement>(null);
+  const scrim = useRef<HTMLDivElement>(null);
+  const fades = useRef<(HTMLElement | null)[]>([]);
   const intro = useRef<HTMLDivElement>(null);
-  useSwipeDismiss({ y, areas: [scroller], onDismiss: () => slideOut(y, close) });
+  const opening = useRef<Animation | null>(null);
+
+  // Pulling down shrinks the whole detail around the card, which follows the finger, like closing a photo in a gallery app.
+  const dragX = useMotionValue(0), dragY = useMotionValue(0);
+  const pivotX = useMotionValue(0), pivotY = useMotionValue(0);
+  const shrink = useTransform(dragY, (v) => 1 - 0.4 * Math.min(1, Math.max(0, v) / (window.innerHeight * 0.6)));
+  const x = useTransform(() => pivotX.get() * (1 - shrink.get()) + dragX.get());
+  const y = useTransform(() => pivotY.get() * (1 - shrink.get()) + dragY.get());
+  const entry = useMotionValue(0);
+  const scrimOpacity = useTransform(() => entry.get() * (1 - 0.7 * Math.min(1, Math.max(0, dragY.get()) / 400)));
+  useSwipeDismiss({
+    y: dragY,
+    x: dragX,
+    areas: [scroller],
+    onStart: () => {
+      const c = content.current?.getBoundingClientRect(), f = face.current?.getBoundingClientRect();
+      if (!c || !f) return;
+      pivotX.set(f.left + f.width / 2 - c.left);
+      pivotY.set(f.top + f.height / 2 - c.top);
+    },
+    onDismiss: close,
+    enabled: isPresent,
+  });
+
+  // Open: grow out of the card in the grid (FLIP on the compositor, so mounting the detail can't stall it).
+  useLayoutEffect(() => {
+    const el = face.current;
+    if (!el) return;
+    const grid = gridCard(cardId);
+    const from = grid?.getBoundingClientRect();
+    if (grid) grid.style.visibility = 'hidden';
+    const fade = animate(entry, 1, { duration: 0.3, ease: 'easeOut' });
+    const to = el.getBoundingClientRect();
+    if (from && from.width > 0 && from.bottom > 0 && from.top < window.innerHeight) {
+      const t = `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width})`;
+      opening.current = el.animate([{ transform: t }, { transform: 'none' }], { duration: 520, easing: 'cubic-bezier(0.2, 0.9, 0.25, 1.04)' });
+    } else {
+      opening.current = el.animate([{ transform: 'translateY(48px) scale(0.92)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+    }
+    return () => {
+      fade.stop();
+      opening.current?.cancel();
+      if (grid) grid.style.visibility = '';
+    };
+  }, [cardId, entry]);
+
+  // Close: shrink the detail so the card lands exactly on its grid slot, cross-fading into it at the end.
+  useEffect(() => {
+    if (isPresent) return;
+    const box = scroller.current, c = content.current, el = face.current;
+    if (!box || !c || !el) return void safeToRemove?.();
+    box.style.pointerEvents = 'none';
+    dragX.stop();
+    dragY.stop();
+    // Freeze an unfinished opening where it is; the flight starts from what is on screen.
+    if (opening.current?.playState === 'running') {
+      const m = getComputedStyle(el).transform;
+      opening.current.cancel();
+      el.style.transform = m === 'none' ? '' : m;
+      el.style.opacity = '1';
+    }
+    const D = 440;
+    const ease = 'cubic-bezier(0.32, 0.72, 0, 1)';
+    const fadeOut = (e: HTMLElement | null, duration: number) =>
+      e?.animate([{ opacity: getComputedStyle(e).opacity }, { opacity: 0 }], { duration, easing: 'ease-out', fill: 'forwards' });
+    fades.current.forEach((e) => fadeOut(e, 180));
+    fadeOut(scrim.current, 300);
+
+    const grid = gridCard(cardId);
+    const target = grid && landing(grid);
+    const s = shrink.get(), dx = x.get(), dy = y.get();
+    const from = `translate(${dx}px, ${dy}px) scale(${s})`;
+    let to: string;
+    if (grid && target) {
+      // The content is transformed around its top-left corner: screen = origin + d + (p - origin) * s.
+      const v = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+      const ox = b.left + c.offsetLeft - box.scrollLeft, oy = b.top + c.offsetTop - box.scrollTop;
+      const k = (s * target.width) / v.width;
+      const rx = (v.left - ox - dx) / s, ry = (v.top - oy - dy) / s;
+      to = `translate(${target.left - ox - rx * k}px, ${target.top - oy - ry * k}px) scale(${k})`;
+      el.animate([{ opacity: 1, offset: 0 }, { opacity: 1, offset: 0.6 }, { opacity: 0, offset: 1 }], { duration: D, fill: 'forwards' });
+    } else {
+      to = `translate(${dx}px, ${dy + 40}px) scale(${s * 0.9})`;
+      c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: D * 0.6, easing: 'ease-out', fill: 'forwards' });
+    }
+    const reveal = setTimeout(() => grid && (grid.style.visibility = ''), D * 0.55);
+    const fly = c.animate([{ transform: from }, { transform: to }], { duration: D, easing: ease, fill: 'forwards' });
+    fly.finished.then(() => safeToRemove?.(), () => {});
+    return () => clearTimeout(reveal);
+  }, [isPresent, safeToRemove, cardId, dragX, dragY, shrink, x, y]);
 
   if (!card) return null;
   const c = catStyle(card.category);
@@ -70,15 +185,19 @@ export function CardDetail({ cardId }: { cardId: string }) {
   };
 
   return (
-    <motion.div ref={scroller} className="fixed inset-0 z-40 overflow-y-auto overscroll-contain" initial={{ opacity: 1 }} exit={{ opacity: 1 }}>
-      <motion.div className="fixed inset-0 bg-[#120e0b]/70 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} />
-      <motion.div style={{ y }} className="relative mx-auto flex min-h-full max-w-5xl flex-col items-center gap-8 px-5 pb-16 pt-[max(env(safe-area-inset-top),20px)] lg:flex-row lg:items-start lg:pt-16">
-        <div className="absolute right-4 top-[max(env(safe-area-inset-top),16px)] z-10">
+    <div ref={scroller} className="fixed inset-0 z-40 overflow-y-auto overscroll-contain">
+      <motion.div ref={scrim} className="fixed inset-0 bg-[#120e0b]/70 backdrop-blur-md" style={{ opacity: scrimOpacity }} onClick={close} />
+      <motion.div
+        ref={content}
+        style={{ x, y, scale: shrink, originX: 0, originY: 0, willChange: 'transform' }}
+        className="relative mx-auto flex min-h-full max-w-5xl flex-col items-center gap-8 px-5 pb-16 pt-[max(env(safe-area-inset-top),20px)] lg:flex-row lg:items-start lg:pt-16"
+      >
+        <div ref={(e) => void (fades.current[0] = e)} className="absolute right-4 top-[max(env(safe-area-inset-top),16px)] z-10">
           <IconButton icon="close" label="とじる" tone="glass" onClick={close} />
         </div>
 
         <div className="w-[min(80vw,340px)] shrink-0 lg:sticky lg:top-16">
-          <motion.button layoutId={`card-${card.id}`} onClick={() => setFlipped((f) => !f)} className="block w-full [perspective:1400px]" aria-label="カードをうらがえす" transition={{ type: 'spring', stiffness: 260, damping: 28 }}>
+          <button ref={face} onClick={() => setFlipped((f) => !f)} className="block w-full origin-top-left [perspective:1400px]" aria-label="カードをうらがえす">
             <motion.div className="relative [transform-style:preserve-3d]" animate={{ rotateY: flipped ? 180 : 0 }} transition={{ type: 'spring', stiffness: 140, damping: 18 }}>
               <div className="[backface-visibility:hidden]">
                 <CardFace card={card} no={no} size="lg" />
@@ -94,14 +213,14 @@ export function CardDetail({ cardId }: { cardId: string }) {
                 </div>
               </div>
             </motion.div>
-          </motion.button>
-          <p className="mt-3 text-center text-[13px] font-bold text-white/70">タップでうらがえす</p>
+          </button>
+          <p ref={(e) => void (fades.current[1] = e)} className="mt-3 text-center text-[13px] font-bold text-white/70">タップでうらがえす</p>
         </div>
 
         <motion.section
+          ref={(e) => void (fades.current[2] = e)}
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0, transition: { delay: 0.15, type: 'spring', stiffness: 260, damping: 28 } }}
-          exit={{ opacity: 0, y: 24 }}
           className="w-full flex-1 rounded-[32px] bg-paper p-6 text-ink shadow-[var(--shadow-float)]"
         >
           <div ref={intro}>
@@ -191,7 +310,7 @@ export function CardDetail({ cardId }: { cardId: string }) {
         </AnimatePresence>,
         document.body,
       )}
-    </motion.div>
+    </div>
   );
 }
 

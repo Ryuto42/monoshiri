@@ -46,7 +46,18 @@ service cloud.firestore {
         && validCard(cardId);
     }
 
-    // Caches, usage meter and video jobs are written by the API server only.
+    // Profile: only the learning stage (never the age itself), for signed-in accounts.
+    match /users/{uid} {
+      allow read, delete: if isOwner(uid) && trusted();
+      allow create, update: if isOwner(uid) && trusted()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.resource.data.keys().hasOnly(['stage', 'updatedAt'])
+        && request.resource.data.stage in ['lower', 'upper', 'junior', 'senior']
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedAt <= request.time.toMillis() + 300000;
+    }
+
+    // Caches, usage meters (meta, meter_users) and video jobs are written by the API server only.
     match /{document=**} {
       allow read, write: if false;
     }

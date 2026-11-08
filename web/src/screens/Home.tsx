@@ -38,6 +38,14 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const [dragging, setDragging] = useState(false);
   const live = flow.stage === 'camera';
   useEffect(() => (live ? undefined : onBack(resetFlow)), [live]);
+  // Coming back from the zukan or account screen, restart the camera only after their slide-out:
+  // starting a stream mid-animation drops frames, and the preview would be hidden until then anyway.
+  const [cameraPaused, setCameraPaused] = useState(paused);
+  useEffect(() => {
+    if (paused) return setCameraPaused(true);
+    const t = setTimeout(() => setCameraPaused(false), 450);
+    return () => clearTimeout(t);
+  }, [paused]);
 
   const crops = useMemo(() => (flow.shot ? flow.objects.map((o) => cropBox(flow.shot!, o.box, 320).dataUrl) : []), [flow.shot, flow.objects]);
 
@@ -182,7 +190,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
     >
       <Viewfinder
         ref={vf}
-        active={live && !paused}
+        active={live && !cameraPaused}
         onPick={() => file.current?.click()}
         onSample={async (src) => {
           const b = await fetch(src).then((r) => r.blob());
@@ -318,7 +326,6 @@ export function Home({ paused = false }: { paused?: boolean }) {
           {making && flow.explore && (
             <CardMaker
               ex={flow.explore}
-              crop={flow.crop}
               notes={Object.values(flow.notes)}
               onClose={() => setMaking(false)}
               flyTo={() => {
@@ -442,8 +449,6 @@ function CardThumb({ card }: { card: Card }) {
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             className="h-full w-full object-cover mix-blend-multiply"
           />
-        ) : card.photo ? (
-          <img src={card.photo} alt="" draggable={false} className="h-full w-full object-cover" />
         ) : (
           <Icon name={card.icon} size={22} fill style={{ color: c.ink }} />
         )}

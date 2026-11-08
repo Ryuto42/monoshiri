@@ -41,7 +41,7 @@ export function ReadyBubble({ placement, radius = 16, tail = 29 }: { placement: 
             aria-hidden
             className="absolute -inset-1 border-2 border-[#ffd36b]"
             style={{ borderRadius: radius + 4 }}
-            variants={{ hidden: { opacity: 0, scale: 1 }, shown: { opacity: [0, 0.9, 0], scale: [1, 1.12, 1.25], transition: { duration: 1.4, repeat: 2, ease: 'easeOut' } }, gone: { opacity: 0 } }}
+            variants={{ hidden: { opacity: 0, transform: 'scale(1)' }, shown: { opacity: [0, 0.9, 0], transform: ['scale(1)', 'scale(1.12)', 'scale(1.25)'], transition: { duration: 1.4, repeat: 2, ease: 'easeOut' } }, gone: { opacity: 0 } }}
           />
           <motion.button
             type="button"
@@ -57,7 +57,7 @@ export function ReadyBubble({ placement, radius = 16, tail = 29 }: { placement: 
             whileTap={{ scale: 0.95 }}
           >
             <motion.div
-              animate={{ y: [0, -3, 0] }}
+              animate={{ transform: ['translateY(0px)', 'translateY(-3px)', 'translateY(0px)'] }}
               transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
               className="relative flex items-center gap-3 rounded-[20px] bg-[#fffdf8] py-2.5 pl-2.5 pr-4 text-[#2a2017] shadow-[0_14px_40px_rgb(0_0_0/0.32)]"
             >

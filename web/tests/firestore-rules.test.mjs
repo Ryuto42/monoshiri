@@ -51,6 +51,16 @@ await t('cache collection closed', assertFails(getDoc(doc(google, 'cache_explore
 await t('meter closed', assertFails(setDoc(doc(google, 'meter', 'x'), { a: 1 })));
 await t('other users root closed', assertFails(setDoc(doc(google, 'users', 'u1'), { a: 1 })));
 await t('owner can delete', assertSucceeds(deleteDoc(ref(anon))));
+const prof = (db, uid = 'u1') => doc(db, 'users', uid);
+await t('member can save stage', assertSucceeds(setDoc(prof(google), { stage: 'junior', updatedAt: now })));
+await t('member can read stage', assertSucceeds(getDoc(prof(google))));
+await t('verified email member can save stage', assertSucceeds(setDoc(prof(verified), { stage: 'lower', updatedAt: now })));
+await t('guest cannot save stage', assertFails(setDoc(prof(anon), { stage: 'junior', updatedAt: now })));
+await t('unverified cannot save stage', assertFails(setDoc(prof(unverified), { stage: 'junior', updatedAt: now })));
+await t('age itself rejected', assertFails(setDoc(prof(google), { stage: 'junior', age: 13, updatedAt: now })));
+await t('unknown stage rejected', assertFails(setDoc(prof(google), { stage: 'kindergarten', updatedAt: now })));
+await t('other user cannot read stage', assertFails(getDoc(prof(other, 'u1'))));
+await t('user meter closed', assertFails(getDoc(doc(google, 'meter_users', 'u1'))));
 console.log(`\n${pass} passed, ${fail} failed`);
 await env.cleanup();
 process.exit(fail ? 1 : 0);

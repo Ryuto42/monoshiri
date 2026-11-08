@@ -1,7 +1,7 @@
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 import { execSync } from 'node:child_process';
-import { LOCAL, PROJECT, PRICES, SAFETY } from './config.ts';
+import { LOCAL, PROJECT, PRICES, SAFETY, type Level } from './config.ts';
 import { addSpent } from './store.ts';
 
 function makeClient() {
@@ -96,7 +96,50 @@ export const DETECT_PROMPT = `あなたは写真の中のモノを見つける�
 - 人物そのものは対象にしない（服やメガネなど身につけているモノは可）
 - 何も見つからなければ空の配列`;
 
-export function explorePrompt(label: string) {
+// How each learning stage is written. 'std' keeps the original wording so existing shared caches stay valid.
+const AUDIENCE: Record<Exclude<Level, 'std'>, { who: string; style: string; summary: string; deep: string }> = {
+  lower: {
+    who: '小学校1〜3年生',
+    style: `- 漢字は小学2年生までに習うもの（例: 木・水・山・川・花・犬・空・家・時間・天気）だけを使い、それ以外はひらがなにする
+- 1文を短く（30字くらいまで）。むずかしい言葉は使わず、身近なものにたとえる
+- 数字は大きすぎない、イメージしやすいものにする（例: 「プール1ぱいぶん」）`,
+    summary: '80字前後のやさしいせつめい',
+    deep: '全体で 400 字前後。見出しは 3 個まで。mermaid の図は入れない',
+  },
+  upper: {
+    who: '小学校4〜6年生',
+    style: `- 漢字は小学校で習うものまで。中学校以上で習う漢字や言葉はひらがなにするか（かっこ）で読み・言いかえを添える
+- 理科や社会の授業とつながる言葉（例: 原料、気体、しくみ）は使ってよい。1文は40字くらいまで`,
+    summary: '120字前後のやさしい説明',
+    deep: '全体で 600 字前後。むずかしい言葉には（かっこ）で言いかえを添える',
+  },
+  junior: {
+    who: '中学生',
+    style: `- 中学校の理科・社会・技術家庭で習う用語（例: 化学変化、分子、圧力、産業革命）を使い、しくみや理由まで説明する
+- 常用漢字はそのまま使ってよい。専門用語は初めて出たときに短く説明する`,
+    summary: '150字前後の説明（しくみや理由を含める）',
+    deep: '全体で 900 字前後。原因と結果、しくみを順を追って説明する',
+  },
+  senior: {
+    who: '高校生以上',
+    style: `- 学術的に正確な用語を使い、原理まで踏み込む（化学式・物理法則・生物のしくみ・経済の構造など、該当するものを具体的に）
+- 定量的な数字や、学説・研究の出典が分かる事実を入れる。単純化しすぎず、例外や限界にも触れる`,
+    summary: '180字前後の説明（原理を含める）',
+    deep: '全体で 1200 字前後。原理・メカニズムを中心に、関連する法則や式があれば示す',
+  },
+};
+
+export function explorePrompt(label: string, level: Level = 'std') {
+  if (level !== 'std') {
+    const a = AUDIENCE[level];
+    return stdExplorePrompt(label)
+      .replace('小学校高学年〜中学生が「へぇ！」と思える学びのカードを作ります。', `${a.who}が「へぇ！」と思える学びのカードを作ります。\n読む人は${a.who}です。次を守ってください。\n${a.style}`)
+      .replace('120字前後のやさしい説明', a.summary);
+  }
+  return stdExplorePrompt(label);
+}
+
+function stdExplorePrompt(label: string) {
   return `「${label}」について、小学校高学年〜中学生が「へぇ！」と思える学びのカードを作ります。
 必ず Google 検索で事実を確認してから、正確な内容だけを書いてください。
 
@@ -120,7 +163,18 @@ export function explorePrompt(label: string) {
   （false のときは、ほかの項目は空でよい）`;
 }
 
-export function deepPrompt(name: string, topic: string) {
+export function deepPrompt(name: string, topic: string, level: Level = 'std') {
+  if (level !== 'std') {
+    const a = AUDIENCE[level];
+    return stdDeepPrompt(name, topic)
+      .replace('小学校高学年〜中学生向けに、', `${a.who}向けに、`)
+      .replace('書式（Markdown）:', `読む人は${a.who}です。次を守ってください。\n${a.style}\n書式（Markdown）:`)
+      .replace('- 全体で 700 字前後。むずかしい言葉には（かっこ）で言いかえを添える', `- ${a.deep}`);
+  }
+  return stdDeepPrompt(name, topic);
+}
+
+function stdDeepPrompt(name: string, topic: string) {
   return `テーマ: 「${name}」— ${topic}
 
 小学校高学年〜中学生向けに、このテーマを深掘りして説明してください。必ず Google 検索で事実を確認すること。
@@ -139,8 +193,9 @@ export function deepPrompt(name: string, topic: string) {
 - 前置きや「いかがでしたか」などの締めは書かない`;
 }
 
-export function quizPrompt(name: string, context: string) {
-  return `「${name}」について、次の内容から 3 問の 3 択クイズを作ってください。
+export function quizPrompt(name: string, context: string, level: Level = 'std') {
+  const who = level === 'std' ? '' : `\n解く人は${AUDIENCE[level].who}です。その学年に合った言葉と漢字で書いてください。\n${AUDIENCE[level].style}`;
+  return `「${name}」について、次の内容から 3 問の 3 択クイズを作ってください。${who}
 内容:
 ${context.slice(0, 3000)}
 - q: 問題文（40字以内）
