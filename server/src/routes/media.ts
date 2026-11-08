@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { ai, diagramPrompt, illustrationPrompt, track } from '../ai.ts';
 import { MODELS } from '../config.ts';
 import { clean, explored, exploredAtAnyLevel, exploredTopic, levelOf, unknown, type Env } from '../http.ts';
-import { keyOf, saveMedia, toWebp, videoQuery, youtubeVideos } from '../media.ts';
+import { keyOf, kindQuery, saveMedia, toWebp, videoQuery, youtubeVideos, type Video } from '../media.ts';
 import { topicPhotos } from '../photos.ts';
 import { track as count } from '../stats.ts';
 import { BudgetError, ensureBudget, getCached, setCached, UserLimitError, AttestError } from '../store.ts';
@@ -14,9 +14,16 @@ media.get('/api/media', async (c) => {
   const level = levelOf(c.req.query('level'));
   const t = await exploredTopic(name, topic, level);
   if (!t) return c.json(unknown, 400);
-  const query = videoQuery(name, t.kind);
+  const query = videoQuery(name, t.title, t.kind);
   // YouTube search has a small daily quota, so results are shared like the AI ones (per query, see youtubeVideos).
-  const videos = youtubeVideos(query, [name, en]).catch(() => []);
+  // A second, broader search only when the question's own search leaves fewer than two videos about the thing.
+  const videos = (async (): Promise<Video[]> => {
+    const first = await youtubeVideos(query, [name, en]).catch(() => [] as Video[]);
+    const broad = kindQuery(name, t.kind);
+    if (first.length >= 2 || broad === query) return first;
+    const more = await youtubeVideos(broad, [name, en]).catch(() => [] as Video[]);
+    return [...first, ...more.filter((v) => !first.some((f) => f.id === v.id))].slice(0, 4);
+  })();
   // v2: photos are picked by Gemini.
   const key = keyOf('media2', name, topic);
   const hit = await getCached<{ images: unknown[] }>('cache_media', key);

@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { namesThing, videoQuery } from '../src/media.ts';
+import { kindQuery, namesThing, videoQuery } from '../src/media.ts';
 
-test('the search is the name plus a word for the kind of topic, not the question', () => {
-  assert.equal(videoQuery('ペットボトル', 'つくりかた'), 'ペットボトル できるまで');
-  assert.equal(videoQuery('しょうゆ', 'まめちしき'), 'しょうゆ');
-  assert.equal(videoQuery('えんぴつ'), 'えんぴつ');
+test('the search is the name plus what the question asks, without the question words', () => {
+  assert.equal(videoQuery('ティッシュ', 'トイレに流してはいけない理由は？', 'からだとけんこう'), 'ティッシュ トイレに流してはいけない');
+  assert.equal(videoQuery('ペットボトル', 'なぜリサイクルする？', 'かんきょう'), 'ペットボトル リサイクルする');
+  assert.equal(videoQuery('ティッシュ', 'ポケットティッシュはどこで生まれた？', 'れきし'), 'ティッシュ ポケットティッシュ 生まれた');
+});
+
+test('when too little of the question is left, the kind of topic is used instead', () => {
+  assert.equal(videoQuery('ペットボトル', 'どうやってできる？', 'つくりかた'), 'ペットボトル できるまで');
+  assert.equal(kindQuery('しょうゆ', 'まめちしき'), 'しょうゆ');
+  assert.equal(kindQuery('えんぴつ'), 'えんぴつ');
 });
 
 test('only videos whose title names the thing are kept', () => {
