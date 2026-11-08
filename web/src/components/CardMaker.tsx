@@ -8,6 +8,8 @@ import { CardBack, CardFace } from './CardFace';
 import { toast } from '../lib/toast';
 import { Button, Icon } from './ui';
 import { haptic, onBack } from '../lib/native';
+import { api } from '../lib/api';
+import { completeMission, fillCard, useUnitLinks } from '../lib/units';
 
 export function CardMaker({ ex, notes, onClose, flyTo }: {
   ex: Explore; notes: DeepNote[]; onClose: () => void; flyTo: () => DOMRect | null;
@@ -20,6 +22,8 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
   const box = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0), y = useMotionValue(0), scale = useMotionValue(1), opacity = useMotionValue(1);
   const no = existing ? cards.length - cards.findIndex((c) => c.id === ex.id) : cards.length + 1;
+  const links = useUnitLinks(ex.name);
+  const units = links?.map((l) => l.id) ?? existing?.units;
 
   useEffect(() => onBack(onClose), [onClose]);
 
@@ -44,9 +48,14 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
       id: ex.id, name: ex.name, reading: ex.reading, en: ex.en, category: ex.category, icon: ex.icon, oneLiner: ex.oneLiner,
       summary: ex.summary, funFact: ex.funFact, topics: ex.topics, notes: [...byTopic.values()], illustration,
       ...((ex.firstFind || existing?.firstFind) && { firstFind: true }),
+      ...(units && { units }),
       createdAt: existing?.createdAt ?? Date.now(), updatedAt: Date.now(),
     };
     void saveCard(card);
+    void api.events([{ name: 'card_save' }]);
+    // Units still on their way are added to the card when they arrive.
+    if (units) completeMission(units);
+    else void fillCard(ex.id, ex.name).then(() => completeMission(getCard(ex.id)?.units ?? []), () => {});
     if (!illustration) notifyWhenReady(ex.id);
     haptic('success');
     const target = flyTo();
@@ -83,7 +92,7 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
               <CardBack size="lg" />
             </div>
             <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-              <CardFace card={{ ...ex, illustration }} no={no} size="lg" loadingArt={busy} />
+              <CardFace card={{ ...ex, illustration, units }} no={no} size="lg" loadingArt={busy} />
             </div>
           </motion.div>
         </motion.div>

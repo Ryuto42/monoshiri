@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
 import { useNavigate, useParams } from '@tanstack/react-router';
@@ -12,6 +12,22 @@ import { EmptySlots } from '../components/LoadingCard';
 import { Button, Icon, IconButton } from '../components/ui';
 import { CATEGORY_STYLE, spring } from '../components/theme';
 import { Logo } from '../components/Logo';
+import { MissionCard } from '../components/Mission';
+import { api } from '../lib/api';
+import { useStage } from '../lib/level';
+import { stripRuby } from '../lib/ruby';
+import { backfillUnits, cardsByUnit, clearRequestedUnit, requestedUnit, SUBJECTS, UNITS } from '../lib/units';
+import { UnitDetail, ZukanUnits } from './ZukanUnits';
+
+type Mode = 'genre' | 'units';
+const MODE_KEY = 'monoshiri.zukan.mode';
+const readMode = (): Mode => {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'units' && UNITS.length ? 'units' : 'genre';
+  } catch {
+    return 'genre';
+  }
+};
 
 export function Zukan() {
   const cards = useCards();
@@ -19,12 +35,44 @@ export function Zukan() {
   const params = useParams({ strict: false }) as { cardId?: string };
   const [cat, setCat] = useState<string>('すべて');
   const [q, setQ] = useState('');
+  const [mode, setModeState] = useState<Mode>(() => (requestedUnit() ? 'units' : readMode()));
+  const [subject, setSubject] = useState('すべて');
+  const [unitId, setUnitId] = useState<string | null>(requestedUnit);
+  useEffect(() => clearRequestedUnit(), []);
+  const { stage } = useStage();
   const cats = useMemo(() => ['すべて', ...Object.keys(CATEGORY_STYLE).filter((c) => cards.some((x) => x.category === c))], [cards]);
-  const shown = cards.filter((c) => (cat === 'すべて' || c.category === cat) && (!q || `${c.name}${c.reading}${c.en}`.toLowerCase().includes(q.toLowerCase())));
+  const shown = cards.filter((c) => (cat === 'すべて' || c.category === cat) && (!q || stripRuby(`${c.name}${c.reading}${c.en}`).toLowerCase().includes(q.toLowerCase())));
   const notes = cards.reduce((n, c) => n + c.notes.length, 0);
+  const covered = useMemo(() => cardsByUnit(cards).size, [cards]);
   const backTo = useBackTo();
   const toCamera = () => backTo('/');
-  useEffect(() => onBack(toCamera, { history: false }));
+  // Registered once so layers opened inside the zukan (a unit) stay above it in the back stack.
+  useEffect(() => onBack(() => backTo('/'), { history: false }), [backTo]);
+  useEffect(() => {
+    void backfillUnits(cards);
+  }, [cards]);
+  useEffect(() => {
+    if (mode === 'units') void api.events([{ name: 'zukan_units' }]);
+  }, [mode]);
+  const setMode = (m: Mode) => {
+    setModeState(m);
+    setUnitId(null);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* the zukan just opens on genres next time */
+    }
+  };
+  const scrollBack = useRef(0);
+  const openUnit = (id: string) => {
+    scrollBack.current = document.getElementById('zukan-scroll')?.scrollTop ?? 0;
+    if (mode !== 'units') setMode('units');
+    setUnitId(id);
+  };
+  const closeUnit = useCallback(() => {
+    setUnitId(null);
+    requestAnimationFrame(() => document.getElementById('zukan-scroll')?.scrollTo({ top: scrollBack.current }));
+  }, []);
   // Inside the zukan the card itself fades its new art in, so the bubble on the camera screen isn't needed.
   const ready = useIllustReady();
   useEffect(() => {
@@ -52,29 +100,76 @@ export function Zukan() {
               <Stat icon="style" label="あつめたカード" value={cards.length} />
               <Stat icon="explore" label="深掘りしたテーマ" value={notes} />
               <Stat icon="category" label="ジャンル" value={`${cats.length - 1}/${Object.keys(CATEGORY_STYLE).length}`} />
+              {UNITS.length > 0 && <Stat icon="school" label="学校の単元" value={`${covered}/${UNITS.length}`} />}
             </div>
+            <MissionCard className="mt-4" onFind={toCamera} onOpenUnit={openUnit} />
           </motion.section>
 
-          {cards.length > 0 && (
+          {(cards.length > 0 || UNITS.length > 0) && (
             <div className="sticky top-[calc(max(env(safe-area-inset-top),14px)+60px)] z-10 -mx-4 mt-5 bg-paper/85 px-4 py-2 backdrop-blur-xl sm:-mx-6 sm:px-6">
               <div className="flex items-center gap-2">
-                <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-paper-2 px-4 sm:max-w-xs">
-                  <Icon name="search" size={20} className="text-ink-3" />
-                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="カードをさがす" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3" />
-                </label>
+                {UNITS.length > 0 && (
+                  <div className="flex shrink-0 rounded-full bg-paper-2 p-1" role="tablist" aria-label="図鑑の見かた">
+                    {([['genre', 'ジャンル', 'category'], ['units', '教科でみる', 'school']] as const).map(([m, label, icon]) => (
+                      <button
+                        key={m}
+                        role="tab"
+                        aria-selected={mode === m}
+                        onClick={() => setMode(m)}
+                        className="relative flex h-9 items-center gap-1 rounded-full px-3 text-[14px] font-bold"
+                      >
+                        {mode === m && <motion.span layoutId="mode-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-card)]" transition={spring} />}
+                        <span className={`relative flex items-center gap-1 ${mode === m ? 'text-ink' : 'text-ink-3'}`}>
+                          <Icon name={icon} size={18} fill={mode === m} />
+                          {label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {(mode === 'units' ? !unitId : cards.length > 0) && (
+                  <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-paper-2 px-4 sm:max-w-xs">
+                    <Icon name="search" size={20} className="text-ink-3" />
+                    <input
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      placeholder={mode === 'units' ? '単元やモノをさがす' : 'カードをさがす'}
+                      aria-label={mode === 'units' ? '単元やモノをさがす' : 'カードをさがす'}
+                      className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
+                    />
+                  </label>
+                )}
               </div>
-              <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
-                {cats.map((c) => (
-                  <button key={c} onClick={() => setCat(c)} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
-                    {cat === c && <motion.span layoutId="cat-pill" className="absolute inset-0 rounded-full bg-ink" transition={spring} />}
-                    <span className={`relative ${cat === c ? 'text-paper' : 'text-ink-2'}`}>{c}</span>
-                  </button>
-                ))}
-              </div>
+              {mode === 'genre' && cards.length > 0 && (
+                <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
+                  {cats.map((c) => (
+                    <button key={c} onClick={() => setCat(c)} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
+                      {cat === c && <motion.span layoutId="cat-pill" className="absolute inset-0 rounded-full bg-ink" transition={spring} />}
+                      <span className={`relative ${cat === c ? 'text-paper' : 'text-ink-2'}`}>{c}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {mode === 'units' && !unitId && (
+                <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
+                  {['すべて', ...SUBJECTS].map((c) => (
+                    <button key={c} onClick={() => setSubject(c)} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
+                      {subject === c && <motion.span layoutId="subject-pill" className="absolute inset-0 rounded-full bg-ink" transition={spring} />}
+                      <span className={`relative ${subject === c ? 'text-paper' : 'text-ink-2'}`}>{c}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {cards.length === 0 ? (
+          {mode === 'units' ? (
+            unitId ? (
+              <UnitDetail unitId={unitId} cards={cards} stage={stage} onClose={closeUnit} onOpenCard={open} onFind={toCamera} />
+            ) : (
+              <ZukanUnits cards={cards} q={q} subject={subject} stage={stage} onOpenUnit={openUnit} />
+            )
+          ) : cards.length === 0 ? (
             <div className="mt-8 overflow-hidden rounded-[32px] bg-paper-2">
               <EmptySlots />
               <div className="px-6 pb-8 text-center">
@@ -88,7 +183,7 @@ export function Zukan() {
           ) : (
             <CardGrid shown={shown} cards={cards} onOpen={open} />
           )}
-          {cards.length > 0 && shown.length === 0 && <p className="mt-10 text-center text-ink-3">見つかりませんでした</p>}
+          {mode === 'genre' && cards.length > 0 && shown.length === 0 && <p className="mt-10 text-center text-ink-3">見つかりませんでした</p>}
         </main>
       </div>
       {/* カメラへ戻る道は左上の矢印と、ここだけ。0枚のときは空の案内の中の「カメラをひらく」が代わりになる */}

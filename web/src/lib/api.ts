@@ -1,7 +1,7 @@
-import { idToken } from './firebase';
+import { appCheckToken, idToken } from './firebase';
 import { currentLevel } from './level';
 import { nudgeForLimit } from './account';
-import type { CommonsImage, DeepMeta, DetectedObject, Explore, Quiz, Video } from './types';
+import type { CommonsImage, DeepMeta, DetectedObject, Explore, LearnEvent, Quiz, TtsRef, UnitLink, Video } from './types';
 
 const BASE = import.meta.env.VITE_API_BASE ?? '';
 
@@ -19,10 +19,15 @@ export class ApiError extends Error {
   }
 }
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const [id, ac] = await Promise.all([idToken(), appCheckToken()]);
+  return { Authorization: `Bearer ${id}`, ...(ac && { 'X-Firebase-AppCheck': ac }) };
+}
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await idToken()}`, ...init.headers },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()), ...init.headers },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -36,13 +41,17 @@ const post = <T>(path: string, body: object, signal?: AbortSignal) =>
   call<T>(path, { method: 'POST', body: JSON.stringify(body), signal });
 
 export const api = {
-  detect: (image: string) => post<{ objects: DetectedObject[] }>('/api/detect', { image }),
+  detect: (image: string) => post<{ objects: DetectedObject[] }>('/api/detect', { image, level: currentLevel() }),
   explore: (label: string, image?: string, from?: string) => post<Explore>('/api/explore', { label, image, from, level: currentLevel() }),
   known: (label: string) => call<{ known: boolean }>(`/api/known?${new URLSearchParams({ label })}`),
   quiz: (name: string, context: string) => post<Quiz>('/api/quiz', { name, context, level: currentLevel() }),
   illustrate: (name: string, en: string) => post<{ url: string }>('/api/illustrate', { name, en }),
   diagram: (b: { name: string; en: string; topic: string; outline: string }) => post<{ url: string }>('/api/diagram', { ...b, level: currentLevel() }),
-  tts: (text: string) => post<{ url: string }>('/api/tts', { text }),
+  tts: (text: string, ref?: TtsRef) => post<{ url: string }>('/api/tts', { text, ref: ref && { ...ref, level: currentLevel() } }),
+  units: (name: string) => post<{ units: UnitLink[] }>('/api/units', { name, level: currentLevel() }),
+  // Fire-and-forget: counting must never get in the way of learning.
+  events: (events: { name: LearnEvent; n?: number }[]) =>
+    post<{ ok: true }>('/api/events', { events, level: currentLevel() }).catch(() => undefined),
   video: (b: { name: string; en: string; topic: string; outline: string }) =>
     post<{ status: string; id?: string; url?: string }>('/api/video', { ...b, level: currentLevel() }),
   videoStatus: (id: string) => call<{ status: string; url?: string }>(`/api/video/${encodeURIComponent(id)}`),
@@ -51,13 +60,13 @@ export const api = {
       `/api/media?${new URLSearchParams({ name, en, topic, level: currentLevel() })}`,
     ),
   usage: () =>
-    call<{ spentJpy: number; capJpy: number; videoLeft: number; tier: 'guest' | 'member'; mySpentJpy: number; myCapJpy: number }>('/api/usage'),
+    call<{ spentJpy: number; capJpy: number; videoLeft: number; tier: 'guest' | 'member' | 'admin'; mySpentJpy: number; myCapJpy: number }>('/api/usage'),
 
   async deep(name: string, topic: string, onDelta: (t: string) => void, signal?: AbortSignal): Promise<DeepMeta & { cached?: boolean }> {
     const res = await fetch(`${BASE}/api/deep`, {
       method: 'POST',
       signal,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await idToken()}` },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ name, topic, level: currentLevel() }),
     });
     if (!res.ok || !res.body) {
@@ -101,6 +110,8 @@ export function errorMessage(e: unknown) {
     if (e.code === 'rate_limited') return 'ちょっと急ぎすぎかも。少し待ってからもう一度どうぞ。';
     if (e.code === 'busy') return 'いま混み合っています。数十秒おいて、もう一度ためしてください。';
     if (e.code === 'video_limit') return 'AI動画は作れる本数の上限に達しました。';
+    if (e.code === 'unknown_subject') return 'このモノの説明が見つかりませんでした。もう一度モノをえらんでください。';
+    if (e.code === 'attest_required') return 'アプリを確認できませんでした。ページを再読み込みするか、ログインしてからためしてください。';
     if (e.status === 401) return 'ログイン情報を確認できませんでした。ページを再読み込みしてください。';
   }
   if (e instanceof DOMException && e.name === 'AbortError') return '';
