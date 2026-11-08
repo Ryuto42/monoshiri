@@ -56,7 +56,7 @@ export const api = {
     post<{ status: string; id?: string; url?: string }>('/api/video', { ...b, level: currentLevel() }),
   videoStatus: (id: string) => call<{ status: string; url?: string }>(`/api/video/${encodeURIComponent(id)}`),
   media: (name: string, en: string, topic: string) =>
-    call<{ images: CommonsImage[]; videos: Video[] }>(
+    call<{ images: CommonsImage[]; videos: Video[]; query?: string }>(
       `/api/media?${new URLSearchParams({ name, en, topic, level: currentLevel() })}`,
     ),
   usage: () =>

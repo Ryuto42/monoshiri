@@ -5,16 +5,9 @@ import { atLevel, clean, levelOf, type Env, type ExploreDoc } from '../http.ts';
 import { keyOf, saveMedia } from '../media.ts';
 import { track as count } from '../stats.ts';
 import { ensureBudget, getCached, setCached } from '../store.ts';
+import { pcmOf, wav } from '../wav.ts';
 
 export const speech = new Hono<Env>();
-
-function wav(pcm: Buffer, rate = 24000) {
-  const h = Buffer.alloc(44);
-  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8); h.write('fmt ', 12);
-  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24);
-  h.writeUInt32LE(rate * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
-  return Buffer.concat([h, pcm]);
-}
 
 export const stripMarks = (s: string) => s.replace(/《[^《》\n]{0,20}》/g, '');
 // Compares only letters and digits, so markdown, punctuation, spacing and furigana don't matter.
@@ -77,8 +70,9 @@ speech.post('/api/tts', async (c) => {
   await track(MODELS.tts, res.usageMetadata, 'tts');
   const data = res.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData;
   if (!data?.data) throw new Error('no_audio');
-  const rate = Number(/rate=(\d+)/.exec(data.mimeType ?? '')?.[1] ?? 24000);
-  const url = await saveMedia(`tts/${key}.wav`, wav(Buffer.from(data.data, 'base64'), rate), 'audio/wav');
+  // The model may send raw PCM (rate in the MIME type) or a whole WAV file; only the samples go into ours.
+  const { pcm, rate } = pcmOf(Buffer.from(data.data, 'base64'), Number(/rate=(\d+)/.exec(data.mimeType ?? '')?.[1] ?? 24000));
+  const url = await saveMedia(`tts/${key}.wav`, wav(pcm, rate), 'audio/wav');
   await setCached('cache_tts', key, { url });
   count({ tts: 1 }, levelOf(ref?.level), c.get('uid'));
   return c.json({ url });

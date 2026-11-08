@@ -24,7 +24,7 @@ export function ZukanUnits({ cards, q, subject, stage, onOpenUnit }: {
     .map((g) => ({ ...g, units: g.units.filter((u) => have.has(u.id) && matches(u)) }))
     .filter((g) => g.units.length > 0);
 
-  if (!have.size) return <p className="mt-10 text-center text-ink-3">カードにした モノの単元が ここに ならぶよ</p>;
+  if (!have.size) return <p className="phrase-wrap mt-10 text-center text-ink-3">カードにした モノの単元が ここに ならぶよ</p>;
   if (!groups.length) return <p className="mt-10 text-center text-ink-3">見つかりませんでした</p>;
 
   return (

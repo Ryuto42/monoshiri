@@ -10,6 +10,7 @@ import { clearReady, useIllustReady } from '../lib/illust';
 import { CardFace } from '../components/CardFace';
 import { EmptySlots } from '../components/LoadingCard';
 import { Button, Icon, IconButton } from '../components/ui';
+import { Phrases } from '../components/Phrases';
 import { CATEGORY_STYLE, spring } from '../components/theme';
 import { Logo } from '../components/Logo';
 import { api } from '../lib/api';
@@ -107,7 +108,8 @@ export function Zukan() {
         <main className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
           <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="pt-2">
             <h1 className="text-[clamp(28px,5vw,44px)] font-black leading-tight">モノシリ図鑑</h1>
-            <div className="mt-3 flex flex-wrap gap-3">
+            {/* On a phone the counts sit in an even 2 × 2 grid; wider screens keep them in one row. */}
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
               <Stat icon="style" label="あつめたカード" value={cards.length} />
               <Stat icon="explore" label="深掘りしたテーマ" value={notes} />
               <Stat icon="category" label="ジャンル" value={`${cats.length - 1}/${Object.keys(CATEGORY_STYLE).length}`} />
@@ -130,7 +132,7 @@ export function Zukan() {
                         transition={spring}
                         className="relative flex h-9 items-center gap-1 rounded-full px-3 text-[14px] font-bold"
                       >
-                        {mode === m && <motion.span layoutId="mode-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-card)]" transition={spring} />}
+                        {mode === m && <motion.span layoutId="mode-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-tab)]" transition={spring} />}
                         <span className={`relative flex items-center gap-1 ${mode === m ? 'text-ink' : 'text-ink-3'}`}>
                           <Icon name={icon} size={18} fill={mode === m} />
                           {label}
@@ -186,7 +188,9 @@ export function Zukan() {
               <EmptySlots />
               <div className="px-6 pb-8 text-center">
                 <p className="text-[20px] font-black">まだカードがありません</p>
-                <p className="mt-1 text-ink-2">身の回りのモノを撮って、最初の1枚を手に入れよう！</p>
+                <p className="phrase-wrap mt-1 text-ink-2">
+                  <Phrases text="身の回りのモノを撮って、最初の1枚を手に入れよう！" />
+                </p>
               </div>
             </div>
           ) : (

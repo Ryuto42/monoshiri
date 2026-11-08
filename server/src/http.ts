@@ -16,7 +16,7 @@ export const clean = (v: unknown, max = 80) => String(v ?? '').replace(/[\u0000-
 export const atLevel = (key: string, level: Level) => (level === 'std' ? key : RUBY_LEVELS.has(level) ? `${key}-${level}-r1` : `${key}-${level}`);
 export const levelOf = (v: unknown) => asLevel(v);
 
-export type ExploreDoc = { name?: string; en?: string; summary?: string; oneLiner?: string; funFact?: string; topics?: { title: string; teaser?: string }[] };
+export type ExploreDoc = { name?: string; en?: string; summary?: string; oneLiner?: string; funFact?: string; topics?: { title: string; teaser?: string; kind?: string }[] };
 
 // Paid endpoints only work for things the app has already explored (and for their listed topics),
 // so the API can't be used as a general-purpose Gemini proxy.
@@ -24,6 +24,16 @@ export async function explored(name: string, topic?: string, level: Level = 'std
   const ex = await getCached<ExploreDoc>('cache_explore', atLevel(keyOf('explore', name), level));
   if (!ex) return false;
   return topic === undefined || (ex.topics ?? []).some((t) => clean(t.title, 80) === topic);
+}
+
+/** The listed topic with this title (at this stage first, then any: cards keep the stage they were saved at), or null. */
+export async function exploredTopic(name: string, topic: string, level: Level = 'std') {
+  for (const l of [level, ...LEVELS.filter((x) => x !== level)]) {
+    const ex = await getCached<ExploreDoc>('cache_explore', atLevel(keyOf('explore', name), l));
+    const t = (ex?.topics ?? []).find((x) => clean(x.title, 80) === topic);
+    if (t) return t;
+  }
+  return null;
 }
 
 // Card illustrations are shared by every stage, so a thing explored at any stage qualifies.
