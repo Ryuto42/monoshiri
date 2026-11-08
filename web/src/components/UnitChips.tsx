@@ -29,7 +29,7 @@ export function UnitChips({ links, stage, className = '' }: { links: UnitLink[];
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 380, damping: 30, delay: i * 0.05 }}
-            className={`flex items-start gap-3 rounded-3xl p-3.5 ${hot ? 'bg-paper-2 ring-2 ring-accent/45' : 'bg-paper-2'}`}
+            className={`flex items-start gap-3 rounded-3xl p-3.5 ${hot ? 'bg-paper-2 ring-2 ring-inset ring-accent/45' : 'bg-paper-2'}`}
           >
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl" style={{ background: s.bg, color: s.ink }}>
               <Icon name={s.icon} size={24} fill />

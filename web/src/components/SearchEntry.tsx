@@ -16,7 +16,7 @@ export function SearchEntry({ html }: { html: string | null | undefined }) {
   if (!html) return null;
   return (
     <div className="mt-4">
-      <p className="mb-1.5 text-[12px] font-bold text-ink-3">Google で調べる</p>
+      <p className="mb-1.5 text-[12px] font-bold text-ink-3">Google の検索候補</p>
       <div ref={ref} className="w-full" />
     </div>
   );

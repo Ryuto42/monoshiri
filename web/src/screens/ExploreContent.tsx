@@ -4,13 +4,12 @@ import type { DetectedObject, Explore } from '../lib/types';
 import type { Flow } from '../lib/flow';
 import { useCards } from '../lib/cards';
 import { LoadingCard } from '../components/LoadingCard';
-import { SearchEntry } from '../components/SearchEntry';
 import { Button, Chip, Icon, IconButton } from '../components/ui';
 import { catStyle, spring, TOPIC_COLORS } from '../components/theme';
 import { Speak } from '../components/Speak';
-import { haptic, openExternal } from '../lib/native';
+import { MoreSearch } from '../components/MoreSearch';
+import { haptic } from '../lib/native';
 import { RubyText } from '../components/RubyText';
-import { stripRuby } from '../lib/ruby';
 import { UnitChips } from '../components/UnitChips';
 import { api } from '../lib/api';
 import { useStage } from '../lib/level';
@@ -92,8 +91,12 @@ function Picker({ objects, crops, onPick, onAsk, onReset }: {
           </motion.li>
         ))}
       </motion.ul>
+      {/* What the field is for sits above it: as a placeholder it was cut off next to the button. */}
+      <p id="ask-label" className="mt-5 px-1 text-[13px] font-bold text-ink-2">
+        {objects.length ? '見つからないときは、名前を入れて調べられるよ' : '名前を入れて調べてみよう'}
+      </p>
       <form
-        className="mt-5 flex items-center gap-2 rounded-full bg-paper-2 p-1.5 pl-5"
+        className="mt-2 flex items-center gap-2 rounded-full bg-paper-2 p-1.5 pl-5"
         onSubmit={(e) => {
           e.preventDefault();
           if (text.trim()) onAsk(text.trim());
@@ -103,8 +106,9 @@ function Picker({ objects, crops, onPick, onAsk, onReset }: {
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="名前を入れて調べる（例: ペットボトル）"
-          className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-ink-3"
+          placeholder="例：ペットボトル"
+          aria-labelledby="ask-label"
+          className="min-w-0 flex-1 bg-transparent py-2 text-[16px] outline-none placeholder:text-ink-3"
           maxLength={30}
         />
         <Button type="submit" icon="search" className="h-10 px-4" disabled={!text.trim()}>
@@ -118,11 +122,11 @@ function Picker({ objects, crops, onPick, onAsk, onReset }: {
 function Exploring({ label, crop, fresh }: { label: string; crop: string | null; fresh: boolean }) {
   return (
     <div className="px-6 pt-1 pb-6">
-      <LoadingCard img={crop} expected={14} steps={['写真をよく見ています', 'Google で調べています', '学べるテーマを集めています', 'カードにまとめています']}>
+      <LoadingCard img={crop} expected={14} steps={['写真をよく見ています', '調べています', '学べるテーマを集めています', 'カードにまとめています']}>
         <p className="text-[13px] font-bold text-accent">{fresh ? 'まだだれも調べていないモノかも！' : 'モノシリ中…'}</p>
         <h2 className="text-[26px] font-black leading-tight">{label}</h2>
         <p className="mt-1 text-[13px] text-ink-3">
-          {fresh ? 'モノシリの図鑑にまだないモノです。Google 検索で確かめながら、新しいページを作っています' : 'Google 検索で確かめながら、学べるテーマを集めています'}
+          {fresh ? 'モノシリの図鑑にまだないモノです。情報を確かめながら、新しいページを作っています' : '情報を確かめながら、学べるテーマを集めています'}
         </p>
       </LoadingCard>
     </div>
@@ -154,9 +158,13 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
             <Icon name={ex.icon} size={18} fill />
           </span>
         </div>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="min-w-0 flex-1">
+          {/* Reading aloud belongs to the text, so it sits at the top of it, above the name (as on a card in the zukan). */}
+          <div className="flex items-center gap-1.5">
             <Chip color={c} icon={c.icon}>{ex.category}</Chip>
+            <span className="ml-auto">
+              <Speak target={root} ttsRef={{ name: ex.name }} autoStart compact />
+            </span>
           </div>
           <p className="mt-1 text-[12px] font-bold tracking-wider text-ink-3">{ex.reading}・{ex.en}</p>
           <h2 data-speak className="text-[28px] font-black leading-tight">{ex.name}</h2>
@@ -199,13 +207,9 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
         </div>
       </motion.div>
 
-      <motion.div variants={item} className="mt-4 flex flex-wrap gap-2 px-6">
-        <Button icon={saved ? 'library_add_check' : 'style'} iconFill onClick={onMakeCard}>
+      <motion.div variants={item} className="mt-4 px-6">
+        <Button size="lg" className="w-full" icon={saved ? 'library_add_check' : 'style'} iconFill onClick={onMakeCard}>
           {saved ? (notes ? 'カードを更新' : 'カードを見る') : 'カードにする'}
-        </Button>
-        <Speak target={root} ttsRef={{ name: ex.name }} autoStart />
-        <Button tone="paper" icon="search" onClick={() => openExternal(`https://www.google.com/search?q=${encodeURIComponent(stripRuby(ex.name))}`)}>
-          Google
         </Button>
       </motion.div>
 
@@ -268,7 +272,7 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
       )}
 
       <motion.div variants={item} className="px-6">
-        <SearchEntry html={ex.entryPoint} />
+        <MoreSearch name={ex.name} entry={ex.entryPoint} />
       </motion.div>
 
       <motion.div variants={item} className="mt-8 flex justify-center">

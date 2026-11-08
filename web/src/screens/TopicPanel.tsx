@@ -113,7 +113,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
                 <p className="font-bold">{err}</p>
               </div>
             ) : !text ? (
-              <LoadingCard className="py-8" expected={7} icon={topic.icon} bg={color[0]} ink={color[1]} steps={['Google で調べています', '事実を確かめています', '説明を書いています']} />
+              <LoadingCard className="py-8" expected={7} icon={topic.icon} bg={color[0]} ink={color[1]} steps={['調べています', '事実を確かめています', '説明を書いています']} />
             ) : (
               <>
                 <div ref={prose}>

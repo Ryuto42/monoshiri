@@ -6,7 +6,7 @@ import { getCard, removeCard, saveCard, useCards } from '../lib/cards';
 import { api } from '../lib/api';
 import type { Card, DeepNote, Explore, UnitLink } from '../lib/types';
 import { CardFace } from '../components/CardFace';
-import { SearchEntry } from '../components/SearchEntry';
+import { MoreSearch } from '../components/MoreSearch';
 import { Speak } from '../components/Speak';
 import { toast } from '../lib/toast';
 import { Button, Icon, IconButton } from '../components/ui';
@@ -238,7 +238,10 @@ export function CardDetail({ cardId }: { cardId: string }) {
           className="w-full flex-1 rounded-[32px] bg-paper p-6 text-ink shadow-[var(--shadow-float)]"
         >
           <div ref={intro}>
-            <p className="text-[12px] font-bold tracking-wider text-ink-3">{card.reading}・{card.en}</p>
+            <div className="flex items-center gap-3">
+              <p className="min-w-0 flex-1 text-[12px] font-bold tracking-wider text-ink-3">{card.reading}・{card.en}</p>
+              <Speak target={intro} text={`知ってた？${stripRuby(card.funFact)}`} ttsRef={{ name: card.name }} compact />
+            </div>
             <h2 data-speak className="text-[30px] font-black leading-tight">{card.name}</h2>
             {card.firstFind && (
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklab,var(--sun)_30%,var(--paper))] py-1 pl-1.5 pr-3 text-[13px] font-black">
@@ -257,21 +260,6 @@ export function CardDetail({ cardId }: { cardId: string }) {
               <p className="text-[12px] font-black text-[#9a6b06]">知ってた？</p>
               <p className="text-[15px] font-bold leading-relaxed"><RubyText text={card.funFact} /></p>
             </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Speak target={intro} text={`知ってた？${stripRuby(card.funFact)}`} ttsRef={{ name: card.name }} />
-            <Button
-              tone="ghost"
-              icon="delete"
-              onClick={async () => {
-                if (!confirm(`「${card.name}」のカードを図鑑から外しますか？`)) return;
-                close();
-                await removeCard(card.id);
-                toast('カードを外しました', 'delete');
-              }}
-            >
-              外す
-            </Button>
           </div>
 
           <CardUnits links={links} ids={card.units} stage={stage} />
@@ -307,7 +295,23 @@ export function CardDetail({ cardId }: { cardId: string }) {
               </span>
             </a>
           )}
-          <SearchEntry html={explore?.entryPoint} />
+          <MoreSearch name={card.name} entry={explore?.entryPoint} />
+          {/* Rarely needed and can't be undone, so it is last and quiet. */}
+          <div className="mt-10 flex justify-center">
+            <Button
+              tone="subtle"
+              size="sm"
+              icon="delete"
+              onClick={async () => {
+                if (!confirm(`「${card.name}」のカードを図鑑から外しますか？`)) return;
+                close();
+                await removeCard(card.id);
+                toast('カードを外しました', 'delete');
+              }}
+            >
+              図鑑から外す
+            </Button>
+          </div>
         </motion.section>
       </motion.div>
       {createPortal(
