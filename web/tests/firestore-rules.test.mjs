@@ -47,6 +47,15 @@ await t('null illustration ok', assertSucceeds(setDoc(ref(anon), card({ illustra
 await t('future updatedAt rejected', assertFails(setDoc(ref(anon), card({ updatedAt: now + 3600_000 }))));
 await t('string timestamp rejected', assertFails(setDoc(ref(anon), card({ createdAt: 'now' }))));
 await t('missing notes rejected', assertFails(setDoc(ref(anon), (({ notes, ...r }) => r)(card()))));
+await t('card with units ok', assertSucceeds(setDoc(ref(anon), card({ units: ['e5-sci-dissolve', 'j1-sci-plants'] }))));
+await t('empty units ok', assertSucceeds(setDoc(ref(anon), card({ units: [] }))));
+await t('five units ok', assertSucceeds(setDoc(ref(anon), card({ units: ['u1', 'u2', 'u3', 'u4', 'u5'] }))));
+await t('six units rejected', assertFails(setDoc(ref(anon), card({ units: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'] }))));
+await t('units as string rejected', assertFails(setDoc(ref(anon), card({ units: 'e5-sci-dissolve' }))));
+await t('units as map rejected', assertFails(setDoc(ref(anon), card({ units: { a: 'e5-sci-dissolve' } }))));
+await t('non-string unit rejected', assertFails(setDoc(ref(anon), card({ units: [42] }))));
+await t('non-string later unit rejected', assertFails(setDoc(ref(anon), card({ units: ['u1', 'u2', 'u3', 'u4', { x: 1 }] }))));
+await t('long unit id rejected', assertFails(setDoc(ref(anon), card({ units: ['x'.repeat(21)] }))));
 await t('cache collection closed', assertFails(getDoc(doc(google, 'cache_explore', 'x'))));
 await t('meter closed', assertFails(setDoc(doc(google, 'meter', 'x'), { a: 1 })));
 await t('other users root closed', assertFails(setDoc(doc(google, 'users', 'u1'), { a: 1 })));

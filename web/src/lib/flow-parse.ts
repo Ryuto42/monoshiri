@@ -1,9 +1,12 @@
+import { stripRuby } from './ruby';
+
 type Flow = { nodes: { id: string; label: string }[]; edges: { from: string; to: string; label?: string }[] };
 
 const NODE = /([A-Za-z0-9_]+)\s*(?:\[\(?|\(\(?|\{|>)\s*"?([^"\])}]*)"?\s*(?:\)?\]|\)\)?|\})/g;
 
 // Gemini only emits small `flowchart` blocks, so a tiny parser + our own renderer replaces the multi-MB mermaid bundle.
-export function parseFlow(code: string): Flow | null {
+export function parseFlow(source: string): Flow | null {
+  const code = stripRuby(source);
   const labels = new Map<string, string>();
   const order: string[] = [];
   const edges: Flow['edges'] = [];
