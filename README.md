@@ -38,6 +38,7 @@
 | 読み上げ | 文ごとに分けて音声を作り、読んでいる段落をハイライトしながら再生 |
 | カード | Nano Banana が描くイラストでカード化。イラストの完成を待たずに保存でき、できあがると図鑑ボタンから吹き出しで知らせる |
 | 図鑑 | カード一覧・ジャンル絞り込み・検索・カード詳細（裏返し、ノート） |
+| アカウント | メールアドレス＋パスワード / Google でログイン。ゲストで集めたカードを引き継ぎ、どの端末でも同じ図鑑を開ける。最初のカードと5枚目で登録をすすめる |
 
 操作面では、詳細画面を下にスワイプして閉じられます。戻る操作（ブラウザの戻る、Android の戻るボタン、Esc）は、開いた順に1段ずつ閉じます。
 
@@ -49,14 +50,14 @@
 | ネイティブ | Capacitor 8。iOS は Swift 6（Liquid Glass のボタン）、Android は AGP 9.5 / Gradle 9.9 / targetSdk 37 |
 | API サーバー | Hono on Node.js 24（TypeScript をそのまま実行）、Cloud Run |
 | AI | Vertex AI の Gemini（物体検出・解説・深掘り・クイズ・画像・読み上げ・動画）、Grounding with Google Search |
-| データ | Firebase Auth（匿名）、Firestore、Cloud Storage（非公開バケット）、Secret Manager |
+| データ | Firebase Auth（匿名・メール／パスワード・Google）、Firestore、Cloud Storage（非公開バケット）、Secret Manager |
 | 配信・CI | Firebase Hosting、GitHub Actions（Workload Identity Federation で鍵なしデプロイ） |
 | 外部データ | Wikimedia Commons、Wikipedia、YouTube Data API |
 
 ## しくみ
 
 ```
-ブラウザ / iOS / Android ──(Firebase 匿名認証の ID トークン)──▶ Cloud Run: monoshiri-api
+ブラウザ / iOS / Android ──(Firebase Auth の ID トークン)──▶ Cloud Run: monoshiri-api
    │                                          ├─ Vertex AI (global)
    │                                          │   ├ gemini-3.1-flash-lite   物体検出 (box_2d)・クイズ
    │                                          │   ├ gemini-3.8-flash        解説・深掘り + Grounding with Google Search
@@ -68,8 +69,8 @@
    │                                          ├─ Secret Manager  YouTube Data API キー
    │                                          └─ Wikimedia Commons / Wikipedia / YouTube Data API
    ├─ Firebase Hosting  フロントエンド配信
-   ├─ Firebase Auth     匿名ログイン（あとから Google ログインに紐づけ可能）
-   └─ Firestore         users/{uid}/cards（本人のみ読み書き）＋ IndexedDB にローカル保存
+   ├─ Firebase Auth     ゲスト（匿名）→ メール／Google に紐づけ（uid はそのまま）
+   └─ Firestore         users/{uid}/cards（本人のみ・確認済みアカウントのみ）⇄ IndexedDB
 ```
 
 ### 1回の「調べる」の流れ
@@ -90,18 +91,18 @@
 │  ├─ src/
 │  │  ├─ App.tsx             画面の土台（カメラの上に図鑑を重ねる）
 │  │  ├─ router.tsx          ルート定義（/、/zukan、/zukan/$cardId）
-│  │  ├─ screens/            Home（カメラと調べる流れ）、ExploreContent、TopicPanel（深掘り）、Zukan、CardDetail
+│  │  ├─ screens/            Home（カメラと調べる流れ）、ExploreContent、TopicPanel（深掘り）、Zukan、CardDetail、Account（ログイン）
 │  │  ├─ components/         CardFace / CardMaker（カード）、Sheet（下から出るパネル）、Speak（読み上げ）、
-│  │  │                      LoadingCard、ReadyBubble、Viewfinder、Stage、Markdown、SearchEntry、ui、theme
+│  │  │                      LoadingCard、ReadyBubble、SignupNudge、Viewfinder、Stage、Markdown、SearchEntry、ui、theme
 │  │  ├─ lib/
 │  │  │  ├─ api.ts           API クライアント（ID トークン付き fetch、SSE）
-│  │  │  ├─ firebase.ts      Firebase 初期化と匿名ログイン
+│  │  │  ├─ firebase.ts      Firebase 初期化、ゲストログイン、ログイン状態
+│  │  │  ├─ account.ts       登録・ログイン・ログアウト・削除、登録のおすすめ
 │  │  │  ├─ cards.ts         カードの保存（IndexedDB ⇄ Firestore 同期）
 │  │  │  ├─ illust.ts        イラスト生成ジョブと完成通知
 │  │  │  ├─ flow.ts          調べる流れの状態
 │  │  │  ├─ native.ts        Capacitor 連携、戻る操作のスタック
 │  │  │  ├─ glass.ts         iOS ネイティブボタン（GlassChrome プラグイン）とのやりとり
-│  │  │  └─ account.ts       将来のログイン導入時の入口
 │  │  └─ styles.css          Tailwind とデザイントークン
 │  ├─ public/                フォント（アイコンのサブセット）、サンプル写真、PWA マニフェスト
 │  ├─ ios/                   Xcode プロジェクト（App/App/GlassChrome.swift がネイティブボタン）
@@ -123,7 +124,7 @@
 │  └─ prewarm.mjs            よく撮られるモノの解説を事前生成する
 ├─ firestore.rules
 ├─ firebase.json             Hosting の設定とセキュリティヘッダー
-└─ .github/workflows/        ci.yml（PR のチェック）、deploy-web.yml（main への push で Web をデプロイ）
+└─ .github/workflows/        ci.yml（PR のチェック）、branch-flow.yml（main は dev からだけ）、deploy-web.yml（main への push で Web をデプロイ）
 ```
 
 ## 自分の環境で動かす
@@ -147,7 +148,7 @@ gcloud services enable aiplatform.googleapis.com identitytoolkit.googleapis.com 
 
 [Firebase コンソール](https://console.firebase.google.com/)で、同じ Google Cloud プロジェクトに Firebase を追加し、次の2つを行います。
 
-- **Authentication → ログイン方法** で「匿名」を有効にする
+- **Authentication → ログイン方法** で「匿名」「メール / パスワード」「Google」を有効にする
 - **プロジェクトの設定 → マイアプリ** で Web アプリを1つ登録する
 
 コードにあるモデル名がプロジェクトで使えない場合は、`server/.env` の `MODEL_*` で差し替えられます。予算アラートを Cloud Billing に設定しておくと安心です。
@@ -182,6 +183,21 @@ cd server && npm run dev
 # ターミナル 2: Web（http://localhost:5173）
 cd web && npm run dev
 ```
+
+ログイン機能を本物のアカウントを使わずに試すときは、Firebase エミュレーター（Java 21 以上が必要）を使います。
+
+```bash
+# ターミナル 1: Auth と Firestore のエミュレーター（127.0.0.1:9099 / 8085）
+cd web && npm run emulators
+
+# ターミナル 2: エミュレーターのトークンを受け付ける API
+cd server && FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npm run dev
+
+# ターミナル 3: エミュレーターにつなぐ Web
+cd web && npm run dev:emu
+```
+
+確認メールのリンクは送信されず、`http://127.0.0.1:9099/emulator/v1/projects/<project>/oobCodes` に出ます。
 
 開発時の API は `gcloud auth print-access-token` で得たあなたの権限で Vertex AI を呼びます。生成した画像・音声は `server/.local-media/` に保存されます。キャッシュと利用額メーターはメモリ上にあり、サーバーを再起動すると消えます。
 
@@ -234,12 +250,9 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 | 起動 | フォントとアイコンをアプリ内に同梱し、ネイティブのスプラッシュから即表示。縦画面固定 |
 | 通信 | オフラインになったら通知。図鑑は端末内（IndexedDB）から表示 |
 
-### ログイン導入時のデータ連携
+### ログイン
 
-いまは端末ごとの匿名アカウントで、カードは Firestore の `users/{uid}/cards` と端末内に保存しています。ログインを追加するときは、各サインイン（Web の Google / Apple、ネイティブのサインインプラグイン）で得た認証情報を `web/src/lib/account.ts` の `connectAccount()` に渡すだけで済みます。
-
-- 匿名アカウントに紐づける（uid が変わらないので、集めたカードがそのまま引き継がれる）
-- そのアカウントが別の端末ですでに使われていれば、そちらにサインインし、この端末のカードを統合する（`syncCloud()`）
+ネイティブアプリでも Web 版と同じく、メールアドレスか Google でログインできます。ゲストで集めたカードはそのまま引きつがれます。
 
 ## API
 
@@ -268,7 +281,8 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 
 | 場所 | 中身 | 書き込める人 |
 |---|---|---|
-| Firestore `users/{uid}/cards/{id}` | 集めたカード（写真は除く） | 本人のみ（`firestore.rules`） |
+| Firestore `users/{uid}/cards/{id}` | 集めたカード（写真は除く） | 本人のみ。メール登録はアドレス確認後（`firestore.rules`） |
+| localStorage `monoshiri.sync.<uid>` | 同期済みのカード ID（ほかの端末での削除を反映するため） | 端末内 |
 | IndexedDB `monoshiri.cards` | カード（写真の縮小版を含む） | 端末内 |
 | Firestore `cache_*`、`explore_alias` | 生成結果の共有キャッシュ | API サーバーのみ |
 | Firestore `meta/usage`、`meta/counters` | 推定利用額、動画の本数 | API サーバーのみ |
@@ -295,7 +309,12 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 - 秘密情報はリポジトリに置きません。Firebase の Web 設定は公開前提の値で、`write-web-env.mjs` がビルド時に取得します。YouTube キーは Secret Manager に置き、CI は Workload Identity Federation を使うので鍵ファイルがありません。
 - API は Firebase の ID トークンを検証し、ユーザーごとにレート制限します。
 - 生成 API は「アプリで調べたモノ」に限定し、共有キャッシュは上書きできないようにしています。
-- Firestore は自分のカードしか読み書きできず、キャッシュはサーバー専用です。
+- ゲストはそのまま、メール登録はアドレスの確認後にだけクラウドの図鑑を使えます。他人のアドレスで登録して図鑑を受け取ることはできません。
+- Firestore ルールは、カードの項目・型・長さ・ID の形・イラストの URL（`/media/` のみ）・更新時刻（未来は 5 分まで）を検証します。テスト（`web/tests/firestore-rules.test.mjs`）は `cd web && npm run test:rules` で、Firestore エミュレーター上で動き、CI でも走ります。
+- パスワードは 10 文字以上で、英字と数字が必須です。メールアドレスに似たもの、よくあるものは断ります。ログインやパスワード再設定のエラーは、アドレスが登録済みかどうかが分からない文面にしています（Firebase のメール列挙保護も有効）。
+- API は ID トークンの失効も確かめます（削除・無効化したアカウントやパスワード変更後のトークンは、5 分以内に使えなくなります）。
+- ログアウトすると、端末内の図鑑を消します。アカウントを削除するときは、もう一度ログインしてもらってから、クラウドのカードとアカウントを消します。
+- 写真は端末の中だけに保存し、クラウドには送りません。
 - Hosting は HSTS・`X-Frame-Options: DENY`・`frame-ancestors 'none'` などのヘッダーを付けます。
 - 脆弱性は Issue ではなく、GitHub の Private vulnerability reporting で報告してください。
 
@@ -319,6 +338,7 @@ gcloud iam service-accounts create monoshiri-api
 SA=monoshiri-api@<project>.iam.gserviceaccount.com
 gcloud projects add-iam-policy-binding <project> --member=serviceAccount:$SA --role=roles/aiplatform.user
 gcloud projects add-iam-policy-binding <project> --member=serviceAccount:$SA --role=roles/datastore.user
+gcloud projects add-iam-policy-binding <project> --member=serviceAccount:$SA --role=roles/firebaseauth.viewer
 gcloud storage buckets add-iam-policy-binding gs://<project>-media --member=serviceAccount:$SA --role=roles/storage.objectAdmin
 
 # YouTube Data API キー（任意）
@@ -352,7 +372,8 @@ Cloud Billing で予算と Pub/Sub 通知を作り、`infra/budget-guard` を Cl
 
 ### 自動デプロイ（GitHub Actions）
 
-- `ci.yml`: プルリクエストと `main` への push で、Web の型チェック・lint・ビルドと、サーバーの型チェックを行います。
+- `ci.yml`: プルリクエストと `dev`・`main` への push で、Web の型チェック・lint・ビルド、サーバーの型チェック、Firestore ルールのテストを行います。
+- `branch-flow.yml`: `main` へのプルリクエストが `dev` から来ているかを確かめます。作業ブランチ → `dev` → `main` の順にしか入りません。
 - `deploy-web.yml`: `main` への push で Web を Firebase Hosting に出します。認証は Workload Identity Federation（鍵なし）で、このリポジトリの `main` からだけ Hosting のデプロイ権限しかないサービスアカウントになれます。fork では動かないようにしています。
 - API サーバー（Cloud Run）は変更頻度が低いので手動デプロイです。
 

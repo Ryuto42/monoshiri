@@ -10,16 +10,27 @@
 
 ## 開発の流れ
 
-1. リポジトリを fork し、`main` からブランチを切る（例: `fix/sheet-swipe`、`feat/quiz-timer`）
+1. リポジトリを fork し、`dev` からブランチを切る（例: `fix/sheet-swipe`、`feat/quiz-timer`）
 2. 変更してローカルで確認する
 3. 下のチェックを通す
-4. プルリクエストを作る（何を・なぜ変えたか、確認した方法、画面の変更ならスクリーンショット）
+4. `dev` に向けてプルリクエストを作る（何を・なぜ変えたか、確認した方法、画面の変更ならスクリーンショット）
+
+### ブランチ
+
+| ブランチ | 役割 | 入れ方 |
+|---|---|---|
+| `feat/*`・`fix/*` | 作業用 | 自由に push |
+| `dev` | 次のリリースに入れるものをためる | 作業ブランチからのプルリクエストを、CI が通ったらスカッシュマージ |
+| `main` | 本番（push すると Web がデプロイされる） | `dev` からのプルリクエストだけを、マージコミットで取り込む |
+
+`dev` と `main` には直接 push できません（GitHub のルールセットで保護）。`main` へのプルリクエストは、`dev` 以外からだと `Branch flow` のチェックで止まります。
 
 ### プルリクエスト前のチェック
 
 ```bash
 cd web && npx tsc -b && npx oxlint --deny-warnings src && npx vite build
 cd server && npm run typecheck
+cd web && npm run test:rules   # firestore.rules を変えたとき（Java 21 以上が必要）
 ```
 
 同じチェックが GitHub Actions（`.github/workflows/ci.yml`）でも走ります。

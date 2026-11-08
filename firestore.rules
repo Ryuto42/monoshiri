@@ -1,16 +1,51 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each visitor (anonymous Firebase Auth for now) can only touch their own cards.
-    match /users/{uid}/cards/{cardId} {
-      allow read, delete: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.id == cardId
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 40
-        && request.resource.data.notes is list
-        && request.resource.data.notes.size() <= 12;
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
     }
+
+    // Guests (anonymous) and Google accounts are usable right away; email/password accounts only after the address is confirmed,
+    // so nobody can claim someone else's address and receive a zukan synced to it.
+    function trusted() {
+      return request.auth.token.firebase.sign_in_provider == 'anonymous'
+        || request.auth.token.email_verified == true;
+    }
+
+    function optString(d, k, max) {
+      return !(k in d) || (d[k] is string && d[k].size() <= max);
+    }
+
+    function validCard(cardId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['id', 'name', 'reading', 'en', 'category', 'icon', 'oneLiner', 'summary', 'funFact',
+                               'topics', 'notes', 'illustration', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['id', 'name', 'notes', 'createdAt', 'updatedAt'])
+        && d.id == cardId
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 40
+        && optString(d, 'reading', 80)
+        && optString(d, 'en', 80)
+        && optString(d, 'category', 20)
+        && optString(d, 'icon', 40)
+        && optString(d, 'oneLiner', 400)
+        && optString(d, 'summary', 4000)
+        && optString(d, 'funFact', 2000)
+        && (!('topics' in d) || (d.topics is list && d.topics.size() <= 12))
+        && d.notes is list && d.notes.size() <= 12
+        && (!('illustration' in d) || d.illustration == null
+            || (d.illustration is string && d.illustration.matches('^/media/[A-Za-z0-9/_.-]{1,200}$')))
+        && d.createdAt is int && d.updatedAt is int
+        // A far-future updatedAt would win every later sync, so it may run at most 5 minutes ahead of the server clock.
+        && d.updatedAt <= request.time.toMillis() + 300000;
+    }
+
+    match /users/{uid}/cards/{cardId} {
+      allow read, delete: if isOwner(uid) && trusted();
+      allow create, update: if isOwner(uid) && trusted()
+        && cardId.matches('^[0-9a-f]{24}$')
+        && validCard(cardId);
+    }
+
     // Caches, usage meter and video jobs are written by the API server only.
     match /{document=**} {
       allow read, write: if false;
