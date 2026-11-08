@@ -270,10 +270,10 @@ body {
   }
 }
 
-/* Native shells: Android WebView pays a lot for live backdrop blur, so drop it there. */
-.platform-android [class*='backdrop-blur'] {
+/* Android (app and browser) pays a lot for live backdrop blur, so drop it there.
+   Only the unprefixed property: with both, the minifier keeps just -webkit-, which Chrome ignores. */
+.no-blur [class*='backdrop-blur'] {
   backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
 }
 .native body {
   -webkit-user-select: none;

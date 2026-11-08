@@ -16,13 +16,13 @@ const stripHtml = (s = '') => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').tri
 export type CommonsImage = { thumb: string; full: string; page: string; title: string; artist: string; license: string; width: number; height: number };
 
 export async function commonsImages(query: string, limit = 8): Promise<CommonsImage[]> {
-  const key = keyOf('commons', query);
+  const key = keyOf('commons2', query, String(limit));
   const hit = await getCached<{ items: CommonsImage[] }>('cache_media', key);
   if (hit) return hit.items;
   const url = new URL('https://commons.wikimedia.org/w/api.php');
   Object.entries({
     action: 'query', format: 'json', generator: 'search', gsrnamespace: '6', gsrlimit: String(limit * 2),
-    gsrsearch: `${query} filetype:bitmap`, prop: 'imageinfo', iiprop: 'url|extmetadata|size', iiurlwidth: '640', origin: '*',
+    gsrsearch: `${query} filetype:bitmap`, prop: 'imageinfo', iiprop: 'url|extmetadata|size|mime', iiurlwidth: '960', origin: '*',
   }).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url, { headers: { 'User-Agent': UA } });
   if (!res.ok) return [];
@@ -31,12 +31,13 @@ export async function commonsImages(query: string, limit = 8): Promise<CommonsIm
   const items = pages
     .map((p) => {
       const ii = p.imageinfo?.[0];
-      if (!ii?.thumburl) return null;
+      // Small originals look blurry on phones; skip anything narrower than 600px.
+      if (!ii?.thumburl || (ii.width ?? 0) < 600) return null;
       const m = ii.extmetadata ?? {};
       return {
         thumb: ii.thumburl, full: ii.url, page: ii.descriptionurl, title: stripHtml(p.title?.replace(/^File:/, '').replace(/\.\w+$/, '')),
         artist: stripHtml(m.Artist?.value).slice(0, 80) || '不明', license: stripHtml(m.LicenseShortName?.value) || '不明',
-        width: ii.thumbwidth ?? 640, height: ii.thumbheight ?? 480,
+        width: ii.thumbwidth ?? 960, height: ii.thumbheight ?? 720,
       } satisfies CommonsImage;
     })
     .filter((x): x is CommonsImage => !!x && /\.(jpe?g|png|webp)/i.test(x.full))

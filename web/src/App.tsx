@@ -49,11 +49,12 @@ export function App() {
           <motion.div
             key="zukan"
             className="fixed inset-0 z-[45]"
-            initial={{ y: '100%', borderRadius: 40 }}
-            animate={{ y: 0, borderRadius: 0 }}
-            exit={{ y: '100%', borderRadius: 40 }}
+            // A transform string (not `y`) runs on the compositor, so the slide stays smooth while the zukan mounts.
+            initial={{ transform: 'translateY(100%)', borderRadius: 40 }}
+            animate={{ transform: 'translateY(0%)', borderRadius: 0 }}
+            exit={{ transform: 'translateY(100%)', borderRadius: 40 }}
             transition={{ type: 'spring', stiffness: 260, damping: 32 }}
-            style={{ overflow: 'hidden' }}
+            style={{ overflow: 'hidden', willChange: 'transform' }}
           >
             <Zukan />
           </motion.div>
