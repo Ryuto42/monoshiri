@@ -5,6 +5,7 @@ import { Home } from './screens/Home';
 import { Zukan } from './screens/Zukan';
 import { Account } from './screens/Account';
 import { Privacy } from './screens/Privacy';
+import { AuthAction } from './screens/AuthAction';
 import { SignupNudge } from './components/SignupNudge';
 import { Welcome } from './components/Welcome';
 import { Onboarding } from './components/Onboarding';
@@ -22,9 +23,10 @@ export function App() {
   const zukan = pathname.startsWith('/zukan');
   const account = pathname === '/account';
   const privacy = pathname === '/privacy';
+  const emailLink = pathname === '/auth/action';
   const nudge = useNudge();
   const welcome = useWelcome();
-  const covered = zukan || account || privacy || !!nudge || welcome !== 'closed';
+  const covered = zukan || account || privacy || emailLink || !!nudge || welcome !== 'closed';
   useEffect(() => {
     currentUser().catch(() => {});
     // The welcome waits for the zukan so people who already have cards skip it; even a failed load must release the camera.
@@ -71,10 +73,11 @@ export function App() {
       </AnimatePresence>
       <AnimatePresence>{account && <Account key="account" />}</AnimatePresence>
       <AnimatePresence>{privacy && <Privacy key="privacy" />}</AnimatePresence>
-      {!zukan && !account && !privacy && <SignupNudge />}
-      {!zukan && !account && !privacy && <Welcome />}
+      <AnimatePresence>{emailLink && <AuthAction key="auth-action" />}</AnimatePresence>
+      {!zukan && !account && !privacy && !emailLink && <SignupNudge />}
+      {!zukan && !account && !privacy && !emailLink && <Welcome />}
       {/* Age and consent come first wherever the app was opened, except over the policy itself. */}
-      {!privacy && <Onboarding />}
+      {!privacy && !emailLink && <Onboarding />}
       <Toaster />
     </>
   );
