@@ -3,7 +3,7 @@ import { CloudBillingClient } from '@google-cloud/billing';
 
 const billing = new CloudBillingClient();
 const PROJECT = process.env.TARGET_PROJECT;
-const KILL_AT = Number(process.env.KILL_AT_JPY ?? 250);
+const KILL_AT = Number(process.env.KILL_AT_JPY ?? 1900);
 
 functions.cloudEvent('stopBilling', async (event) => {
   const raw = event.data?.message?.data;

@@ -44,7 +44,6 @@ export type Card = {
   topics: Topic[];
   notes: DeepNote[];
   illustration: string | null;
-  photo?: string | null;
   /** This person was the first to explore the thing in Monoshiri. */
   firstFind?: boolean;
   createdAt: number;

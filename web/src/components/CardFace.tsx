@@ -1,9 +1,12 @@
 import { motion, useMotionTemplate, useMotionValue, useSpring, useTransform } from 'motion/react';
-import type { PointerEvent } from 'react';
+import { useState, type PointerEvent } from 'react';
 import { Icon } from './ui';
 import { catStyle } from './theme';
 import { mediaUrl } from '../lib/api';
 import { usePendingIllust } from '../lib/illust';
+
+// Tilt follows a mouse; on touch screens it never moves, yet its 3D transform would still give every card its own GPU layer.
+const canHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 export type CardLike = {
   id?: string;
@@ -13,14 +16,16 @@ export type CardLike = {
   icon: string;
   oneLiner?: string;
   illustration?: string | null;
-  photo?: string | null;
   firstFind?: boolean;
 };
 
 export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
   card: CardLike; no?: number; size?: 'sm' | 'md' | 'lg'; loadingArt?: boolean; tilt?: boolean;
 }) {
+  const tilts = tilt && canHover;
   const c = catStyle(card.category);
+  // Only art that arrives while the card is on screen fades in; animating a blur on every card when the zukan opens is expensive.
+  const [firstArt] = useState(card.illustration);
   const pending = usePendingIllust();
   const drawing = loadingArt ?? (!!card.id && !card.illustration && pending.has(card.id));
   const mx = useMotionValue(0.5), my = useMotionValue(0.5);
@@ -31,7 +36,7 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
   const glare = useMotionTemplate`radial-gradient(circle at ${gx} ${gy}, rgb(255 255 255 / 0.45), transparent 55%)`;
 
   const onMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (!tilt || e.pointerType === 'touch') return;
+    if (!tilts) return;
     const r = e.currentTarget.getBoundingClientRect();
     mx.set((e.clientX - r.left) / r.width);
     my.set((e.clientY - r.top) / r.height);
@@ -47,7 +52,7 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
     <motion.div
       onPointerMove={onMove}
       onPointerLeave={onLeave}
-      style={{ rotateX: tilt ? rx : 0, rotateY: tilt ? ry : 0, transformPerspective: 900 }}
+      style={tilts ? { rotateX: rx, rotateY: ry, transformPerspective: 900 } : undefined}
       className={`relative aspect-[5/7] w-full select-none rounded-[22px] bg-[#fffdf8] p-[6%] shadow-[var(--shadow-float)] text-[#2a2017] ${small ? 'rounded-[16px]' : ''}`}
     >
       <div className="relative h-full w-full overflow-hidden rounded-[16px] flex flex-col" style={{ background: c.bg }}>
@@ -62,16 +67,15 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
           {card.illustration ? (
             <motion.img
               key={card.illustration}
-              initial={{ opacity: 0, scale: 0.9, filter: 'blur(8px)' }}
+              initial={card.illustration === firstArt ? false : { opacity: 0, scale: 0.9, filter: 'blur(8px)' }}
               animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
               src={mediaUrl(card.illustration)}
               alt=""
               draggable={false}
+              decoding="async"
               className="absolute inset-0 h-full w-full object-cover mix-blend-multiply"
             />
-          ) : card.photo ? (
-            <img src={card.photo} alt="" draggable={false} className="absolute inset-[10%] h-[80%] w-[80%] object-cover rounded-2xl" />
           ) : (
             <Icon name={card.icon} size={big ? 96 : small ? 40 : 64} fill style={{ color: c.ink, opacity: 0.8 }} />
           )}
@@ -105,7 +109,7 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
           {card.oneLiner && !small && <div className={`mt-1 text-[#66574a] leading-snug ${big ? 'text-[14px]' : 'text-[12px] line-clamp-2'}`}>{card.oneLiner}</div>}
         </div>
       </div>
-      {tilt && <motion.div aria-hidden className="pointer-events-none absolute inset-0 rounded-[22px] mix-blend-soft-light" style={{ background: glare }} />}
+      {tilts && <motion.div aria-hidden className="pointer-events-none absolute inset-0 rounded-[22px] mix-blend-soft-light" style={{ background: glare }} />}
     </motion.div>
   );
 }
