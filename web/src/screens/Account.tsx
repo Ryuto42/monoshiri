@@ -318,6 +318,7 @@ function Strength({ pw, email }: { pw: string; email: string }) {
       {rules.map((r) => (
         <motion.li
           key={r.label}
+          initial={false}
           animate={{ backgroundColor: r.ok ? 'var(--leaf-soft)' : 'var(--paper-2)', color: r.ok ? 'var(--leaf)' : 'var(--ink-3)' }}
           className="flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[12px] font-bold"
         >
