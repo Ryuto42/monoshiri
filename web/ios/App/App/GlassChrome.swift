@@ -96,6 +96,8 @@ public final class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, @unchecked Se
         let b = UIButton(configuration: c, primaryAction: UIAction { [weak self] _ in
             self?.notifyListeners("tap", data: ["id": id])
         })
+        // 撮影ボタンはいつも白地にオレンジ。ダークモードのガラスだと白地がくすみ、虫眼鏡も淡くなるので、ライトの見た目に固定する
+        if prominent { b.overrideUserInterfaceStyle = .light }
         b.accessibilityLabel = label
         b.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([b.widthAnchor.constraint(equalToConstant: size), b.heightAnchor.constraint(equalToConstant: size)])
