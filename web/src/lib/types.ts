@@ -1,6 +1,6 @@
 export type Box = [number, number, number, number];
 
-export type DetectedObject = { label: string; en: string; box: Box };
+export type DetectedObject = { label: string; en: string; box: Box; alts?: string[] };
 
 export type Topic = { id: string; title: string; teaser: string; kind: string; icon: string };
 

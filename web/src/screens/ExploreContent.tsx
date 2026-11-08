@@ -13,13 +13,27 @@ import { haptic, openExternal } from '../lib/native';
 const list = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
 const item = { hidden: { opacity: 0, y: 18, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 380, damping: 30 } } } as const;
 
-export function ExploreContent({ flow, crops, onPick, onAsk, onTopic, onMakeCard, onRetry, onReset }: {
-  flow: Flow; crops: string[]; onPick: (i: number) => void; onAsk: (label: string) => void; onTopic: (id: string) => void;
-  onMakeCard: () => void; onRetry: () => void; onReset: () => void;
+export function ExploreContent({ flow, crops, onPick, onAsk, onCorrect, onTopic, onMakeCard, onRetry, onReset }: {
+  flow: Flow; crops: string[]; onPick: (i: number) => void; onAsk: (label: string) => void; onCorrect: (label: string) => void;
+  onTopic: (id: string) => void; onMakeCard: () => void; onRetry: () => void; onReset: () => void;
 }) {
   if (flow.stage === 'error') return <ErrorState message={flow.error} onRetry={onRetry} onReset={onReset} />;
-  if (flow.stage === 'exploring') return <Exploring label={flow.objects[flow.selected ?? 0]?.label ?? ''} crop={flow.crop} fresh={flow.known === false} />;
-  if (flow.stage === 'explore' && flow.explore) return <ExploreView ex={flow.explore} crop={flow.crop} onTopic={onTopic} onMakeCard={onMakeCard} onReset={onReset} notes={Object.keys(flow.notes).length} />;
+  if (flow.stage === 'exploring') return <Exploring label={flow.label ?? flow.objects[flow.selected ?? 0]?.label ?? ''} crop={flow.crop} fresh={flow.known === false} />;
+  if (flow.stage === 'explore' && flow.explore) {
+    // Only a thing picked from a photo can be "misread"; a typed name is already what the person meant.
+    const picked = flow.shot && flow.selected != null ? flow.objects[flow.selected] : null;
+    return (
+      <ExploreView
+        ex={flow.explore}
+        crop={flow.crop}
+        onTopic={onTopic}
+        onMakeCard={onMakeCard}
+        onReset={onReset}
+        notes={Object.keys(flow.notes).length}
+        correction={picked ? { alts: picked.alts ?? [], onCorrect } : null}
+      />
+    );
+  }
   if (flow.stage === 'detecting') return <Detecting />;
   return <Picker objects={flow.objects} crops={crops} onPick={onPick} onAsk={onAsk} onReset={onReset} />;
 }
@@ -109,9 +123,11 @@ function Exploring({ label, crop, fresh }: { label: string; crop: string | null;
   );
 }
 
-function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
+function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction }: {
   ex: Explore; crop: string | null; onTopic: (id: string) => void; onMakeCard: () => void; onReset: () => void; notes: number;
+  correction: { alts: string[]; onCorrect: (label: string) => void } | null;
 }) {
+  const [fixing, setFixing] = useState(false);
   const c = catStyle(ex.category);
   const cards = useCards();
   const saved = cards.some((x) => x.id === ex.id);
@@ -140,6 +156,27 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
           <h2 data-speak className="text-[28px] font-black leading-tight">{ex.name}</h2>
         </div>
       </motion.header>
+
+      {correction && !fixing && (
+        <motion.div variants={item} className="mx-6 mt-2">
+          <Button tone="ghost" icon="edit" className="-ml-3 h-10 px-3 text-[14px] text-ink-2" aria-label={`ちがうよ（「${ex.name}」の名前をなおす）`} onClick={() => setFixing(true)}>
+            ちがうよ
+          </Button>
+        </motion.div>
+      )}
+      <AnimatePresence initial={false}>
+        {correction && fixing && (
+          <Correction
+            name={ex.name}
+            alts={correction.alts.filter((a) => a !== ex.name)}
+            onCancel={() => setFixing(false)}
+            onPick={(label) => {
+              setFixing(false);
+              correction.onCorrect(label);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <motion.p data-speak variants={item} className="mx-6 mt-4 text-[17px] font-bold leading-relaxed text-accent">
         {ex.oneLiner}
@@ -232,6 +269,59 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
         </Button>
       </motion.div>
     </motion.div>
+  );
+}
+
+function Correction({ name, alts, onPick, onCancel }: { name: string; alts: string[]; onPick: (label: string) => void; onCancel: () => void }) {
+  const [text, setText] = useState('');
+  return (
+    <motion.section
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+      className="overflow-hidden"
+      aria-label="名前をなおす"
+    >
+      <div className="mx-6 mt-4 rounded-3xl bg-paper-2 p-4">
+        <p className="font-black">写っているのは何かな？</p>
+        <p className="mt-0.5 text-[13px] text-ink-2">「{name}」ではないときは、正しい名前を選ぶか入れてね。同じ写真で調べなおします。</p>
+        {alts.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {alts.map((a) => (
+              <Button key={a} tone="paper" className="h-10 px-4" onClick={() => onPick(a)}>
+                {a}
+              </Button>
+            ))}
+          </div>
+        )}
+        <form
+          className="mt-3 flex items-center gap-2 rounded-full bg-paper p-1.5 pl-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (text.trim()) onPick(text.trim());
+          }}
+        >
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="正しい名前（例: ふせん）"
+            aria-label="正しい名前"
+            className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-ink-3"
+            maxLength={30}
+            autoFocus
+          />
+          <Button type="submit" icon="search" className="h-10 px-4" disabled={!text.trim()}>
+            調べなおす
+          </Button>
+        </form>
+        <div className="mt-2 flex justify-end">
+          <Button tone="ghost" className="h-10 px-4 text-[14px]" onClick={onCancel}>
+            やめる
+          </Button>
+        </div>
+      </div>
+    </motion.section>
   );
 }
 

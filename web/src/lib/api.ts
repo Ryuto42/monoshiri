@@ -32,7 +32,7 @@ const post = <T>(path: string, body: object, signal?: AbortSignal) =>
 
 export const api = {
   detect: (image: string) => post<{ objects: DetectedObject[] }>('/api/detect', { image }),
-  explore: (label: string, image?: string) => post<Explore>('/api/explore', { label, image }),
+  explore: (label: string, image?: string, from?: string) => post<Explore>('/api/explore', { label, image, from }),
   known: (label: string) => call<{ known: boolean }>(`/api/known?${new URLSearchParams({ label })}`),
   quiz: (name: string, context: string) => post<Quiz>('/api/quiz', { name, context }),
   illustrate: (name: string, en: string) => post<{ url: string }>('/api/illustrate', { name, en }),
@@ -86,6 +86,7 @@ export const api = {
 
 export function errorMessage(e: unknown) {
   if (e instanceof ApiError) {
+    if (e.code === 'not_a_thing') return 'その名前では調べられませんでした。モノや生き物の名前で、もう一度ためしてください。';
     if (e.code === 'budget') return '今月の学びパワーを使い切りました。保存したカードは見られます。';
     if (e.code === 'rate_limited') return 'ちょっと急ぎすぎかも。少し待ってからもう一度どうぞ。';
     if (e.code === 'busy') return 'いま混み合っています。数十秒おいて、もう一度ためしてください。';
