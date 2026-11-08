@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { ai, diagramPrompt, illustrationPrompt, track } from '../ai.ts';
 import { MODELS } from '../config.ts';
-import { clean, explored, exploredAtAnyLevel, levelOf, unknown, type Env } from '../http.ts';
-import { keyOf, saveMedia, toWebp, youtubeVideos } from '../media.ts';
+import { clean, explored, exploredAtAnyLevel, exploredTopic, levelOf, unknown, type Env } from '../http.ts';
+import { keyOf, saveMedia, toWebp, videoQuery, youtubeVideos } from '../media.ts';
 import { topicPhotos } from '../photos.ts';
 import { track as count } from '../stats.ts';
 import { BudgetError, ensureBudget, getCached, setCached, UserLimitError, AttestError } from '../store.ts';
@@ -12,21 +12,22 @@ export const media = new Hono<Env>();
 media.get('/api/media', async (c) => {
   const name = clean(c.req.query('name'), 30), en = clean(c.req.query('en'), 40), topic = clean(c.req.query('topic'), 80);
   const level = levelOf(c.req.query('level'));
-  // YouTube search has a small daily quota, so results are shared like the AI ones. v2: photos are picked by Gemini.
+  const t = await exploredTopic(name, topic, level);
+  if (!t) return c.json(unknown, 400);
+  const query = videoQuery(name, t.kind);
+  // YouTube search has a small daily quota, so results are shared like the AI ones (per query, see youtubeVideos).
+  const videos = youtubeVideos(query, [name, en]).catch(() => []);
+  // v2: photos are picked by Gemini.
   const key = keyOf('media2', name, topic);
-  const hit = await getCached<{ images: unknown[]; videos: unknown[] }>('cache_media', key);
-  if (hit) return c.json({ images: hit.images, videos: hit.videos });
-  if (!(await explored(name, topic || undefined, level))) return c.json(unknown, 400);
-  const [images, videos] = await Promise.all([
-    topicPhotos(name, en || name, topic).catch((e) => {
-      if (e instanceof BudgetError || e instanceof UserLimitError || e instanceof AttestError) throw e;
-      console.error('photos failed', e);
-      return [];
-    }),
-    youtubeVideos(`${name} ${topic.replace(/[？?！!]/g, ' ')}`.trim()).catch(() => []),
-  ]);
-  if (images.length || videos.length) await setCached('cache_media', key, { images, videos });
-  return c.json({ images, videos });
+  const hit = await getCached<{ images: unknown[] }>('cache_media', key);
+  if (hit) return c.json({ images: hit.images, videos: await videos, query });
+  const images = await topicPhotos(name, en || name, topic).catch((e) => {
+    if (e instanceof BudgetError || e instanceof UserLimitError || e instanceof AttestError) throw e;
+    console.error('photos failed', e);
+    return [];
+  });
+  if (images.length) await setCached('cache_media', key, { images });
+  return c.json({ images, videos: await videos, query });
 });
 
 async function generateImage(prompt: string, aspectRatio: string, kind: string) {

@@ -61,7 +61,7 @@ export function AgePicker({ initial, initialAge, saving = false, onSave, onSkip,
   }, []);
 
   return (
-    <div className="pb-2">
+    <div className="phrase-wrap pb-2">
       {!compact && <HeroIcon icon="school" />}
       <h2 id={titleId} className={`${compact ? 'mt-0' : 'mt-4'} text-center ${ui.title}`}>
         なんさい？

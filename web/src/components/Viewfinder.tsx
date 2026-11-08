@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type PointerEvent, type WheelEvent } from 'react';
 import { animate, AnimatePresence, motion, type AnimationPlaybackControls } from 'motion/react';
 import { Icon } from './ui';
+import { Phrases } from './Phrases';
 import { spring } from './theme';
 import { haptic } from '../lib/native';
 import { BLANK_POSTER } from '../lib/media';
@@ -360,8 +361,8 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
                 <Icon name="add_photo_alternate" size={56} />
               </motion.button>
               <p className="text-[20px] font-black">写真をえらんで、しらべよう</p>
-              <p className="mt-2 text-[14px] text-white/60">
-                カメラが使えないときは、写真をえらぶか、ここにドロップ・貼り付けできます。
+              <p className="phrase-wrap mt-2 text-[14px] text-white/60">
+                <Phrases text="カメラが使えないときは、写真をえらぶか、ここにドロップ・貼り付けできます。" />
               </p>
               <p className="mt-6 text-[13px] font-bold text-white/70">サンプルでためす</p>
               <div className="mt-2 flex justify-center gap-3">
@@ -396,7 +397,7 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
               <Icon name="photo_camera" size={34} fill />
             </span>
             <p className="mt-4 text-[20px] font-black">カメラを許可してね</p>
-            <p className="mt-1.5 max-w-xs text-[14px] leading-relaxed text-white/70">
+            <p className="phrase-wrap mt-1.5 max-w-xs text-[14px] leading-relaxed text-white/70">
               「許可」をおすと、カメラで しらべられるよ。
             </p>
           </motion.div>

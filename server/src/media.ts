@@ -65,14 +65,26 @@ export async function wikiSummary(title: string) {
 
 export type Video = { id: string; title: string; channel: string; thumb: string };
 
-export async function youtubeVideos(query: string, limit = 4): Promise<Video[]> {
+// The topic's question ("小さな試験管からどうやって…？") is a poor search: YouTube fills it with unrelated shorts.
+// The thing's name plus a word for the kind of topic finds better videos, and only titles that name the thing are kept.
+const KIND_QUERY: Record<string, string> = {
+  つくりかた: 'できるまで', しくみ: 'しくみ', れきし: '歴史', かんきょう: '環境', みらい: '未来', からだとけんこう: '体',
+};
+export const videoQuery = (name: string, kind?: string) => `${name} ${KIND_QUERY[kind ?? ''] ?? ''}`.trim();
+
+// Compares without width, case or hiragana/katakana differences ("ﾍﾟｯﾄ" / "ぺっと" / "ペット").
+const fold = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\u30a1-\u30f6]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60)).replace(/\s+/g, '');
+export const namesThing = (title: string, names: string[]) => names.some((n) => fold(n).length > 0 && fold(title).includes(fold(n)));
+
+export async function youtubeVideos(query: string, names: string[], limit = 4): Promise<Video[]> {
   if (!YT_KEY) return [];
-  const key = keyOf('yt', query);
+  const key = keyOf('yt2', query);
   const hit = await getCached<{ items: Video[] }>('cache_media', key);
   if (hit) return hit.items;
   const url = new URL('https://www.googleapis.com/youtube/v3/search');
+  // A search costs the same quota whatever the page size, so ask for more and keep the ones that are about the thing.
   Object.entries({
-    part: 'snippet', q: query, type: 'video', maxResults: String(limit), relevanceLanguage: 'ja', regionCode: 'JP',
+    part: 'snippet', q: query, type: 'video', maxResults: '25', relevanceLanguage: 'ja', regionCode: 'JP',
     safeSearch: 'strict', videoEmbeddable: 'true', key: YT_KEY,
   }).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url);
@@ -81,7 +93,7 @@ export async function youtubeVideos(query: string, limit = 4): Promise<Video[]> 
   const items: Video[] = (data.items ?? []).map((it: any) => ({
     id: it.id.videoId, title: stripHtml(it.snippet.title), channel: it.snippet.channelTitle,
     thumb: it.snippet.thumbnails?.medium?.url ?? it.snippet.thumbnails?.default?.url,
-  }));
+  })).filter((v: Video) => namesThing(v.title, names)).slice(0, limit);
   await setCached('cache_media', key, { items });
   return items;
 }
