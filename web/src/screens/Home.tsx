@@ -23,6 +23,7 @@ import { goBack, haptic, onBack } from '../lib/native';
 import { GlassChrome, nativeChrome, pickNativePhoto } from '../lib/glass';
 import { useMe } from '../lib/firebase';
 import { Avatar } from './Account';
+import { onSampleRequest, showWelcome } from '../lib/welcome';
 
 export function Home({ paused = false }: { paused?: boolean }) {
   const flow = useFlow();
@@ -143,6 +144,16 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const topic = topicIndex >= 0 ? flow.explore!.topics[topicIndex] : null;
   const peek = flow.stage === 'explore' ? Math.round(window.innerHeight * 0.5) : flow.stage === 'picked' ? 360 : 300;
 
+  const sample = async (src: string) => {
+    const b = await fetch(src).then((r) => r.blob());
+    analyze(await shotFromBlob(b));
+  };
+  const sampleRef = useRef(sample);
+  useEffect(() => {
+    sampleRef.current = sample;
+  });
+  useEffect(() => onSampleRequest((src) => sampleRef.current(src)), []);
+
   const handlers = useRef({ capture, pickPhoto, navigate });
   useEffect(() => {
     handlers.current = { capture, pickPhoto, navigate };
@@ -184,10 +195,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
         ref={vf}
         active={live && !paused}
         onPick={() => file.current?.click()}
-        onSample={async (src) => {
-          const b = await fetch(src).then((r) => r.blob());
-          analyze(await shotFromBlob(b));
-        }}
+        onSample={sample}
       />
 
       <AnimatePresence>
@@ -230,6 +238,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
               <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
               {!paused && <ReadyBubble placement="below" radius={999} tail={60} />}
             </div>
+            {live && <IconButton icon="help" label="使い方" tone="glass" size={44} onClick={showWelcome} />}
             <AccountButton hasCards={cards.length > 0} onClick={() => navigate({ to: '/account' })} />
           </motion.div>
         )}
