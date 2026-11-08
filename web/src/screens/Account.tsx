@@ -200,7 +200,7 @@ function Tabs({ mode, onChange }: { mode: 'login' | 'signup'; onChange: (m: 'log
       <div role="tablist" className="mt-5 grid grid-cols-2 rounded-full bg-paper-2 p-1">
         {(['signup', 'login'] as const).map((m) => (
           <button key={m} role="tab" aria-selected={mode === m} onClick={() => onChange(m)} className="relative h-10 rounded-full text-[14px] font-bold">
-            {mode === m && <motion.span layoutId="account-tab" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-card)]" transition={spring} />}
+            {mode === m && <motion.span layoutId="account-tab" className="absolute inset-0 rounded-full bg-paper shadow-[0_0_0_1px_rgb(60_40_20/0.06),0_1px_6px_rgb(0_0_0/0.18)]" transition={spring} />}
             <span className={`relative ${mode === m ? 'text-ink' : 'text-ink-3'}`}>{m === 'signup' ? 'はじめて登録' : 'ログイン'}</span>
           </button>
         ))}
@@ -264,7 +264,16 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
         </button>
       </Field>
 
-      {signup && <Strength pw={pw} email={email.trim()} />}
+      {/* 登録とログインで同じ高さの枠を使い、切り替えてもシートの高さが変わらないようにする */}
+      <div className="mt-2.5 flex min-h-[30px] items-center">
+        {signup ? (
+          <Strength pw={pw} email={email.trim()} />
+        ) : (
+          <button type="button" onClick={onForgot} className="ml-auto px-1 text-[13px] font-bold text-ink-2 underline decoration-ink/20 underline-offset-4">
+            パスワードを忘れたとき
+          </button>
+        )}
+      </div>
 
       <AnimatePresence mode="wait">
         {(local || error) && (
@@ -291,13 +300,8 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
         className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink shadow-[0_8px_22px_-8px_color-mix(in_oklab,var(--accent)_75%,transparent)] disabled:opacity-60"
       >
         {busy ? <Spinner light /> : <Icon name={signup ? 'person_add' : 'login'} size={22} />}
-        {signup ? '登録して図鑑を守る' : 'ログイン'}
+        {signup ? '登録する' : 'ログイン'}
       </motion.button>
-      {!signup && (
-        <button type="button" onClick={onForgot} className="mx-auto mt-3 block text-[13px] font-bold text-ink-2 underline decoration-ink/20 underline-offset-4">
-          パスワードを忘れたとき
-        </button>
-      )}
     </form>
   );
 }
@@ -309,14 +313,14 @@ function Strength({ pw, email }: { pw: string; email: string }) {
     { ok: pw.length > 0 && !passwordProblem(pw, email), label: '推測されにくい' },
   ];
   return (
-    <ul className="mt-2.5 flex flex-wrap gap-1.5 px-1">
+    <ul className="flex w-full flex-wrap justify-between gap-1">
       {rules.map((r) => (
         <motion.li
           key={r.label}
           animate={{ backgroundColor: r.ok ? 'var(--leaf-soft)' : 'var(--paper-2)', color: r.ok ? 'var(--leaf)' : 'var(--ink-3)' }}
-          className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold"
+          className="flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[12px] font-bold"
         >
-          <Icon name={r.ok ? 'check_circle' : 'radio_button_unchecked'} size={15} fill={r.ok} />
+          <Icon name={r.ok ? 'check_circle' : 'radio_button_unchecked'} size={14} fill={r.ok} />
           {r.label}
         </motion.li>
       ))}
