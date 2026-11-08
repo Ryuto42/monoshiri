@@ -12,9 +12,13 @@ export type Flow = {
   notes: Record<string, DeepNote>;
   error: string | null;
   topicId: string | null;
+  /** While exploring: false when nobody has explored this name yet, null until known. */
+  known: boolean | null;
+  /** The name being explored right now (a picked marker, a typed name, or a correction). */
+  label: string | null;
 };
 
-const initial: Flow = { stage: 'camera', shot: null, objects: [], selected: null, crop: null, explore: null, notes: {}, error: null, topicId: null };
+const initial: Flow = { stage: 'camera', shot: null, objects: [], selected: null, crop: null, explore: null, notes: {}, error: null, topicId: null, known: null, label: null };
 
 let state: Flow = initial;
 const listeners = new Set<() => void>();

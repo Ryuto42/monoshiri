@@ -1,6 +1,6 @@
 export type Box = [number, number, number, number];
 
-export type DetectedObject = { label: string; en: string; box: Box };
+export type DetectedObject = { label: string; en: string; box: Box; alts?: string[] };
 
 export type Topic = { id: string; title: string; teaser: string; kind: string; icon: string };
 
@@ -21,6 +21,8 @@ export type Explore = {
   queries: string[];
   wiki: { title: string; extract: string; url: string; thumb: string | null } | null;
   cached?: boolean;
+  /** True only in the response to the person whose request created this explanation. */
+  firstFind?: boolean;
 };
 
 export type Source = { title: string; uri: string };
@@ -43,6 +45,8 @@ export type Card = {
   notes: DeepNote[];
   illustration: string | null;
   photo?: string | null;
+  /** This person was the first to explore the thing in Monoshiri. */
+  firstFind?: boolean;
   createdAt: number;
   updatedAt: number;
 };

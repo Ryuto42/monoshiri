@@ -14,9 +14,22 @@ const apps = await fetch(`https://firebase.googleapis.com/v1beta1/projects/${P}/
 const appId = apps.apps?.[0]?.appId;
 if (!appId) throw new Error(`no web app: ${JSON.stringify(apps).slice(0, 200)}`);
 const c = await fetch(`https://firebase.googleapis.com/v1beta1/projects/${P}/webApps/${appId}/config`, { headers: h }).then((r) => r.json());
+// Native Google sign-in: the web OAuth client (Android) comes from the Auth provider, the iOS one from the iOS app's plist.
+const google = await fetch(`https://identitytoolkit.googleapis.com/admin/v2/projects/${P}/defaultSupportedIdpConfigs/google.com`, { headers: h }).then((r) => r.json());
+const iosApp = (await fetch(`https://firebase.googleapis.com/v1beta1/projects/${P}/iosApps`, { headers: h }).then((r) => r.json())).apps?.[0];
+const plist = iosApp
+  ? Buffer.from((await fetch(`https://firebase.googleapis.com/v1beta1/projects/${P}/iosApps/${iosApp.appId}/config`, { headers: h }).then((r) => r.json())).configFileContents ?? '', 'base64').toString()
+  : '';
+const plistValue = (key) => plist.match(new RegExp(`<key>${key}</key>\\s*<string>([^<]+)</string>`))?.[1] ?? '';
+const iosClient = plistValue('CLIENT_ID');
 const env = {
   VITE_FB_API_KEY: c.apiKey, VITE_FB_AUTH_DOMAIN: c.authDomain, VITE_FB_PROJECT_ID: c.projectId, VITE_FB_APP_ID: c.appId,
   VITE_FB_STORAGE_BUCKET: c.storageBucket, VITE_FB_SENDER_ID: c.messagingSenderId, VITE_API_BASE: API_BASE,
+  VITE_GOOGLE_WEB_CLIENT_ID: google.enabled ? google.clientId : '', VITE_GOOGLE_IOS_CLIENT_ID: google.enabled ? iosClient : '',
 };
+fs.writeFileSync(
+  new URL('../web/ios/google.local.xcconfig', import.meta.url),
+  `GOOGLE_REVERSED_CLIENT_ID = ${google.enabled ? plistValue('REVERSED_CLIENT_ID') : ''}\n`,
+);
 fs.writeFileSync(new URL(local ? '../web/.env.local' : '../web/.env.production.local', import.meta.url), Object.entries(env).map(([k, v]) => `${k}=${v}`).join('\n') + '\n');
-console.log(`wrote web env for ${c.projectId}`);
+console.log(`wrote web env for ${c.projectId}${env.VITE_GOOGLE_WEB_CLIENT_ID ? '' : ' (Google sign-in is off in the native apps: enable Google in Firebase Auth)'}`);
