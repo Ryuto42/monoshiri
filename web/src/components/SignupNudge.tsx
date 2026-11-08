@@ -73,7 +73,7 @@ function Prompt({ kind }: { kind: 'first' | 'more' }) {
             className="flex h-13 items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink shadow-[0_8px_22px_-8px_color-mix(in_oklab,var(--accent)_75%,transparent)]"
           >
             <Icon name="shield" size={22} fill />
-            登録して図鑑を守る
+            登録する
           </motion.button>
           <button onClick={dismissNudge} className="h-11 rounded-full text-[14px] font-bold text-ink-2 hover:bg-ink/5">
             あとで
