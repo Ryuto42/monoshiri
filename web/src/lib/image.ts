@@ -18,8 +18,11 @@ export async function shotFromBlob(blob: Blob): Promise<Shot> {
   return shotFromSource(bitmap, bitmap.width, bitmap.height);
 }
 
-export async function shotFromVideo(video: HTMLVideoElement): Promise<Shot> {
-  const bitmap = await createImageBitmap(video);
+// rect is the part of the frame the preview showed (crop + zoom), so the shot matches what the person framed.
+export async function shotFromVideo(video: HTMLVideoElement, rect?: { sx: number; sy: number; sw: number; sh: number } | null): Promise<Shot> {
+  const bitmap = rect && rect.sw >= 16 && rect.sh >= 16
+    ? await createImageBitmap(video, Math.round(rect.sx), Math.round(rect.sy), Math.round(rect.sw), Math.round(rect.sh))
+    : await createImageBitmap(video);
   return shotFromSource(bitmap, bitmap.width, bitmap.height);
 }
 
