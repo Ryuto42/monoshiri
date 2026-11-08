@@ -96,6 +96,8 @@ public final class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, @unchecked Se
         let b = UIButton(configuration: c, primaryAction: UIAction { [weak self] _ in
             self?.notifyListeners("tap", data: ["id": id])
         })
+        // 撮影ボタンはいつも白地にオレンジ。ダークモードのガラスだと白地がくすみ、虫眼鏡も淡くなるので、ライトの見た目に固定する
+        if prominent { b.overrideUserInterfaceStyle = .light }
         b.accessibilityLabel = label
         b.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([b.widthAnchor.constraint(equalToConstant: size), b.heightAnchor.constraint(equalToConstant: size)])
@@ -105,7 +107,22 @@ public final class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, @unchecked Se
     @MainActor private func buildBar() {
         guard let host else { return }
         let gallery = makeButton(id: "gallery", symbol: "photo.on.rectangle.angled", size: 58, label: "写真をえらぶ")
-        let shutter = makeButton(id: "shutter", symbol: "magnifyingglass", size: 86, prominent: true, label: "撮影する")
+        let shutter = makeButton(id: "shutter", symbol: "magnifyingglass", size: 74, prominent: true, label: "撮影する")
+        // Web版と同じく、白い丸のまわりに白い輪を重ねて、カメラのシャッターらしい二重丸にする
+        let ring = UIView()
+        ring.isUserInteractionEnabled = false
+        ring.backgroundColor = .clear
+        ring.layer.borderColor = UIColor.white.withAlphaComponent(0.95).cgColor
+        ring.layer.borderWidth = 4
+        ring.layer.cornerRadius = 45
+        ring.translatesAutoresizingMaskIntoConstraints = false
+        shutter.addSubview(ring)
+        NSLayoutConstraint.activate([
+            ring.centerXAnchor.constraint(equalTo: shutter.centerXAnchor),
+            ring.centerYAnchor.constraint(equalTo: shutter.centerYAnchor),
+            ring.widthAnchor.constraint(equalToConstant: 90),
+            ring.heightAnchor.constraint(equalToConstant: 90),
+        ])
         let zukan = makeButton(id: "zukan", symbol: "rectangle.stack.fill", size: 58, label: "図鑑をひらく")
 
         let badge = UILabel()
