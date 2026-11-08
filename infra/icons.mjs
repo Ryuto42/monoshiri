@@ -1,4 +1,4 @@
-// Rebuilds web/public/fonts/material-symbols-rounded.woff2 with exactly the icons the app uses.
+// Rebuilds web/src/assets/fonts/material-symbols-rounded.woff2 with exactly the icons the app uses.
 // Usage: node infra/icons.mjs  (collects names from web/src and server/src/ai.ts, keeps only real Material Symbols names)
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -37,5 +37,5 @@ const css = await (
 const url = /url\((https:[^)]+)\)/.exec(css)?.[1];
 if (!url) throw new Error(`no font url in response:\n${css.slice(0, 400)}`);
 const font = Buffer.from(await (await fetch(url)).arrayBuffer());
-await writeFile(path.join(root, 'web/public/fonts/material-symbols-rounded.woff2'), font);
+await writeFile(path.join(root, 'web/src/assets/fonts/material-symbols-rounded.woff2'), font);
 console.log(`wrote ${font.length} bytes`);

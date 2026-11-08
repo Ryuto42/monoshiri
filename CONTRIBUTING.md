@@ -40,7 +40,7 @@ cd web && npm run test:rules   # firestore.rules を変えたとき（Java 21 �
 - **TypeScript**: 型エラーと oxlint の警告はゼロにします。
 - **コメント**: 「なぜそうしたか」が読み取れない箇所にだけ書きます。関数ごとの説明コメントは書きません。
 - **UI**: Tailwind CSS v4 のユーティリティと `web/src/styles.css` のトークン（`--color-*` など）を使います。アニメーションは Motion で、ばねの値は `components/theme.ts` の `spring` に合わせます。
-- **アイコン**: Material Symbols Rounded を `<Icon name="..." />` で使います。新しいアイコン名を使ったら `node infra/icons.mjs` でフォントを作り直し、`web/public/fonts/material-symbols-rounded.woff2` もコミットしてください。
+- **アイコン**: Material Symbols Rounded を `<Icon name="..." />` で使います。新しいアイコン名を使ったら `node infra/icons.mjs` でフォントを作り直し、`web/src/assets/fonts/material-symbols-rounded.woff2` もコミットしてください（ビルドでファイル名にハッシュが付くので、古いフォントがキャッシュに残りません）。
 - **API**: 新しい生成エンドポイントは、次の 3 つを守ってください。
   - Firestore キャッシュを先に引く
   - `ensureBudget()` で費用の上限を確かめる
