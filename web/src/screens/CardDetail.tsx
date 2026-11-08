@@ -20,7 +20,7 @@ import { RubyText } from '../components/RubyText';
 import { UnitChips } from '../components/UnitChips';
 import { stripRuby } from '../lib/ruby';
 import { useStage, type Stage } from '../lib/level';
-import { unitById, useUnitLinks } from '../lib/units';
+import { unitById, unitStatus, useUnitLinks } from '../lib/units';
 
 const gridCard = (id: string) => document.querySelector<HTMLElement>(`#zukan-scroll [data-card-id="${CSS.escape(id)}"]`);
 
@@ -338,8 +338,12 @@ function asExplore(card: Card): Explore {
 
 // The saved ids are enough to list the units; the reasons come from the (cached) lookup when it is available.
 function CardUnits({ links, ids, stage }: { links: UnitLink[] | null; ids?: string[]; stage: Stage | null }) {
-  const list = links ?? ids?.map((id) => ({ id, why: '' })) ?? [];
-  if (!list.some((l) => unitById.has(l.id))) return null;
+  // Units from school years already behind this person aren't listed.
+  const list = (links ?? ids?.map((id) => ({ id, why: '' })) ?? []).filter((l) => {
+    const u = unitById.get(l.id);
+    return u && unitStatus(u, stage) !== 'done';
+  });
+  if (!list.length) return null;
   return (
     <section className="mt-8" aria-label="学校でならうよ">
       <h3 className="flex items-center gap-2 text-[18px] font-black">
