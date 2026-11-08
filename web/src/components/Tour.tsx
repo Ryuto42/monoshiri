@@ -3,10 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { closeWelcome, setHelpHint, showWelcome, skipTutorial, useHelpHint, type TourTarget } from '../lib/welcome';
 import { STEPS, TOUR_PAGES } from '../lib/tour';
 import { haptic, onBack } from '../lib/native';
-import { Icon } from './ui';
+import { Button } from './ui';
 import { spring } from './theme';
-
-
 
 // The lit area: the button's box plus a margin, drawn as a pill (a circle for round buttons).
 type Spot = { x: number; y: number; w: number; h: number };
@@ -93,7 +91,7 @@ export function Tour() {
 
       <motion.section
         key={below ? 'below' : 'above'}
-        className="absolute rounded-[24px] bg-paper p-4 pb-3 text-ink shadow-[var(--shadow-float)]"
+        className="absolute rounded-3xl bg-paper p-4 text-ink shadow-[var(--shadow-float)]"
         style={{ left, width, ...place }}
         initial={still ? false : { opacity: 0, y: below ? -10 : 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -133,28 +131,17 @@ export function Tour() {
               transition={{ duration: 0.18 }}
             >
               <h2 id="tour-title" className="mt-2 text-[20px] font-black leading-snug">{s.title}</h2>
-              <p className="mt-1 text-[14px] leading-relaxed text-ink-2">{s.body}</p>
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{s.body}</p>
             </motion.div>
           </AnimatePresence>
           <div className="mt-3 flex items-center justify-between gap-2">
             {/* On the first lit step this goes back to the welcome card, the tutorial's first page. */}
-            <button
-              onClick={back}
-              className="-ml-1 flex h-11 items-center gap-1 rounded-full pr-4 pl-3 text-[15px] font-bold text-ink-2 hover:bg-ink/5 focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              <Icon name="arrow_back" size={18} />
+            <Button tone="subtle" icon="arrow_back" onClick={back} className="-ml-3 pl-3 pr-4">
               もどる
-            </button>
-            <motion.button
-              ref={primary}
-              whileTap={{ scale: 0.97 }}
-              transition={spring}
-              onClick={next}
-              className="flex h-11 items-center gap-1.5 rounded-full bg-accent px-5 text-[15px] font-black text-accent-ink outline-offset-4 focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              {last && <Icon name="photo_camera" size={20} fill />}
+            </Button>
+            <Button ref={primary} icon={last ? 'photo_camera' : undefined} iconFill onClick={next} className="outline-offset-4">
               {last ? 'はじめる' : 'つぎへ'}
-            </motion.button>
+            </Button>
           </div>
         </div>
       </motion.section>

@@ -25,7 +25,6 @@ import { useMe } from '../lib/firebase';
 import { Avatar } from './account/parts';
 import { onSampleRequest, showWelcome, useWelcome, welcomeShowing } from '../lib/welcome';
 import { StageChip } from '../components/StageChip';
-import { MissionBadge } from '../components/Mission';
 import { unlockAudio } from '../components/Speak';
 import { currentLevel } from '../lib/level';
 
@@ -268,10 +267,6 @@ export function Home({ paused = false }: { paused?: boolean }) {
               <span className="flex h-11 items-center">
                 <Logo light />
               </span>
-              <StageChip tone="glass" className="mt-2.5" />
-              <div className="mt-2">
-                <MissionBadge />
-              </div>
             </motion.div>
           ) : (
             <motion.div key="back" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}>

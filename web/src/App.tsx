@@ -7,6 +7,7 @@ import { Account } from './screens/Account';
 import { Privacy } from './screens/Privacy';
 import { SignupNudge } from './components/SignupNudge';
 import { Welcome } from './components/Welcome';
+import { Onboarding } from './components/Onboarding';
 import { settleWelcome, useWelcome } from './lib/welcome';
 import { useNudge } from './lib/account';
 import { Toaster } from './components/Toast';
@@ -72,6 +73,8 @@ export function App() {
       <AnimatePresence>{privacy && <Privacy key="privacy" />}</AnimatePresence>
       {!zukan && !account && !privacy && <SignupNudge />}
       {!zukan && !account && !privacy && <Welcome />}
+      {/* Age and consent come first wherever the app was opened, except over the policy itself. */}
+      {!privacy && <Onboarding />}
       <Toaster />
     </>
   );

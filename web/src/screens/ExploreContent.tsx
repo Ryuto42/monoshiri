@@ -14,8 +14,7 @@ import { stripRuby } from '../lib/ruby';
 import { UnitChips } from '../components/UnitChips';
 import { api } from '../lib/api';
 import { useStage } from '../lib/level';
-import { toast } from '../lib/toast';
-import { completeMission, unitById, unitLabel, unitStatus, useMission, useUnitLinks, type Mission } from '../lib/units';
+import { unitById, unitStatus, useUnitLinks } from '../lib/units';
 
 const list = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
 const item = { hidden: { opacity: 0, y: 18, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 380, damping: 30 } } } as const;
@@ -76,7 +75,7 @@ function Picker({ objects, crops, onPick, onAsk, onReset }: {
         {objects.map((o, i) => (
           <motion.li key={`${o.label}-${i}`} variants={item}>
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.97 }}
               whileHover={{ y: -3 }}
               transition={spring}
               onClick={() => onPick(i)}
@@ -285,24 +284,17 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
 function SchoolUnits({ name }: { name: string }) {
   const links = useUnitLinks(name);
   const { stage } = useStage();
-  const mission = useMission();
-  const achieved = mission?.done && links?.some((l) => l.id === mission.unit.id) ? mission : null;
   // Units from school years already behind this person aren't shown; the rest are what's still ahead (or now).
   const shown = (links ?? []).filter((l) => {
     const u = unitById.get(l.id);
     return u && unitStatus(u, stage) !== 'done';
   });
   useEffect(() => {
-    if (!links?.length) return;
-    void api.events([{ name: 'unit_view' }]);
-    if (completeMission(links.map((l) => l.id))) {
-      haptic('success');
-      toast('ミッション達成！', 'flag');
-    }
+    if (links?.length) void api.events([{ name: 'unit_view' }]);
   }, [links]);
   return (
     <AnimatePresence initial={false}>
-      {(shown.length > 0 || achieved) && (
+      {shown.length > 0 && (
         <motion.section
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
@@ -310,43 +302,15 @@ function SchoolUnits({ name }: { name: string }) {
           className="overflow-hidden"
           aria-label="学校でならうよ"
         >
-          {achieved && <MissionDone mission={achieved} />}
-          {shown.length > 0 && (
-            <>
-              <h3 className="mt-8 flex items-center gap-2 px-6 text-[19px] font-black">
-                <Icon name="school" size={24} fill className="text-accent" />
-                学校でならうよ
-              </h3>
-              <p className="mt-0.5 px-6 text-[13px] text-ink-3">このモノは、授業のこんなところに出てくるよ</p>
-              <UnitChips links={shown} stage={stage} className="mt-3 px-6" />
-            </>
-          )}
+          <h3 className="mt-8 flex items-center gap-2 px-6 text-[19px] font-black">
+            <Icon name="school" size={24} fill className="text-accent" />
+            学校でならうよ
+          </h3>
+          <p className="mt-0.5 px-6 text-[13px] text-ink-3">このモノは、授業のこんなところに出てくるよ</p>
+          <UnitChips links={shown} stage={stage} className="mt-3 px-6" />
         </motion.section>
       )}
     </AnimatePresence>
-  );
-}
-
-function MissionDone({ mission }: { mission: Mission }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9, y: -8 }}
-      animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 420, damping: 22, delay: 0.1 } }}
-      className="mx-6 mt-6 flex items-center gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--leaf)_18%,var(--paper))] p-4"
-      role="status"
-    >
-      <motion.span
-        initial={{ rotate: -20, scale: 0.6 }}
-        animate={{ rotate: 0, scale: 1, transition: { type: 'spring', stiffness: 500, damping: 14, delay: 0.25 } }}
-        className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-leaf text-white"
-      >
-        <Icon name="flag" size={28} fill />
-      </motion.span>
-      <div className="min-w-0">
-        <p className="text-[17px] font-black leading-snug">ミッション達成！</p>
-        <p className="text-[13px] leading-relaxed text-ink-2">今日のミッション「{unitLabel(mission.unit)}」に出てくるモノを見つけたよ</p>
-      </div>
-    </motion.div>
   );
 }
 

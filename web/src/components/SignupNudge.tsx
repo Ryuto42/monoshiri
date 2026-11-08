@@ -5,8 +5,8 @@ import { dismissNudge, useNudge } from '../lib/account';
 import { useCards } from '../lib/cards';
 import { mediaUrl } from '../lib/api';
 import { haptic, onBack } from '../lib/native';
-import { Icon } from './ui';
-import { catStyle, spring } from './theme';
+import { Button, Icon } from './ui';
+import { catStyle, dialogMotion, spring, ui } from './theme';
 
 const COPY = {
   first: {
@@ -44,17 +44,14 @@ function Prompt({ kind }: { kind: keyof typeof COPY }) {
   };
 
   return (
-    <motion.div className="fixed inset-0 z-[55] flex items-end justify-center p-3 pb-[max(env(safe-area-inset-bottom),12px)] sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.button aria-label="あとで" tabIndex={-1} className="absolute inset-0 bg-black/40" onClick={dismissNudge} />
+    <motion.div className={`${ui.overlay} z-[55] items-end sm:items-center`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.button aria-label="あとで" tabIndex={-1} className={ui.scrim} onClick={dismissNudge} />
       <motion.section
         role="dialog"
         aria-modal
         aria-labelledby="nudge-title"
-        initial={{ y: 80, scale: 0.92, opacity: 0 }}
-        animate={{ y: 0, scale: 1, opacity: 1 }}
-        exit={{ y: 60, scale: 0.95, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 340, damping: 26 }}
-        className="relative w-full max-w-[400px] overflow-hidden rounded-[32px] bg-paper px-6 pb-5 pt-7 text-center text-ink shadow-[var(--shadow-float)] paper-grain"
+        {...dialogMotion}
+        className={`${ui.dialog} overflow-hidden px-6 pb-4 pt-7 text-center`}
       >
         <Badge card={card} />
         <motion.h2
@@ -62,26 +59,20 @@ function Prompt({ kind }: { kind: keyof typeof COPY }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring, delay: 0.18 }}
-          className="mt-5 whitespace-pre-line text-[22px] font-black leading-snug"
+          className={`mt-5 whitespace-pre-line ${ui.title}`}
         >
           {copy.title}
         </motion.h2>
-        <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.24 }} className="mt-2 text-[14px] leading-relaxed text-ink-2">
+        <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.24 }} className={ui.lead}>
           {copy.body}
         </motion.p>
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.3 }} className="mt-5 flex flex-col gap-2">
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            transition={spring}
-            onClick={go}
-            className="flex h-13 items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink"
-          >
-            <Icon name="shield" size={22} fill />
+          <Button size="lg" icon="shield" iconFill onClick={go}>
             登録する
-          </motion.button>
-          <button onClick={dismissNudge} className="h-11 rounded-full text-[14px] font-bold text-ink-2 hover:bg-ink/5">
+          </Button>
+          <Button tone="subtle" onClick={dismissNudge}>
             あとで
-          </button>
+          </Button>
         </motion.div>
       </motion.section>
     </motion.div>

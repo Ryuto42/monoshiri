@@ -10,7 +10,7 @@ export function StageRow({ stage, onEdit }: { stage: Stage | null; onEdit: () =>
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-[15px] font-black">{stage ? <RubyText text={stageInfo(stage).ruby} /> : '標準'}向けの説明</p>
-        <p className="text-[12px] leading-snug text-ink-2">年代に合わせて、ことばやくわしさを変えます</p>
+        <p className="text-[12px] leading-snug text-ink-2">年齢を入れると、ことばやくわしさを合わせます</p>
       </div>
       <button onClick={onEdit} className="h-11 shrink-0 rounded-full bg-paper px-4 text-[13px] font-bold text-ink shadow-[var(--shadow-card)]">
         変更
