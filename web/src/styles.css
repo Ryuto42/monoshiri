@@ -109,10 +109,13 @@ body {
   font-feature-settings: 'palt' 1;
 }
 
-button {
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
+/* Layered so text-* utilities on buttons win over the inherited color. */
+@layer base {
+  button {
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+  }
 }
 
 :focus-visible {

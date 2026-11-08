@@ -1,0 +1,4 @@
+// Google sign-in URL scheme (the reversed iOS OAuth client ID). The real value lives in the git-ignored
+// google.local.xcconfig, written by `node infra/write-web-env.mjs --local`. Empty means no Google sign-in.
+GOOGLE_REVERSED_CLIENT_ID =
+#include? "google.local.xcconfig"

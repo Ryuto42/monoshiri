@@ -3,6 +3,9 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect } from 'react';
 import { Home } from './screens/Home';
 import { Zukan } from './screens/Zukan';
+import { Account } from './screens/Account';
+import { SignupNudge } from './components/SignupNudge';
+import { useNudge } from './lib/account';
 import { Toaster } from './components/Toast';
 import { toast } from './lib/toast';
 import { goBack, setStatusBar, setupNative } from './lib/native';
@@ -13,6 +16,9 @@ import { currentUser } from './lib/firebase';
 export function App() {
   const { pathname } = useLocation();
   const zukan = pathname.startsWith('/zukan');
+  const account = pathname === '/account';
+  const nudge = useNudge();
+  const covered = zukan || account || !!nudge;
   useEffect(() => {
     currentUser().catch(() => {});
     void loadCards().then(() => resumeIllust(allCards()));
@@ -35,8 +41,8 @@ export function App() {
   useEffect(() => void setStatusBar(zukan), [zukan]);
   return (
     <>
-      <div aria-hidden={zukan} className={zukan ? 'pointer-events-none' : ''}>
-        <Home paused={zukan} />
+      <div aria-hidden={covered} className={covered ? 'pointer-events-none' : ''}>
+        <Home paused={covered} />
       </div>
       <AnimatePresence>
         {zukan && (
@@ -53,6 +59,8 @@ export function App() {
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>{account && <Account key="account" />}</AnimatePresence>
+      {!zukan && !account && <SignupNudge />}
       <Toaster />
     </>
   );

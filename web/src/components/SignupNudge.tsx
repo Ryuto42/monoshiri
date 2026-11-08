@@ -1,0 +1,130 @@
+import { AnimatePresence, motion } from 'motion/react';
+import { useEffect } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { dismissNudge, useNudge } from '../lib/account';
+import { useCards } from '../lib/cards';
+import { mediaUrl } from '../lib/api';
+import { haptic, onBack } from '../lib/native';
+import { Icon } from './ui';
+import { catStyle, spring } from './theme';
+
+const COPY = {
+  first: {
+    title: 'はじめてのカード、\nおめでとう！',
+    body: '登録しておくと、スマホをなくしても機種を変えても、図鑑は消えません。パソコンからも同じ図鑑が開けます。',
+  },
+  more: {
+    title: '5枚あつまったね！',
+    body: 'ここまでの図鑑を守りませんか？ 登録すれば、どの端末でもログインするだけで同じ図鑑が開けます。',
+  },
+};
+
+export function SignupNudge() {
+  const nudge = useNudge();
+  return <AnimatePresence>{nudge && <Prompt key={nudge} kind={nudge} />}</AnimatePresence>;
+}
+
+function Prompt({ kind }: { kind: 'first' | 'more' }) {
+  const navigate = useNavigate();
+  const card = useCards()[0];
+  const copy = COPY[kind];
+  useEffect(() => {
+    haptic('select');
+    // No history entry: it would be popped only after the exit animation, undoing the navigation to /account.
+    return onBack(dismissNudge, { history: false });
+  }, []);
+
+  const go = () => {
+    dismissNudge();
+    void navigate({ to: '/account' });
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-[55] flex items-end justify-center p-3 pb-[max(env(safe-area-inset-bottom),12px)] sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.button aria-label="あとで" tabIndex={-1} className="absolute inset-0 bg-black/40" onClick={dismissNudge} />
+      <motion.section
+        role="dialog"
+        aria-modal
+        aria-labelledby="nudge-title"
+        initial={{ y: 80, scale: 0.92, opacity: 0 }}
+        animate={{ y: 0, scale: 1, opacity: 1 }}
+        exit={{ y: 60, scale: 0.95, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 340, damping: 26 }}
+        className="relative w-full max-w-[400px] overflow-hidden rounded-[32px] bg-paper px-6 pb-5 pt-7 text-center text-ink shadow-[var(--shadow-float)] paper-grain"
+      >
+        <Badge card={card} />
+        <motion.h2
+          id="nudge-title"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.18 }}
+          className="mt-5 whitespace-pre-line text-[22px] font-black leading-snug"
+        >
+          {copy.title}
+        </motion.h2>
+        <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.24 }} className="mt-2 text-[14px] leading-relaxed text-ink-2">
+          {copy.body}
+        </motion.p>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.3 }} className="mt-5 flex flex-col gap-2">
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            transition={spring}
+            onClick={go}
+            className="flex h-13 items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink shadow-[0_8px_22px_-8px_color-mix(in_oklab,var(--accent)_75%,transparent)]"
+          >
+            <Icon name="shield" size={22} fill />
+            登録して図鑑を守る
+          </motion.button>
+          <button onClick={dismissNudge} className="h-11 rounded-full text-[14px] font-bold text-ink-2 hover:bg-ink/5">
+            あとで
+          </button>
+        </motion.div>
+      </motion.section>
+    </motion.div>
+  );
+}
+
+function Badge({ card }: { card?: ReturnType<typeof useCards>[number] }) {
+  const c = catStyle(card?.category ?? '');
+  return (
+    <div className="relative mx-auto h-[118px] w-[96px]">
+      <motion.div
+        initial={{ rotate: -14, y: 20, scale: 0.6 }}
+        animate={{ rotate: -6, y: 0, scale: 1 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 14, delay: 0.05 }}
+        className="absolute inset-0 rounded-[14px] bg-[#fffdf8] p-[5px] shadow-[var(--shadow-card)]"
+      >
+        <span className="grid h-full w-full place-items-center overflow-hidden rounded-[10px]" style={{ background: c.bg }}>
+          {card?.illustration ? (
+            <img src={mediaUrl(card.illustration)} alt="" className="h-full w-full object-cover mix-blend-multiply" />
+          ) : card?.photo ? (
+            <img src={card.photo} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <Icon name={card?.icon ?? 'auto_awesome'} size={40} fill style={{ color: c.ink }} />
+          )}
+        </span>
+      </motion.div>
+      <motion.span
+        initial={{ scale: 0, rotate: -30 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 520, damping: 13, delay: 0.32 }}
+        className="absolute -bottom-3 -right-5 grid h-12 w-12 place-items-center rounded-full bg-leaf text-white shadow-[var(--shadow-float)] ring-4 ring-paper"
+      >
+        <Icon name="cloud_done" size={26} fill />
+      </motion.span>
+      {[0, 1, 2, 3, 4].map((i) => {
+        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+        return (
+          <motion.span
+            key={i}
+            initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
+            animate={{ x: Math.cos(a) * 78, y: Math.sin(a) * 70, scale: [0, 1, 0.6], opacity: [1, 1, 0] }}
+            transition={{ duration: 0.9, delay: 0.2 + i * 0.03, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute left-1/2 top-1/2 -ml-1.5 -mt-1.5 h-3 w-3 rounded-full"
+            style={{ background: ['var(--accent)', 'var(--sun)', 'var(--leaf)', 'var(--sky)', 'var(--accent)'][i] }}
+          />
+        );
+      })}
+    </div>
+  );
+}
