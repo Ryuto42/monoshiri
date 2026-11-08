@@ -119,7 +119,7 @@ export function Zukan() {
                         transition={spring}
                         className="relative flex h-9 items-center gap-1 rounded-full px-3 text-[14px] font-bold"
                       >
-                        {mode === m && <motion.span layoutId="mode-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-card)]" transition={spring} />}
+                        {mode === m && <motion.span layoutId="mode-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-tab)]" transition={spring} />}
                         <span className={`relative flex items-center gap-1 ${mode === m ? 'text-ink' : 'text-ink-3'}`}>
                           <Icon name={icon} size={18} fill={mode === m} />
                           {label}
