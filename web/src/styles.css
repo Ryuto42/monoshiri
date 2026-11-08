@@ -212,6 +212,15 @@ body {
   text-underline-offset: 3px;
 }
 
+/* Wrap only between phrases, so a line never ends in the middle of a word ("のこさ / ないよ", "撮 / ります").
+   The break points are the spaces in children's copy (分かち書き), the <wbr> marks that <Phrases> puts into
+   authored copy, and punctuation. A phrase too long for the line still breaks. */
+.phrase-wrap {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
 /* Furigana: small readings that sit in the line's leading, so lines with and without ruby keep the same spacing. */
 ruby {
   ruby-position: over;
