@@ -133,9 +133,17 @@ body {
   }
 }
 
-/* Text fields show focus on their own frame (.field), so the inner ring would double it. */
-.field input:focus-visible {
+/* Text fields show focus on the frame around them, never as a second ring inside it. */
+input:not([type='checkbox'], [type='radio'], [type='file']):focus-visible,
+textarea:focus-visible {
   outline: none;
+}
+
+/* The rounded search and name fields (the frame is the field's direct parent) light up like .field does. */
+:not(.field):has(> :is(input:not([type='checkbox'], [type='radio'], [type='file']), textarea):focus-visible) {
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--accent) 60%, transparent),
+    0 0 0 6px color-mix(in oklab, var(--accent) 18%, transparent);
 }
 
 /* In a layer so Tailwind utilities (hidden, sm:inline, text sizes) can override it. */
