@@ -54,38 +54,42 @@ export function ZukanUnits({ cards, q, subject, stage, onOpenCard }: {
                   </p>
                 </div>
               </header>
-              {g.units.map((u) => {
-                const list = have.get(u.id) ?? [];
-                const status = unitStatus(u, stage);
-                return (
-                  <section key={u.id} className="mt-5" aria-label={`『${u.unit}』`}>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <h4 className="text-[16px] font-black leading-snug">『{u.unit}』</h4>
-                      {status && (
-                        <span className="rounded-full px-2 text-[12px] font-black leading-6" style={{ background: s.bg, color: s.ink }}>
-                          {STATUS_LABEL[status]}
-                        </span>
-                      )}
-                      <span className="text-[13px] font-bold tabular-nums text-ink-3">{list.length}まい</span>
-                    </div>
-                    <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
-                      {list.map((c) => (
-                        <li key={c.id}>
-                          <motion.button
-                            data-card-id={c.id}
-                            onClick={(e) => onOpenCard(c.id, e.currentTarget)}
-                            whileTap={{ scale: 0.97 }}
-                            transition={spring}
-                            className="block w-full text-left"
-                          >
-                            <CardFace card={c} no={cards.length - cards.indexOf(c)} />
-                          </motion.button>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                );
-              })}
+              {/* On wider screens the units flow side by side, each as wide as its cards, so a unit with one or two cards
+                  doesn't leave the rest of the row empty. */}
+              <div className="sm:flex sm:flex-wrap sm:gap-x-10">
+                {g.units.map((u) => {
+                  const list = have.get(u.id) ?? [];
+                  const status = unitStatus(u, stage);
+                  return (
+                    <section key={u.id} className="mt-5 min-w-0" aria-label={`『${u.unit}』`}>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <h4 className="text-[16px] font-black leading-snug">『{u.unit}』</h4>
+                        {status && (
+                          <span className="rounded-full px-2 text-[12px] font-black leading-6" style={{ background: s.bg, color: s.ink }}>
+                            {STATUS_LABEL[status]}
+                          </span>
+                        )}
+                        <span className="text-[13px] font-bold tabular-nums text-ink-3">{list.length}まい</span>
+                      </div>
+                      <ul className="mt-2 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4">
+                        {list.map((c) => (
+                          <li key={c.id} className="sm:w-[196px]">
+                            <motion.button
+                              data-card-id={c.id}
+                              onClick={(e) => onOpenCard(c.id, e.currentTarget)}
+                              whileTap={{ scale: 0.97 }}
+                              transition={spring}
+                              className="block w-full text-left"
+                            >
+                              <CardFace card={c} no={cards.length - cards.indexOf(c)} />
+                            </motion.button>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  );
+                })}
+              </div>
             </section>
           </div>
         );
