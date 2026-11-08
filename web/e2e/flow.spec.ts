@@ -86,5 +86,7 @@ test.describe('調べる流れ', () => {
     expect(api.of('/api/explore').map((c) => c.body.level)).toEqual(['lower', 'junior']);
     await expect(page.locator('[data-speak] ruby')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /せつめいの むずかしさ：中学生むけ/ })).toBeVisible();
+    // Both mocked units are elementary-school ones, already behind a 中2 reader, so the section goes away.
+    await expect(page.getByLabel('学校でならうよ')).toHaveCount(0);
   });
 });
