@@ -97,7 +97,7 @@ function GuestView() {
           {cards.length
             ? `いまの ${cards.length} 枚はそのまま引きつがれます。スマホでもパソコンでも、ログインすれば同じ図鑑が開けます。`
             : 'ログインすると、スマホでもパソコンでも同じ図鑑が開けます。'}
-          <span className="mt-1 block text-[12px] text-ink-3">新しいモノを調べられるのは、ゲストは約20円ぶん、登録すると約300円ぶんまで。年代に合わせた説明にもできます。</span>
+          <span className="mt-1 block text-[12px] text-ink-3">ゲストは新しく調べられる数に限りがあります。登録すると、もっとたくさん調べられて、年代に合わせた説明にもできます。</span>
         </p>
       )}
 
@@ -503,7 +503,7 @@ function MemberView({ me, onDone }: { me: Me; onDone: () => void }) {
         <div className="mt-3 rounded-3xl bg-paper-2 px-4 py-3.5">
           <div className="flex items-baseline justify-between text-[13px] font-bold">
             <span>新しく調べられる残り</span>
-            <span className="tabular-nums">約 {Math.max(0, Math.round(usage.myCapJpy - usage.mySpentJpy))} 円ぶん</span>
+            <span className="tabular-nums">{Math.max(0, Math.min(100, Math.round(100 - (usage.mySpentJpy / usage.myCapJpy) * 100)))}%</span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper-3">
             <motion.div
