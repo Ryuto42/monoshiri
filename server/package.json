@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node src/index.ts",
     "dev": "LOCAL_DEV=1 node --env-file-if-exists=.env --watch src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "LOCAL_DEV=1 node --test --test-concurrency=1 'test/**/*.test.ts'"
   },
   "type": "module",
   "dependencies": {

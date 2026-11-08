@@ -11,6 +11,8 @@ import { Button, Icon, IconButton } from '../components/ui';
 import { spring, TOPIC_COLORS } from '../components/theme';
 import { haptic, onBack, openExternal } from '../lib/native';
 import { slideOut, useSwipeDismiss } from '../lib/useSwipeDismiss';
+import { RubyText } from '../components/RubyText';
+import { stripRuby } from '../lib/ruby';
 
 type Tab = 'photos' | 'videos' | 'diagram' | 'ai' | 'quiz';
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -100,7 +102,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
             {ex.name} ・ {topic.kind}
           </p>
           <motion.h2 layoutId={`topic-title-${topic.id}`} className="text-[24px] font-black leading-snug text-[#2a2017] sm:text-[28px]">
-            {topic.title}
+            <RubyText text={topic.title} />
           </motion.h2>
         </header>
 
@@ -122,11 +124,11 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
 
             {done && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 flex flex-wrap gap-2">
-                <Speak target={prose} />
+                <Speak target={prose} ttsRef={{ name: ex.name, topic: topic.title }} />
                 <Button
                   tone="paper"
                   icon="search"
-                  onClick={() => openExternal(`https://www.google.com/search?q=${encodeURIComponent(`${ex.name} ${topic.title}`)}`)}
+                  onClick={() => openExternal(`https://www.google.com/search?q=${encodeURIComponent(stripRuby(`${ex.name} ${topic.title}`))}`)}
                 >
                   Googleで検索
                 </Button>
@@ -160,7 +162,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
               <AnimatePresence mode="wait">
                 <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }} className="mt-4">
                   {tab === 'photos' && <Photos items={media?.images} />}
-                  {tab === 'videos' && <Videos items={media?.videos} query={`${ex.name} ${topic.title}`} />}
+                  {tab === 'videos' && <Videos items={media?.videos} query={stripRuby(`${ex.name} ${topic.title}`)} />}
                   {tab === 'diagram' && (
                     <Diagram
                       url={diagram}
@@ -424,7 +426,7 @@ function Quiz({ name, context }: { name: string; context: string }) {
           <div key={i} className="rounded-3xl bg-paper-2 p-4">
             <p className="font-black">
               <span className="mr-2 text-accent">Q{i + 1}</span>
-              {q.q}
+              <RubyText text={q.q} />
             </p>
             <div className="mt-3 grid gap-2">
               {q.choices.map((c, j) => {
@@ -436,6 +438,7 @@ function Quiz({ name, context }: { name: string; context: string }) {
                     onClick={() => {
                       haptic(j === q.answer ? 'success' : 'error');
                       setAnswers((a) => ({ ...a, [i]: j }));
+                      void api.events(j === q.answer ? [{ name: 'quiz_answer' }, { name: 'quiz_correct' }] : [{ name: 'quiz_answer' }]);
                     }}
                     whileTap={{ scale: 0.97 }}
                     animate={state === 'wrong' ? { x: [0, -8, 8, -5, 5, 0] } : state === 'right' ? { scale: [1, 1.04, 1] } : {}}
@@ -444,14 +447,14 @@ function Quiz({ name, context }: { name: string; context: string }) {
                     }`}
                   >
                     <Icon name={state === 'right' ? 'check_circle' : state === 'wrong' ? 'cancel' : 'radio_button_unchecked'} size={20} fill={state === 'right' || state === 'wrong'} />
-                    {c}
+                    <span><RubyText text={c} /></span>
                   </motion.button>
                 );
               })}
             </div>
             {picked != null && (
               <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-2 text-[13px] text-ink-2">
-                {q.explain}
+                <RubyText text={q.explain} />
               </motion.p>
             )}
           </div>

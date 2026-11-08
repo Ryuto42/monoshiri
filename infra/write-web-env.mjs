@@ -23,11 +23,17 @@ const plist = iosApp
   : '';
 const plistValue = (key) => plist.match(new RegExp(`<key>${key}</key>\\s*<string>([^<]+)</string>`))?.[1] ?? '';
 const iosClient = plistValue('CLIENT_ID');
+const recaptchaKey = process.env.VITE_RECAPTCHA_KEY
+  ?? (await fetch(`https://firebaseappcheck.googleapis.com/v1/projects/${P}/apps/${appId}/recaptchaEnterpriseConfig`, { headers: h }).then((r) => r.json()).catch(() => ({}))).siteKey
+  ?? '';
+const debugTokenFile = new URL('./.appcheck-debug-token', import.meta.url);
+const debugToken = local && fs.existsSync(debugTokenFile) ? fs.readFileSync(debugTokenFile, 'utf8').trim() : '';
 const env = {
   VITE_FB_API_KEY: c.apiKey, // Sign-in popups and email links run on the app's own domain instead of <project>.firebaseapp.com.
   VITE_FB_AUTH_DOMAIN: process.env.AUTH_DOMAIN ?? `${SITE}.web.app`, VITE_FB_PROJECT_ID: c.projectId, VITE_FB_APP_ID: c.appId,
   VITE_FB_STORAGE_BUCKET: c.storageBucket, VITE_FB_SENDER_ID: c.messagingSenderId, VITE_API_BASE: API_BASE,
   VITE_GOOGLE_WEB_CLIENT_ID: google.enabled ? google.clientId : '', VITE_GOOGLE_IOS_CLIENT_ID: google.enabled ? iosClient : '',
+  VITE_RECAPTCHA_KEY: recaptchaKey, ...(debugToken && { VITE_APPCHECK_DEBUG_TOKEN: debugToken }),
 };
 fs.writeFileSync(
   new URL('../web/ios/google.local.xcconfig', import.meta.url),

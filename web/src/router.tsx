@@ -6,8 +6,9 @@ const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', comp
 const zukanRoute = createRoute({ getParentRoute: () => rootRoute, path: '/zukan', component: () => null });
 const cardRoute = createRoute({ getParentRoute: () => rootRoute, path: '/zukan/$cardId', component: () => null });
 const accountRoute = createRoute({ getParentRoute: () => rootRoute, path: '/account', component: () => null });
+const privacyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/privacy', component: () => null });
 
-export const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, zukanRoute, cardRoute, accountRoute]) });
+export const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, zukanRoute, cardRoute, accountRoute, privacyRoute]) });
 
 declare module '@tanstack/react-router' {
   interface Register {

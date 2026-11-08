@@ -45,7 +45,17 @@ export const VIDEO_LIMIT = Number(process.env.VIDEO_LIMIT ?? 2);
 export const USER_CAP_JPY = {
   guest: Number(process.env.USER_CAP_GUEST_JPY ?? 20),
   member: Number(process.env.USER_CAP_MEMBER_JPY ?? 300),
+  // Operators' own accounts (prewarm script), listed in ADMIN_UIDS; still bounded by CAP_JPY.
+  admin: CAP_JPY,
 };
+export const ADMIN_UIDS = new Set((process.env.ADMIN_UIDS ?? '').split(',').map((s) => s.trim()).filter(Boolean));
+
+// Grounding with Google Search (Gemini 3): $14 per 1,000 search queries on top of tokens. The 5,000 free queries a month
+// are not subtracted, so the meter errs on the high side.
+export const GROUNDING_USD_PER_QUERY = Number(process.env.GROUNDING_USD_PER_QUERY ?? 0.014);
+
+// App Check: '1' makes new generation require an attested app (or a signed-in account). Otherwise tokens are only checked and logged.
+export const APPCHECK_ENFORCE = process.env.APPCHECK_ENFORCE === '1';
 
 // Learning stages the explanations are written for. 'std' is the original audience (upper elementary to junior high)
 // and is what guests and people who haven't picked a stage get.
