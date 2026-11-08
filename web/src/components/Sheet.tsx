@@ -20,6 +20,34 @@ export function Sheet({ open, expanded, onExpandedChange, onDismiss, peek = 300,
   const scroller = useRef<HTMLDivElement>(null);
   useSwipeDismiss({ y, areas: [scroller], base: () => target, onDismiss, enabled: open && !desktop });
 
+  // While only the peek shows, the content may still fit the full sheet, so it never scrolls and the rest stays hidden
+  // below the screen. Pulling the content up (or scrolling the wheel down) opens the sheet all the way instead.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || !open || expanded || desktop) return;
+    let startY: number | null = null;
+    const start = (e: TouchEvent) => {
+      startY = e.touches.length === 1 ? e.touches[0].clientY : null;
+    };
+    const move = (e: TouchEvent) => {
+      if (startY != null && startY - e.touches[0].clientY > 12) {
+        startY = null;
+        onExpandedChange(true);
+      }
+    };
+    const wheel = (e: WheelEvent) => {
+      if (e.deltaY > 4) onExpandedChange(true);
+    };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', move, { passive: true });
+    el.addEventListener('wheel', wheel, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', start);
+      el.removeEventListener('touchmove', move);
+      el.removeEventListener('wheel', wheel);
+    };
+  }, [open, expanded, desktop, onExpandedChange]);
+
   useEffect(() => {
     if (desktop) return;
     const c = animate(y, target, { type: 'spring', stiffness: 320, damping: 34 });
