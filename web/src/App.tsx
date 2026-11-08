@@ -4,7 +4,10 @@ import { useEffect } from 'react';
 import { Home } from './screens/Home';
 import { Zukan } from './screens/Zukan';
 import { Account } from './screens/Account';
+import { Privacy } from './screens/Privacy';
 import { SignupNudge } from './components/SignupNudge';
+import { Welcome } from './components/Welcome';
+import { settleWelcome, useWelcome } from './lib/welcome';
 import { useNudge } from './lib/account';
 import { Toaster } from './components/Toast';
 import { toast } from './lib/toast';
@@ -17,11 +20,16 @@ export function App() {
   const { pathname } = useLocation();
   const zukan = pathname.startsWith('/zukan');
   const account = pathname === '/account';
+  const privacy = pathname === '/privacy';
   const nudge = useNudge();
-  const covered = zukan || account || !!nudge;
+  const welcome = useWelcome();
+  const covered = zukan || account || privacy || !!nudge || welcome !== 'closed';
   useEffect(() => {
     currentUser().catch(() => {});
-    void loadCards().then(() => resumeIllust(allCards()));
+    // The welcome waits for the zukan so people who already have cards skip it; even a failed load must release the camera.
+    void loadCards()
+      .then(() => resumeIllust(allCards()))
+      .finally(() => settleWelcome(allCards().length > 0));
     // Network status can blip to "offline" while the app starts or switches networks, so only report lasting changes.
     let shown = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -61,7 +69,9 @@ export function App() {
         )}
       </AnimatePresence>
       <AnimatePresence>{account && <Account key="account" />}</AnimatePresence>
-      {!zukan && !account && <SignupNudge />}
+      <AnimatePresence>{privacy && <Privacy key="privacy" />}</AnimatePresence>
+      {!zukan && !account && !privacy && <SignupNudge />}
+      {!zukan && !account && !privacy && <Welcome />}
       <Toaster />
     </>
   );

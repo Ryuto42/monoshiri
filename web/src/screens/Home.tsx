@@ -22,7 +22,17 @@ import { Logo } from '../components/Logo';
 import { goBack, haptic, onBack } from '../lib/native';
 import { GlassChrome, nativeChrome, pickNativePhoto } from '../lib/glass';
 import { useMe } from '../lib/firebase';
-import { Avatar } from './Account';
+import { Avatar } from './account/parts';
+import { onSampleRequest, showWelcome } from '../lib/welcome';
+import { StageChip } from '../components/StageChip';
+import { MissionBadge } from '../components/Mission';
+import { unlockAudio } from '../components/Speak';
+import { currentLevel } from '../lib/level';
+
+// The youngest readers get explanations read aloud on their own; that needs audio unlocked inside a tap (iOS).
+const unlockForReading = () => {
+  if (currentLevel() === 'lower') unlockAudio();
+};
 
 export function Home({ paused = false }: { paused?: boolean }) {
   const flow = useFlow();
@@ -62,19 +72,22 @@ export function Home({ paused = false }: { paused?: boolean }) {
     }
   }
 
+  // Only the latest request may fill the sheet (a stage change re-explores while the first answer is still on its way).
+  const exploreSeq = useRef(0);
   async function explore(label: string, crop: string | null, cropB64?: string, from?: string) {
+    const seq = ++exploreSeq.current;
     setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null, known: null, label });
     void api.known(label).then(({ known }) => getFlow().stage === 'exploring' && setFlow({ known })).catch(() => {});
     try {
       const ex = await api.explore(label, cropB64, from);
-      if (getFlow().stage !== 'exploring') return;
+      if (seq !== exploreSeq.current || getFlow().stage !== 'exploring') return;
       // A correction renames the marker only once the new name worked, so "もう一度" after a failure retries the original.
       if (from) setFlow((s) => ({ objects: s.objects.map((x, i) => (i === s.selected ? { ...x, label, alts: [] } : x)) }));
       const saved = getCard(ex.id);
       const notes = Object.fromEntries((saved?.notes ?? []).map((n) => [n.topicId, n]));
       setFlow({ stage: 'explore', explore: ex, notes });
     } catch (e) {
-      setFlow({ stage: 'error', error: errorMessage(e) });
+      if (seq === exploreSeq.current) setFlow({ stage: 'error', error: errorMessage(e) });
     }
   }
 
@@ -86,6 +99,20 @@ export function Home({ paused = false }: { paused?: boolean }) {
     haptic('select');
     setFlow({ selected: i });
     void explore(o.label, c.dataUrl, c.base64);
+  }
+
+  // The stage changed while an explanation is open: explore the same thing again, written for the new stage.
+  function restage() {
+    const s = getFlow();
+    if (s.stage !== 'explore' && s.stage !== 'exploring') return;
+    const label = s.label ?? s.explore?.label;
+    if (!label) return;
+    setFlow({ topicId: null });
+    const o = s.selected != null ? s.objects[s.selected] : null;
+    if (s.shot && o && o.label === label) {
+      const c = cropBox(s.shot, o.box, 640);
+      void explore(label, c.dataUrl, c.base64);
+    } else void explore(label, s.crop);
   }
 
   // The person says the photo was misread: rename the marker and explore the name they chose, with the same photo crop.
@@ -103,6 +130,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
     const v = vf.current;
     if (!v?.live || !v.video) return pickPhoto();
     haptic('tap');
+    unlockForReading();
     setFlash(true);
     setTimeout(() => setFlash(false), 260);
     analyze(await shotFromVideo(v.video, v.visibleRect()));
@@ -151,6 +179,17 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const topic = topicIndex >= 0 ? flow.explore!.topics[topicIndex] : null;
   const peek = flow.stage === 'explore' ? Math.round(window.innerHeight * 0.5) : flow.stage === 'picked' ? 360 : 300;
 
+  const sample = async (src: string) => {
+    unlockForReading();
+    const b = await fetch(src).then((r) => r.blob());
+    analyze(await shotFromBlob(b));
+  };
+  const sampleRef = useRef(sample);
+  useEffect(() => {
+    sampleRef.current = sample;
+  });
+  useEffect(() => onSampleRequest((src) => sampleRef.current(src)), []);
+
   const handlers = useRef({ capture, pickPhoto, navigate });
   useEffect(() => {
     handlers.current = { capture, pickPhoto, navigate };
@@ -192,10 +231,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
         ref={vf}
         active={live && !cameraPaused}
         onPick={() => file.current?.click()}
-        onSample={async (src) => {
-          const b = await fetch(src).then((r) => r.blob());
-          analyze(await shotFromBlob(b));
-        }}
+        onSample={sample}
       />
 
       <AnimatePresence>
@@ -209,7 +245,10 @@ export function Home({ paused = false }: { paused?: boolean }) {
                   objects={flow.objects}
                   selected={flow.selected}
                   scanning={flow.stage === 'detecting'}
-                  onSelect={pick}
+                  onSelect={(i) => {
+                    unlockForReading();
+                    pick(i);
+                  }}
                   bottomInset={desktop ? 0 : expanded ? 0 : peek - 8}
                 />
               </div>
@@ -220,11 +259,17 @@ export function Home({ paused = false }: { paused?: boolean }) {
 
       <AnimatePresence>{flash && <motion.div className="absolute inset-0 z-40 bg-white" initial={{ opacity: 0.9 }} animate={{ opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />}</AnimatePresence>
 
-      <header className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),14px)] lg:px-8 lg:pr-[calc(min(480px,42vw)+32px)]">
+      <header className="absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-[max(env(safe-area-inset-top),14px)] lg:px-8 lg:pr-[calc(min(480px,42vw)+32px)]">
         <AnimatePresence mode="wait">
           {live ? (
-            <motion.div key="logo" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-              <Logo light />
+            <motion.div key="logo" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="flex flex-col items-start">
+              <span className="flex h-11 items-center">
+                <Logo light />
+              </span>
+              <StageChip tone="glass" className="mt-2.5" />
+              <div className="mt-2">
+                <MissionBadge />
+              </div>
             </motion.div>
           ) : (
             <motion.div key="back" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}>
@@ -238,6 +283,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
               <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
               {!paused && <ReadyBubble placement="below" radius={999} tail={60} />}
             </div>
+            {live && <IconButton icon="help" label="使い方" tone="glass" size={44} onClick={showWelcome} />}
             <AccountButton hasCards={cards.length > 0} onClick={() => navigate({ to: '/account' })} />
           </motion.div>
         )}
@@ -295,6 +341,11 @@ export function Home({ paused = false }: { paused?: boolean }) {
 
       <div className="text-ink">
         <Sheet open={!live} expanded={expanded} onExpandedChange={setExpanded} onDismiss={goBack} peek={peek}>
+          {(flow.stage === 'explore' || flow.stage === 'exploring') && (
+            <div className="flex justify-end px-4 pb-1">
+              <StageChip onChange={restage} />
+            </div>
+          )}
           <ExploreContent
             flow={flow}
             crops={crops}

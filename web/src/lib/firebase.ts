@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { getToken, initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check';
 import { Capacitor } from '@capacitor/core';
 import { connectAuthEmulator, getAuth, indexedDBLocalPersistence, initializeAuth, onIdTokenChanged, signInAnonymously, type User } from 'firebase/auth';
 import { useSyncExternalStore } from 'react';
@@ -17,6 +18,24 @@ export const auth = Capacitor.isNativePlatform()
   ? initializeAuth(firebaseApp, { persistence: indexedDBLocalPersistence })
   : getAuth(firebaseApp);
 auth.languageCode = 'ja';
+
+// App Check (reCAPTCHA Enterprise) proves API calls come from this web app, since anonymous accounts are free to create.
+// The native shells can't run reCAPTCHA on capacitor:// and send no token; signed-in accounts don't need one.
+const RECAPTCHA_KEY = import.meta.env.VITE_RECAPTCHA_KEY as string | undefined;
+let appCheck: AppCheck | null = null;
+if (!Capacitor.isNativePlatform() && RECAPTCHA_KEY) {
+  if (import.meta.env.DEV) (self as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string }).FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || true;
+  appCheck = initializeAppCheck(firebaseApp, { provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_KEY), isTokenAutoRefreshEnabled: true });
+}
+
+export async function appCheckToken(): Promise<string | null> {
+  if (!appCheck) return null;
+  try {
+    return (await getToken(appCheck, false)).token;
+  } catch {
+    return null;
+  }
+}
 
 // Local development against the Firebase emulators (npm run emulators): no real accounts or cloud data are touched.
 export const onEmulators = import.meta.env.DEV && import.meta.env.VITE_FB_EMULATORS === '1';

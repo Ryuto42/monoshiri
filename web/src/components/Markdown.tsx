@@ -3,6 +3,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { motion } from 'motion/react';
 import { parseFlow } from '../lib/flow-parse';
+import { rubyToHtml } from '../lib/ruby';
 
 const MERMAID = /```mermaid\s*([\s\S]*?)```/;
 
@@ -10,7 +11,7 @@ function Prose({ text, streaming }: { text: string; streaming?: boolean }) {
   const html = useMemo(() => {
     // marked misses **bold** when it touches Japanese brackets, so convert it up front.
     const fixed = text.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
-    return DOMPurify.sanitize(marked.parse(fixed, { async: false, breaks: true }) as string);
+    return DOMPurify.sanitize(rubyToHtml(marked.parse(fixed, { async: false, breaks: true }) as string), { ADD_TAGS: ['ruby', 'rt', 'rp'] });
   }, [text]);
   return <div className={`prose-mono ${streaming ? 'caret' : ''}`} dangerouslySetInnerHTML={{ __html: html }} />;
 }
