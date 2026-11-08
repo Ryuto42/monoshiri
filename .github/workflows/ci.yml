@@ -67,7 +67,8 @@ jobs:
       - run: npm run test:rules
 
   e2e:
-    runs-on: ubuntu-26.04
+    # Playwright 1.60 ships browsers and system packages for Ubuntu up to 24.04 only.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
