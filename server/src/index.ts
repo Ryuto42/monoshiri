@@ -87,7 +87,7 @@ app.onError((err, c) => {
   return c.json({ error: 'internal', ...(LOCAL && { message: String(err?.message ?? err).slice(0, 200) }) }, 500);
 });
 
-const S = { STRING: 'STRING', INTEGER: 'INTEGER', ARRAY: 'ARRAY', OBJECT: 'OBJECT' } as const;
+const S = { STRING: 'STRING', INTEGER: 'INTEGER', ARRAY: 'ARRAY', OBJECT: 'OBJECT', BOOLEAN: 'BOOLEAN' } as const;
 const str = (extra: object = {}) => ({ type: S.STRING, ...extra });
 const json = <T>(text: string | undefined): T => JSON.parse(text ?? 'null');
 const clean = (v: unknown, max = 80) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
@@ -121,7 +121,7 @@ app.post('/api/detect', async (c) => {
         type: S.ARRAY,
         items: {
           type: S.OBJECT,
-          properties: { label: str(), en: str(), box_2d: { type: S.ARRAY, items: { type: S.INTEGER } } },
+          properties: { label: str(), en: str(), box_2d: { type: S.ARRAY, items: { type: S.INTEGER } }, alts: { type: S.ARRAY, items: str() } },
           required: ['label', 'en', 'box_2d'],
         },
       },
@@ -131,7 +131,11 @@ app.post('/api/detect', async (c) => {
   const objects = (json<any[]>(res.text) ?? [])
     .filter((o) => Array.isArray(o.box_2d) && o.box_2d.length === 4)
     .slice(0, 6)
-    .map((o) => ({ label: clean(o.label, 30), en: clean(o.en, 40), box: o.box_2d.map((n: number) => Math.max(0, Math.min(1000, n))) }));
+    .map((o) => {
+      const label = clean(o.label, 30);
+      const alts = [...new Set((Array.isArray(o.alts) ? o.alts : []).map((a: unknown) => clean(a, 30)))].filter((a) => a && a !== label).slice(0, 2);
+      return { label, en: clean(o.en, 40), box: o.box_2d.map((n: number) => Math.max(0, Math.min(1000, n))), alts };
+    });
   return c.json({ objects });
 });
 
@@ -149,14 +153,27 @@ const exploreSchema = {
       },
     },
     keywords: { type: S.ARRAY, items: str() },
+    ok: { type: S.BOOLEAN },
   },
-  required: ['name', 'reading', 'en', 'category', 'icon', 'oneLiner', 'summary', 'funFact', 'topics', 'keywords'],
+  required: ['name', 'reading', 'en', 'category', 'icon', 'oneLiner', 'summary', 'funFact', 'topics', 'keywords', 'ok'],
 };
 
+// Lets the app say "nobody has explored this yet" while a new explanation is being written. Reads the cache only.
+app.get('/api/known', async (c) => {
+  const label = clean(c.req.query('label'), 30);
+  if (!label) return c.json({ error: 'bad_label' }, 400);
+  const alias = await getCached<{ target: string }>('explore_alias', keyOf('alias', label));
+  const hit = await getCached<object>('cache_explore', alias?.target ?? keyOf('explore', label));
+  return c.json({ known: !!hit });
+});
+
 app.post('/api/explore', async (c) => {
-  const body = await c.req.json<{ label: string; image?: string }>();
+  const body = await c.req.json<{ label: string; image?: string; from?: string }>();
   const label = clean(body.label, 30);
   if (!label) return c.json({ error: 'bad_label' }, 400);
+  // A person told us the photo was misread. Kept (server-only) so detection mistakes can be counted and improved.
+  const from = clean(body.from, 30);
+  if (from && from !== label) await setCached('corrections', `${Date.now()}-${c.get('uid')}`, { from, to: label, at: Date.now() });
   // Results are shared by everyone: the same thing photographed under another label resolves through explore_alias.
   const alias = await getCached<{ target: string }>('explore_alias', keyOf('alias', label));
   const hit = await getCached<any>('cache_explore', alias?.target ?? keyOf('explore', label));
@@ -176,6 +193,9 @@ app.post('/api/explore', async (c) => {
   });
   await track(MODELS.explore, res.usageMetadata, 'explore');
   const data = json<any>(res.text);
+  // Names now come from people too (typed or corrected), so a name Gemini judges unfit never reaches the shared cache.
+  if (data?.ok === false) return c.json({ error: 'not_a_thing' }, 422);
+  if (data) delete data.ok;
   const g = grounding(res);
   const wiki = await wikiSummary(data.name).catch(() => null);
   const key = keyOf('explore', clean(data.name, 30) || label);
@@ -186,12 +206,14 @@ app.post('/api/explore', async (c) => {
   }
   const out = {
     id: key, label, ...data, topics: (data.topics ?? []).slice(0, 6).map((t: any, i: number) => ({ id: `t${i}`, ...t })),
-    entryPoint: g.entryPoint, queries: g.queries, wiki,
+    entryPoint: g.entryPoint, queries: g.queries, wiki, foundAt: Date.now(),
   };
-  await addCached('cache_explore', key, out);
+  // create() only succeeds once, so exactly one person becomes the first finder even if two explore the same thing at once.
+  const created = await addCached('cache_explore', key, out);
   const names = new Set([label, clean(data.name, 30), clean(data.en, 40)].filter(Boolean));
   await Promise.all([...names].map((n) => addCached('explore_alias', keyOf('alias', n), { target: key, name: n })));
-  return c.json(out);
+  if (!created) return c.json({ ...((await getCached<object>('cache_explore', key)) ?? out), cached: true });
+  return c.json({ ...out, firstFind: true });
 });
 
 app.post('/api/deep', async (c) => {

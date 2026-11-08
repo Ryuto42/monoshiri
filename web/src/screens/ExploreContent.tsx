@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DetectedObject, Explore } from '../lib/types';
 import type { Flow } from '../lib/flow';
 import { useCards } from '../lib/cards';
@@ -13,13 +13,27 @@ import { haptic, openExternal } from '../lib/native';
 const list = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
 const item = { hidden: { opacity: 0, y: 18, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 380, damping: 30 } } } as const;
 
-export function ExploreContent({ flow, crops, onPick, onAsk, onTopic, onMakeCard, onRetry, onReset }: {
-  flow: Flow; crops: string[]; onPick: (i: number) => void; onAsk: (label: string) => void; onTopic: (id: string) => void;
-  onMakeCard: () => void; onRetry: () => void; onReset: () => void;
+export function ExploreContent({ flow, crops, onPick, onAsk, onCorrect, onTopic, onMakeCard, onRetry, onReset }: {
+  flow: Flow; crops: string[]; onPick: (i: number) => void; onAsk: (label: string) => void; onCorrect: (label: string) => void;
+  onTopic: (id: string) => void; onMakeCard: () => void; onRetry: () => void; onReset: () => void;
 }) {
   if (flow.stage === 'error') return <ErrorState message={flow.error} onRetry={onRetry} onReset={onReset} />;
-  if (flow.stage === 'exploring') return <Exploring label={flow.objects[flow.selected ?? 0]?.label ?? ''} crop={flow.crop} />;
-  if (flow.stage === 'explore' && flow.explore) return <ExploreView ex={flow.explore} crop={flow.crop} onTopic={onTopic} onMakeCard={onMakeCard} onReset={onReset} notes={Object.keys(flow.notes).length} />;
+  if (flow.stage === 'exploring') return <Exploring label={flow.label ?? flow.objects[flow.selected ?? 0]?.label ?? ''} crop={flow.crop} fresh={flow.known === false} />;
+  if (flow.stage === 'explore' && flow.explore) {
+    // Only a thing picked from a photo can be "misread"; a typed name is already what the person meant.
+    const picked = flow.shot && flow.selected != null ? flow.objects[flow.selected] : null;
+    return (
+      <ExploreView
+        ex={flow.explore}
+        crop={flow.crop}
+        onTopic={onTopic}
+        onMakeCard={onMakeCard}
+        onReset={onReset}
+        notes={Object.keys(flow.notes).length}
+        correction={picked ? { alts: picked.alts ?? [], onCorrect } : null}
+      />
+    );
+  }
   if (flow.stage === 'detecting') return <Detecting />;
   return <Picker objects={flow.objects} crops={crops} onPick={onPick} onAsk={onAsk} onReset={onReset} />;
 }
@@ -95,27 +109,32 @@ function Picker({ objects, crops, onPick, onAsk, onReset }: {
   );
 }
 
-function Exploring({ label, crop }: { label: string; crop: string | null }) {
+function Exploring({ label, crop, fresh }: { label: string; crop: string | null; fresh: boolean }) {
   return (
     <div className="px-6 pt-1 pb-6">
       <LoadingCard img={crop} expected={14} steps={['写真をよく見ています', 'Google で調べています', '学べるテーマを集めています', 'カードにまとめています']}>
-        <p className="text-[13px] font-bold text-accent">モノシリ中…</p>
+        <p className="text-[13px] font-bold text-accent">{fresh ? 'まだだれも調べていないモノかも！' : 'モノシリ中…'}</p>
         <h2 className="text-[26px] font-black leading-tight">{label}</h2>
-        <p className="mt-1 text-[13px] text-ink-3">Google 検索で確かめながら、学べるテーマを集めています</p>
+        <p className="mt-1 text-[13px] text-ink-3">
+          {fresh ? 'モノシリの図鑑にまだないモノです。Google 検索で確かめながら、新しいページを作っています' : 'Google 検索で確かめながら、学べるテーマを集めています'}
+        </p>
       </LoadingCard>
     </div>
   );
 }
 
-function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
+function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction }: {
   ex: Explore; crop: string | null; onTopic: (id: string) => void; onMakeCard: () => void; onReset: () => void; notes: number;
+  correction: { alts: string[]; onCorrect: (label: string) => void } | null;
 }) {
+  const [fixing, setFixing] = useState(false);
   const c = catStyle(ex.category);
   const cards = useCards();
   const saved = cards.some((x) => x.id === ex.id);
   const root = useRef<HTMLDivElement>(null);
   return (
     <motion.div ref={root} initial="hidden" animate="show" variants={list} className="pb-10">
+      {ex.firstFind && <FirstFind name={ex.name} saved={saved} />}
       <motion.header variants={item} className="flex items-center gap-4 px-6 pt-1">
         <div className="relative shrink-0">
           {crop ? (
@@ -132,12 +151,32 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <Chip color={c} icon={c.icon}>{ex.category}</Chip>
-            {ex.cached && <Chip className="bg-leaf-soft text-leaf" icon="bolt">すぐ表示</Chip>}
           </div>
           <p className="mt-1 text-[12px] font-bold tracking-wider text-ink-3">{ex.reading}・{ex.en}</p>
           <h2 data-speak className="text-[28px] font-black leading-tight">{ex.name}</h2>
         </div>
       </motion.header>
+
+      {correction && !fixing && (
+        <motion.div variants={item} className="mx-6 mt-2">
+          <Button tone="ghost" icon="edit" className="-ml-3 h-10 px-3 text-[14px] text-ink-2" aria-label={`ちがうよ（「${ex.name}」の名前をなおす）`} onClick={() => setFixing(true)}>
+            ちがうよ
+          </Button>
+        </motion.div>
+      )}
+      <AnimatePresence initial={false}>
+        {correction && fixing && (
+          <Correction
+            name={ex.name}
+            alts={correction.alts.filter((a) => a !== ex.name)}
+            onCancel={() => setFixing(false)}
+            onPick={(label) => {
+              setFixing(false);
+              correction.onCorrect(label);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <motion.p data-speak variants={item} className="mx-6 mt-4 text-[17px] font-bold leading-relaxed text-accent">
         {ex.oneLiner}
@@ -230,6 +269,88 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
         </Button>
       </motion.div>
     </motion.div>
+  );
+}
+
+function Correction({ name, alts, onPick, onCancel }: { name: string; alts: string[]; onPick: (label: string) => void; onCancel: () => void }) {
+  const [text, setText] = useState('');
+  return (
+    <motion.section
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+      className="overflow-hidden"
+      aria-label="名前をなおす"
+    >
+      <div className="mx-6 mt-4 rounded-3xl bg-paper-2 p-4">
+        <p className="font-black">写っているのは何かな？</p>
+        <p className="mt-0.5 text-[13px] text-ink-2">「{name}」ではないときは、正しい名前を選ぶか入れてね。同じ写真で調べなおします。</p>
+        {alts.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {alts.map((a) => (
+              <Button key={a} tone="paper" className="h-10 px-4" onClick={() => onPick(a)}>
+                {a}
+              </Button>
+            ))}
+          </div>
+        )}
+        <form
+          className="mt-3 flex items-center gap-2 rounded-full bg-paper p-1.5 pl-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (text.trim()) onPick(text.trim());
+          }}
+        >
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="正しい名前（例: ふせん）"
+            aria-label="正しい名前"
+            className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-ink-3"
+            maxLength={30}
+            autoFocus
+          />
+          <Button type="submit" icon="search" className="h-10 px-4" disabled={!text.trim()}>
+            調べなおす
+          </Button>
+        </form>
+        <div className="mt-2 flex justify-end">
+          <Button tone="ghost" className="h-10 px-4 text-[14px]" onClick={onCancel}>
+            やめる
+          </Button>
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
+// Shown once, to the person whose photo made this thing's page. The one celebratory moment in the flow.
+function FirstFind({ name, saved }: { name: string; saved: boolean }) {
+  useEffect(() => {
+    haptic('success');
+  }, []);
+  return (
+    <motion.section
+      initial={{ opacity: 0, scale: 0.9, y: -8 }}
+      animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 420, damping: 22, delay: 0.15 } }}
+      className="mx-6 mb-4 flex items-center gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--sun)_30%,var(--paper))] p-4"
+      role="status"
+    >
+      <motion.span
+        initial={{ rotate: -20, scale: 0.6 }}
+        animate={{ rotate: 0, scale: 1, transition: { type: 'spring', stiffness: 500, damping: 14, delay: 0.3 } }}
+        className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-sun text-[#5a3b00]"
+      >
+        <Icon name="flag" size={28} fill />
+      </motion.span>
+      <div className="min-w-0">
+        <p className="text-[17px] font-black leading-snug">はじめて見つけたモノ！</p>
+        <p className="text-[13px] leading-relaxed text-ink-2">
+          モノシリで「{name}」を調べたのは、あなたが最初です。{saved ? '' : 'カードにして図鑑にのこそう'}
+        </p>
+      </div>
+    </motion.section>
   );
 }
 

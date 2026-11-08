@@ -14,6 +14,7 @@ export type CardLike = {
   oneLiner?: string;
   illustration?: string | null;
   photo?: string | null;
+  firstFind?: boolean;
 };
 
 export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
@@ -73,6 +74,15 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
             <img src={card.photo} alt="" draggable={false} className="absolute inset-[10%] h-[80%] w-[80%] object-cover rounded-2xl" />
           ) : (
             <Icon name={card.icon} size={big ? 96 : small ? 40 : 64} fill style={{ color: c.ink, opacity: 0.8 }} />
+          )}
+          {card.firstFind && (
+            <span
+              className={`absolute z-[1] grid place-items-center rounded-full bg-sun text-[#5a3b00] shadow-[var(--shadow-card)] ${small ? 'right-1.5 top-1.5 h-5 w-5' : 'right-3 top-3 h-8 w-8'}`}
+              title="はじめて見つけたモノ"
+            >
+              <Icon name="flag" size={small ? 13 : big ? 20 : 18} fill />
+              <span className="sr-only">はじめて見つけたモノ</span>
+            </span>
           )}
           {drawing && (
             <div className="absolute inset-0 grid place-items-center">

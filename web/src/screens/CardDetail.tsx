@@ -107,6 +107,14 @@ export function CardDetail({ cardId }: { cardId: string }) {
           <div ref={intro}>
             <p className="text-[12px] font-bold tracking-wider text-ink-3">{card.reading}・{card.en}</p>
             <h2 data-speak className="text-[30px] font-black leading-tight">{card.name}</h2>
+            {card.firstFind && (
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklab,var(--sun)_30%,var(--paper))] py-1 pl-1.5 pr-3 text-[13px] font-black">
+                <span className="grid h-6 w-6 place-items-center rounded-full bg-sun text-[#5a3b00]">
+                  <Icon name="flag" size={15} fill />
+                </span>
+                モノシリで最初に見つけたモノ
+              </p>
+            )}
             <p data-speak className="mt-2 text-[17px] font-bold text-accent">{card.oneLiner}</p>
             <p data-speak className="mt-3 text-ink-2">{card.summary}</p>
           </div>
