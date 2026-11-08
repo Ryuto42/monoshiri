@@ -29,3 +29,20 @@ test('cached content stays open to everyone', async () => {
   await setCached('cache_deep', keyOf('deep', 'りんご', 'りんごはなぜ赤い？'), { text: 'x'.repeat(120), meta: {} });
   assert.equal((await deep('g2:anonymous')).status, 200);
 });
+
+test('password-reset emails also need App Check for guests', async () => {
+  const { setMailDeps } = await import('../src/mail/send.ts');
+  let sent = 0;
+  setMailDeps({
+    enabled: () => true,
+    getUser: async () => ({ emailVerified: false, providers: [] }),
+    verifyLink: async () => '',
+    resetLink: async () => 'https://x.firebaseapp.com/__/auth/action?oobCode=C',
+    send: async () => void sent++,
+  });
+  const reset = (token: string, ac?: string) =>
+    app.request('/api/mail/reset', { method: 'POST', headers: auth(token, ac ? { 'X-Firebase-AppCheck': ac } : {}), body: JSON.stringify({ email: 'k@example.com' }) });
+  assert.equal((await reset('g3:anonymous')).status, 403);
+  assert.equal((await reset('g3:anonymous', 'ok')).status, 200);
+  assert.equal(sent, 1);
+});

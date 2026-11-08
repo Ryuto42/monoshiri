@@ -20,6 +20,7 @@
 | @google-cloud/storage | メディア保存 | Apache-2.0 |
 | google-auth-library | 認証 | Apache-2.0 |
 | sharp | 画像の WebP 変換 | Apache-2.0 |
+| Nodemailer | 確認・再設定メールの送信（SMTP） | MIT-0 |
 | @google-cloud/billing / functions-framework | 予算キルスイッチ | Apache-2.0 |
 | Capacitor 8（core / ios / android / cli） | iOS・Android アプリ化 | MIT |
 | @capacitor/app, haptics, status-bar, splash-screen, browser, keyboard, network | ネイティブ機能 | MIT |

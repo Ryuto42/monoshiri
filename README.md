@@ -45,7 +45,7 @@
 | 学校の単元 | 解説したモノを、学習指導要領（小・中は平成29年、高は平成30年告示）から作った 219 単元に Gemini が結び付ける（一覧の id からだけ選ぶ）。「小5 理科『物の溶け方』」のように表示し、段階に応じて「いま習う／もうすぐ習う」を出す。段階から見てもう習った単元は出さない |
 | 教科でみる | 図鑑で、集めたカードの単元だけを教科×学年に並べ、単元ごとのカード枚数を出す |
 | 学びの記録 | 問いを開いた・クイズに答えた／正解した・カードを保存した、などを**日ごとの合計回数だけ**サーバーで数える（個人とは結び付けない）。`node infra/stats.mjs` で見られる |
-| メール | 確認メールとパスワード再設定のメールは、アプリと同じ見た目の HTML（`infra/email/`）。メールのリンクはアプリの `/auth/action` で開き、確認やパスワードの再設定をその場で済ませて、自動でアプリにもどる |
+| メール | 確認メールとパスワード再設定のメールは、API サーバーが Gmail（SMTP）から送る、アプリと同じ見た目の HTML。リンクはアプリの `/auth/action` を開き、確認やパスワードの再設定をその場で済ませて、自動でアプリにもどる（Firebase の標準のメールは文面とリンク先を変更できないため。SMTP が使えないときは標準のメールで送る） |
 | プライバシー | `/privacy` に子どもにも読める「かんたん版」と詳しい版。同意は最初の画面で受け、記録は端末にだけ残す |
 
 操作面では、詳細画面を下にスワイプして閉じられます。戻る操作（ブラウザの戻る、Android の戻るボタン、Esc）は、開いた順に1段ずつ閉じます。
@@ -135,10 +135,11 @@
 │  │  ├─ auth.ts             ID トークンと App Check の検証、レート制限（検証部分は差し替え可能でテストから使う）
 │  │  ├─ http.ts             共通の型・入力の整形・「調べたモノか」の確認
 │  │  ├─ routes/             files（/media）、detect、explore、deep（深掘り・クイズ）、media（写真・イラスト・図解）、
-│  │  │                      speech（読み上げ）、video、learn（単元・学びの記録・利用状況）
+│  │  │                      speech（読み上げ）、video、learn（単元・学びの記録・利用状況）、mail（確認・再設定メール）
 │  │  ├─ ai.ts               Gemini クライアント、プロンプト、利用額の計算
 │  │  ├─ store.ts            Firestore（開発時はメモリ）のキャッシュとメーター
 │  │  ├─ stats.ts            日別の学びの集計（stats_daily、個人と結び付けない）
+│  │  ├─ mail/               メールの見た目（layout）・文面（templates）・送信（send。Firebase Admin SDK でリンクを作り Gmail から送る）
 │  │  ├─ media.ts            Cloud Storage（開発時は .local-media/）、Wikimedia / YouTube
 │  │  ├─ curriculum.json     学習指導要領の単元一覧
 │  │  └─ config.ts           環境変数・モデル名・単価
@@ -153,9 +154,7 @@
 │  ├─ stats.mjs              日別の学びの集計を表で見る
 │  ├─ setup-appcheck.mjs     reCAPTCHA Enterprise のキーと App Check の登録
 │  ├─ setup-monitoring.mjs   稼働確認とアラート（Cloud Monitoring）
-│  ├─ setup-auth-quota.mjs   新規登録の上限（IP ごと 1 時間 100 件）
-│  ├─ setup-email-templates.mjs  メールの文面（email/）と、リンクの行き先（/auth/action）を Firebase Auth に反映
-│  └─ email/                 メールのレイアウトと文面（確認・パスワード再設定・アドレス変更）
+│  └─ setup-auth-quota.mjs   新規登録の上限（IP ごと 1 時間 100 件）
 ├─ firestore.rules
 ├─ firebase.json             Hosting の設定とセキュリティヘッダー
 └─ .github/workflows/        ci.yml（PR のチェック）、branch-flow.yml（main は dev からだけ）、deploy-web.yml（main への push で Web をデプロイ）
@@ -310,6 +309,8 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 | `POST /api/tts` | 読み上げ音声（最大 900 字。`ref: { name, topic?, level }` の解説・深掘り本文に含まれる文だけ） | `cache_tts` | 小 |
 | `POST /api/units` | 学校の単元（最大3つ、`{ id, why }`。id は curriculum.json のもの） | `cache_units` | 小 |
 | `POST /api/events` | 学びのイベント（日ごとの合計回数だけを数える） | — | なし |
+| `POST /api/mail/verify` | 自分のアカウントの確認メールを送る（メール／パスワードで未確認のときだけ） | — | なし |
+| `POST /api/mail/reset` | パスワード再設定のメールを送る（`{ email }`。登録の有無にかかわらず同じ応答） | — | なし |
 | `POST /api/video`、`GET /api/video/:id` | AI 動画の開始と状態確認（合計 `VIDEO_LIMIT` 本まで） | `cache_video` | 特大 |
 | `GET /media/*` | 生成したメディアの配信（Range 対応） | ブラウザに1年 | なし |
 
@@ -391,6 +392,8 @@ SA=monoshiri-api@<project>.iam.gserviceaccount.com
 gcloud projects add-iam-policy-binding <project> --member=serviceAccount:$SA --role=roles/aiplatform.user
 gcloud projects add-iam-policy-binding <project> --member=serviceAccount:$SA --role=roles/datastore.user
 gcloud projects add-iam-policy-binding <project> --member=serviceAccount:$SA --role=roles/firebaseauth.viewer
+# 確認・再設定メールのリンクを作るため（メールを送らないなら不要）
+gcloud projects add-iam-policy-binding <project> --member=serviceAccount:$SA --role=roles/firebaseauth.admin
 gcloud storage buckets add-iam-policy-binding gs://<project>-media --member=serviceAccount:$SA --role=roles/storage.objectAdmin
 
 # YouTube Data API キー（任意）
@@ -405,6 +408,8 @@ cd server && gcloud run deploy monoshiri-api --source=. --region=asia-northeast1
   --service-account=monoshiri-api@<project>.iam.gserviceaccount.com --allow-unauthenticated \
   --set-env-vars=GOOGLE_CLOUD_PROJECT=<project>,MEDIA_BUCKET=<project>-media,CAP_JPY=1800 \
   --set-secrets=YOUTUBE_API_KEY=youtube-api-key:latest
+# メールを API から送るとき（Gmail のアプリパスワードを Secret Manager の smtp-password に入れておく）:
+#   --update-env-vars=SMTP_USER=<送信に使う Gmail> --update-secrets=SMTP_PASSWORD=smtp-password:latest
 # App Check を強制するのは、App Check に対応した Web を公開してから:
 #   gcloud run services update monoshiri-api --region=asia-northeast1 --update-env-vars=APPCHECK_ENFORCE=1
 ```
@@ -424,7 +429,7 @@ PROJECT=<project> node infra/deploy-hosting.mjs
 PROJECT=<project> node infra/deploy-rules.mjs
 ```
 
-メールの文面とリンクの行き先は `PROJECT=<project> node infra/setup-email-templates.mjs` で反映します（`/auth/action` を含む Web を公開してから実行。`--preview <フォルダ>` で HTML を書き出して見た目を確認できます）。App Check（reCAPTCHA Enterprise のキー作成と Web アプリの登録）は `PROJECT=<project> node infra/setup-appcheck.mjs`、監視は `node infra/setup-monitoring.mjs` で設定できます（どちらも再実行しても重複しません）。
+メールの見た目は `cd server && npm run mail:preview` で HTML を書き出して確認できます。App Check（reCAPTCHA Enterprise のキー作成と Web アプリの登録）は `PROJECT=<project> node infra/setup-appcheck.mjs`、監視は `node infra/setup-monitoring.mjs` で設定できます（どちらも再実行しても重複しません）。
 
 ### 4. 予算のキルスイッチ（任意）
 
