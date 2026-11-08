@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from '@tanstack/react-router';
 import { getCard, removeCard, saveCard, useCards } from '../lib/cards';
 import { api } from '../lib/api';
-import type { Card, DeepNote, Explore } from '../lib/types';
+import type { Card, DeepNote, Explore, UnitLink } from '../lib/types';
 import { CardFace } from '../components/CardFace';
 import { SearchEntry } from '../components/SearchEntry';
 import { Speak } from '../components/Speak';
@@ -16,6 +16,11 @@ import { TopicPanel } from './TopicPanel';
 import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
 import { useSwipeDismiss } from '../lib/useSwipeDismiss';
+import { RubyText } from '../components/RubyText';
+import { UnitChips } from '../components/UnitChips';
+import { stripRuby } from '../lib/ruby';
+import { useStage, type Stage } from '../lib/level';
+import { unitById, useUnitLinks } from '../lib/units';
 
 const gridCard = (id: string) => document.querySelector<HTMLElement>(`#zukan-scroll [data-card-id="${CSS.escape(id)}"]`);
 
@@ -72,6 +77,15 @@ export function CardDetail({ cardId }: { cardId: string }) {
       live = false;
     };
   }, [name]);
+  const { stage } = useStage();
+  const links = useUnitLinks(name);
+  // Cards saved before units existed get them now (see backfillUnits); a failed lookup just leaves the card as it was.
+  const missing = !!card && !card.units;
+  useEffect(() => {
+    if (!missing || !links) return;
+    const latest = getCard(cardId);
+    if (latest && !latest.units) void saveCard({ ...latest, units: links.map((l) => l.id), updatedAt: Date.now() });
+  }, [missing, links, cardId]);
   const scroller = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const face = useRef<HTMLButtonElement>(null);
@@ -206,9 +220,9 @@ export function CardDetail({ cardId }: { cardId: string }) {
                 <div className="flex h-full flex-col rounded-[22px] bg-[#fffdf8] p-5 text-left text-[#2a2017] shadow-[var(--shadow-float)]">
                   <span className="text-[12px] font-black" style={{ color: c.ink }}>No.{String(no).padStart(3, '0')} ・ {card.category}</span>
                   <span className="text-[22px] font-black">{card.name}</span>
-                  <span className="mt-2 text-[14px] leading-relaxed text-[#66574a]">{card.summary}</span>
+                  <span className="mt-2 text-[14px] leading-relaxed text-[#66574a]"><RubyText text={card.summary} /></span>
                   <span className="mt-auto rounded-2xl p-3 text-[13px] font-bold leading-relaxed" style={{ background: c.bg, color: c.ink }}>
-                    知ってた？ {card.funFact}
+                    知ってた？ <RubyText text={card.funFact} />
                   </span>
                 </div>
               </div>
@@ -234,18 +248,18 @@ export function CardDetail({ cardId }: { cardId: string }) {
                 モノシリで最初に見つけたモノ
               </p>
             )}
-            <p data-speak className="mt-2 text-[17px] font-bold text-accent">{card.oneLiner}</p>
-            <p data-speak className="mt-3 text-ink-2">{card.summary}</p>
+            <p data-speak className="mt-2 text-[17px] font-bold text-accent"><RubyText text={card.oneLiner} /></p>
+            <p data-speak className="mt-3 text-ink-2"><RubyText text={card.summary} /></p>
           </div>
           <div className="mt-4 flex gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--sun)_22%,var(--paper))] p-4">
             <Icon name="lightbulb" size={26} fill className="mt-0.5 shrink-0 text-[#b7800b]" />
             <div>
               <p className="text-[12px] font-black text-[#9a6b06]">知ってた？</p>
-              <p className="text-[15px] font-bold leading-relaxed">{card.funFact}</p>
+              <p className="text-[15px] font-bold leading-relaxed"><RubyText text={card.funFact} /></p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Speak target={intro} text={`知ってた？${card.funFact}`} />
+            <Speak target={intro} text={`知ってた？${stripRuby(card.funFact)}`} ttsRef={{ name: card.name }} />
             <Button
               tone="ghost"
               icon="delete"
@@ -259,6 +273,8 @@ export function CardDetail({ cardId }: { cardId: string }) {
               外す
             </Button>
           </div>
+
+          <CardUnits links={links} ids={card.units} stage={stage} />
 
           <div className="mt-8 flex items-end justify-between gap-3">
             <h3 className="flex items-center gap-2 text-[18px] font-black">
@@ -320,6 +336,20 @@ function asExplore(card: Card): Explore {
   return { id, label: name, name, reading, en, category, icon, oneLiner, summary, funFact, topics, keywords: [], entryPoint: null, queries: [], wiki: null };
 }
 
+// The saved ids are enough to list the units; the reasons come from the (cached) lookup when it is available.
+function CardUnits({ links, ids, stage }: { links: UnitLink[] | null; ids?: string[]; stage: Stage | null }) {
+  const list = links ?? ids?.map((id) => ({ id, why: '' })) ?? [];
+  if (!list.some((l) => unitById.has(l.id))) return null;
+  return (
+    <section className="mt-8" aria-label="学校でならうよ">
+      <h3 className="flex items-center gap-2 text-[18px] font-black">
+        <Icon name="school" size={22} fill className="text-accent" /> 学校でならうよ
+      </h3>
+      <UnitChips links={list} stage={stage} className="mt-3" />
+    </section>
+  );
+}
+
 function TopicList({ card, notes, onOpen }: { card: Card; notes: Map<string, DeepNote>; onOpen: (id: string) => void }) {
   if (card.topics.length === 0) {
     return <p className="mt-2 rounded-3xl bg-paper-2 p-5 text-[14px] text-ink-2">このカードには問いがありません。</p>;
@@ -354,9 +384,9 @@ function TopicList({ card, notes, onOpen }: { card: Card; notes: Map<string, Dee
                   {done && <span className="sr-only">（読んだ）</span>}
                 </span>
                 <motion.span layoutId={`topic-title-${t.id}`} className="block text-[16px] font-black leading-snug">
-                  {t.title}
+                  <RubyText text={t.title} />
                 </motion.span>
-                <span className="mt-1 block text-[13px] leading-relaxed text-ink-2">{t.teaser}</span>
+                <span className="mt-1 block text-[13px] leading-relaxed text-ink-2"><RubyText text={t.teaser} /></span>
               </span>
               <Icon name="chevron_right" size={24} className="mt-3 shrink-0 text-ink-3 transition-transform group-hover:translate-x-1" />
             </motion.button>

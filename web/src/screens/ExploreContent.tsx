@@ -9,6 +9,13 @@ import { Button, Chip, Icon, IconButton } from '../components/ui';
 import { catStyle, spring, TOPIC_COLORS } from '../components/theme';
 import { Speak } from '../components/Speak';
 import { haptic, openExternal } from '../lib/native';
+import { RubyText } from '../components/RubyText';
+import { stripRuby } from '../lib/ruby';
+import { UnitChips } from '../components/UnitChips';
+import { api } from '../lib/api';
+import { useStage } from '../lib/level';
+import { toast } from '../lib/toast';
+import { completeMission, unitLabel, useMission, useUnitLinks, type Mission } from '../lib/units';
 
 const list = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
 const item = { hidden: { opacity: 0, y: 18, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 380, damping: 30 } } } as const;
@@ -179,17 +186,17 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
       </AnimatePresence>
 
       <motion.p data-speak variants={item} className="mx-6 mt-4 text-[17px] font-bold leading-relaxed text-accent">
-        {ex.oneLiner}
+        <RubyText text={ex.oneLiner} />
       </motion.p>
       <motion.p data-speak variants={item} className="mx-6 mt-2 text-ink-2">
-        {ex.summary}
+        <RubyText text={ex.summary} />
       </motion.p>
 
       <motion.div variants={item} className="mx-6 mt-4 flex gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--sun)_22%,var(--paper))] p-4">
         <Icon name="lightbulb" size={26} fill className="mt-0.5 shrink-0 text-[#b7800b]" />
         <div data-speak>
           <p className="text-[12px] font-black text-[#9a6b06]">知ってた？</p>
-          <p className="text-[15px] font-bold leading-relaxed">{ex.funFact}</p>
+          <p className="text-[15px] font-bold leading-relaxed"><RubyText text={ex.funFact} /></p>
         </div>
       </motion.div>
 
@@ -197,11 +204,13 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
         <Button icon={saved ? 'library_add_check' : 'style'} iconFill onClick={onMakeCard}>
           {saved ? (notes ? 'カードを更新' : 'カードを見る') : 'カードにする'}
         </Button>
-        <Speak target={root} />
-        <Button tone="paper" icon="search" onClick={() => openExternal(`https://www.google.com/search?q=${encodeURIComponent(ex.name)}`)}>
+        <Speak target={root} ttsRef={{ name: ex.name }} autoStart />
+        <Button tone="paper" icon="search" onClick={() => openExternal(`https://www.google.com/search?q=${encodeURIComponent(stripRuby(ex.name))}`)}>
           Google
         </Button>
       </motion.div>
+
+      <SchoolUnits name={ex.name} />
 
       <motion.h3 variants={item} className="mt-8 flex items-center gap-2 px-6 text-[19px] font-black">
         <Icon name="explore" size={24} fill className="text-accent" />
@@ -231,9 +240,9 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
               <span className="min-w-0 flex-1">
                 <span className="text-[11px] font-black tracking-wider text-ink-3">{t.kind}</span>
                 <motion.span layoutId={`topic-title-${t.id}`} className="block text-[16px] font-black leading-snug">
-                  {t.title}
+                  <RubyText text={t.title} />
                 </motion.span>
-                <span className="mt-1 block text-[13px] leading-relaxed text-ink-2">{t.teaser}</span>
+                <span className="mt-1 block text-[13px] leading-relaxed text-ink-2"><RubyText text={t.teaser} /></span>
               </span>
               <Icon name="chevron_right" size={24} className="mt-3 text-ink-3 transition-transform group-hover:translate-x-1" />
             </motion.button>
@@ -268,6 +277,66 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
           ほかのモノを撮る
         </Button>
       </motion.div>
+    </motion.div>
+  );
+}
+
+// "学校でならうよ": the curriculum units this thing comes up in. Nothing is shown when there are none.
+function SchoolUnits({ name }: { name: string }) {
+  const links = useUnitLinks(name);
+  const { stage } = useStage();
+  const mission = useMission();
+  const achieved = mission?.done && links?.some((l) => l.id === mission.unit.id) ? mission : null;
+  useEffect(() => {
+    if (!links?.length) return;
+    void api.events([{ name: 'unit_view' }]);
+    if (completeMission(links.map((l) => l.id))) {
+      haptic('success');
+      toast('ミッション達成！', 'flag');
+    }
+  }, [links]);
+  return (
+    <AnimatePresence initial={false}>
+      {links && links.length > 0 && (
+        <motion.section
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 34 }}
+          className="overflow-hidden"
+          aria-label="学校でならうよ"
+        >
+          {achieved && <MissionDone mission={achieved} />}
+          <h3 className="mt-8 flex items-center gap-2 px-6 text-[19px] font-black">
+            <Icon name="school" size={24} fill className="text-accent" />
+            学校でならうよ
+          </h3>
+          <p className="mt-0.5 px-6 text-[13px] text-ink-3">このモノは、授業のこんなところに出てくるよ</p>
+          <UnitChips links={links} stage={stage} className="mt-3 px-6" />
+        </motion.section>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function MissionDone({ mission }: { mission: Mission }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9, y: -8 }}
+      animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 420, damping: 22, delay: 0.1 } }}
+      className="mx-6 mt-6 flex items-center gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--leaf)_18%,var(--paper))] p-4"
+      role="status"
+    >
+      <motion.span
+        initial={{ rotate: -20, scale: 0.6 }}
+        animate={{ rotate: 0, scale: 1, transition: { type: 'spring', stiffness: 500, damping: 14, delay: 0.25 } }}
+        className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-leaf text-white"
+      >
+        <Icon name="flag" size={28} fill />
+      </motion.span>
+      <div className="min-w-0">
+        <p className="text-[17px] font-black leading-snug">ミッション達成！</p>
+        <p className="text-[13px] leading-relaxed text-ink-2">今日のミッション「{unitLabel(mission.unit)}」に出てくるモノを見つけたよ</p>
+      </div>
     </motion.div>
   );
 }

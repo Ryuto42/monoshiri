@@ -46,6 +46,8 @@ export type Card = {
   illustration: string | null;
   /** This person was the first to explore the thing in Monoshiri. */
   firstFind?: boolean;
+  /** Curriculum unit ids (data/curriculum.json) where this thing comes up at school. */
+  units?: string[];
   createdAt: number;
   updatedAt: number;
 };
@@ -53,3 +55,12 @@ export type Card = {
 export type CommonsImage = { thumb: string; full: string; page: string; title: string; artist: string; license: string; width: number; height: number };
 export type Video = { id: string; title: string; channel: string; thumb: string };
 export type Quiz = { questions: { q: string; choices: string[]; answer: number; explain: string }[] };
+
+/** One unit of the Japanese course of study (学習指導要領), from data/curriculum.json. */
+export type CurriculumUnit = { id: string; grade: string; subject: string; unit: string; examples: string[] };
+/** A unit picked for a thing, with a short reason it comes up there. */
+export type UnitLink = { id: string; why: string };
+/** Text the read-aloud may voice: it must come from this thing's explanation (and topic, if given). */
+export type TtsRef = { name: string; topic?: string };
+/** Learning events the app reports (counted per day on the server, never per person). */
+export type LearnEvent = 'quiz_answer' | 'quiz_correct' | 'card_save' | 'unit_view' | 'mission_start' | 'mission_done' | 'stage_set' | 'zukan_units';
