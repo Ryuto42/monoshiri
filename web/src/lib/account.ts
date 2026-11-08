@@ -1,5 +1,9 @@
 import {
   EmailAuthProvider,
+  applyActionCode,
+  checkActionCode,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
   GoogleAuthProvider,
   deleteUser,
   linkWithCredential,
@@ -67,6 +71,13 @@ export function accountMessage(e: unknown): string | null {
       return 'もう一度ログインしなおしてから操作してください';
     case 'auth/operation-not-allowed':
       return 'このログイン方法はいま使えません';
+    case 'auth/expired-action-code':
+      return 'このリンクは有効期限が切れています。アプリからもう一度メールを送ってください';
+    case 'auth/invalid-action-code':
+      return 'このリンクはもう使えません。すでに使ったか、新しいメールが届いているかもしれません';
+    case 'auth/user-disabled':
+    case 'auth/user-token-expired':
+      return 'このアカウントはいま使えません';
     default:
       return 'うまくいきませんでした。もう一度お試しください';
   }
@@ -189,6 +200,27 @@ export async function checkVerified() {
   await user.getIdToken(true);
   await afterLogin();
   return true;
+}
+
+// Links in Firebase's emails (verify, reset password, undo an email change) open /auth/action in this app.
+export type EmailAction = 'verifyEmail' | 'resetPassword' | 'recoverEmail' | 'verifyAndChangeEmail';
+
+/** Confirms an address (or undoes an email change). Returns the address the link was for. */
+export async function applyEmailLink(oobCode: string): Promise<string | null> {
+  const info = await checkActionCode(auth, oobCode);
+  await applyActionCode(auth, oobCode);
+  const email = info.data.email ?? null;
+  // When the link is opened where that account is signed in, the token now says "verified" and the zukan starts syncing.
+  const user = auth.currentUser;
+  if (user && !user.isAnonymous && email && user.email?.toLowerCase() === email.toLowerCase()) await checkVerified().catch(() => false);
+  return email;
+}
+
+/** Checks a reset link before showing the form; returns the account's address. */
+export const resetLinkEmail = (oobCode: string) => verifyPasswordResetCode(auth, oobCode);
+
+export async function setNewPassword(oobCode: string, password: string) {
+  await confirmPasswordReset(auth, oobCode, password);
 }
 
 async function startOver() {

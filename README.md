@@ -45,6 +45,7 @@
 | 学校の単元 | 解説したモノを、学習指導要領（小・中は平成29年、高は平成30年告示）から作った 219 単元に Gemini が結び付ける（一覧の id からだけ選ぶ）。「小5 理科『物の溶け方』」のように表示し、段階に応じて「いま習う／もうすぐ習う」を出す。段階から見てもう習った単元は出さない |
 | 教科でみる | 図鑑で、集めたカードの単元だけを教科×学年に並べ、単元ごとのカード枚数を出す |
 | 学びの記録 | 問いを開いた・クイズに答えた／正解した・カードを保存した、などを**日ごとの合計回数だけ**サーバーで数える（個人とは結び付けない）。`node infra/stats.mjs` で見られる |
+| メール | 確認メールとパスワード再設定のメールは、アプリと同じ見た目の HTML（`infra/email/`）。メールのリンクはアプリの `/auth/action` で開き、確認やパスワードの再設定をその場で済ませて、自動でアプリにもどる |
 | プライバシー | `/privacy` に子どもにも読める「かんたん版」と詳しい版。同意は最初の画面で受け、記録は端末にだけ残す |
 
 操作面では、詳細画面を下にスワイプして閉じられます。戻る操作（ブラウザの戻る、Android の戻るボタン、Esc）は、開いた順に1段ずつ閉じます。
@@ -101,9 +102,9 @@
 ├─ web/                      フロントエンド（Web と iOS / Android で共通）
 │  ├─ src/
 │  │  ├─ App.tsx             画面の土台（カメラの上に図鑑を重ねる）
-│  │  ├─ router.tsx          ルート定義（/、/zukan、/zukan/$cardId、/account、/privacy）
+│  │  ├─ router.tsx          ルート定義（/、/zukan、/zukan/$cardId、/account、/privacy、/auth/action）
 │  │  ├─ screens/            Home（カメラと調べる流れ）、ExploreContent、TopicPanel（深掘り）、Zukan、ZukanUnits（教科でみる）、
-│  │  │                      CardDetail、Account と account/（ログイン・登録・段階）、Privacy
+│  │  │                      CardDetail、Account と account/（ログイン・登録・段階）、Privacy、AuthAction（メールのリンク）
 │  │  ├─ data/curriculum.json 学習指導要領の単元一覧（server/src/curriculum.json と同じ内容。テストで一致を確認）
 │  │  ├─ components/         CardFace / CardMaker（カード）、Sheet（下から出るパネル）、Speak（読み上げ）、
 │  │  │                      LoadingCard、ReadyBubble、SignupNudge、Viewfinder、Stage、Markdown、SearchEntry、ui、theme、
@@ -152,7 +153,9 @@
 │  ├─ stats.mjs              日別の学びの集計を表で見る
 │  ├─ setup-appcheck.mjs     reCAPTCHA Enterprise のキーと App Check の登録
 │  ├─ setup-monitoring.mjs   稼働確認とアラート（Cloud Monitoring）
-│  └─ setup-auth-quota.mjs   新規登録の上限（IP ごと 1 時間 100 件）
+│  ├─ setup-auth-quota.mjs   新規登録の上限（IP ごと 1 時間 100 件）
+│  ├─ setup-email-templates.mjs  メールの文面（email/）と、リンクの行き先（/auth/action）を Firebase Auth に反映
+│  └─ email/                 メールのレイアウトと文面（確認・パスワード再設定・アドレス変更）
 ├─ firestore.rules
 ├─ firebase.json             Hosting の設定とセキュリティヘッダー
 └─ .github/workflows/        ci.yml（PR のチェック）、branch-flow.yml（main は dev からだけ）、deploy-web.yml（main への push で Web をデプロイ）
@@ -421,7 +424,7 @@ PROJECT=<project> node infra/deploy-hosting.mjs
 PROJECT=<project> node infra/deploy-rules.mjs
 ```
 
-App Check（reCAPTCHA Enterprise のキー作成と Web アプリの登録）は `PROJECT=<project> node infra/setup-appcheck.mjs`、監視は `node infra/setup-monitoring.mjs` で設定できます（どちらも再実行しても重複しません）。
+メールの文面とリンクの行き先は `PROJECT=<project> node infra/setup-email-templates.mjs` で反映します（`/auth/action` を含む Web を公開してから実行。`--preview <フォルダ>` で HTML を書き出して見た目を確認できます）。App Check（reCAPTCHA Enterprise のキー作成と Web アプリの登録）は `PROJECT=<project> node infra/setup-appcheck.mjs`、監視は `node infra/setup-monitoring.mjs` で設定できます（どちらも再実行しても重複しません）。
 
 ### 4. 予算のキルスイッチ（任意）
 
