@@ -122,6 +122,15 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
 
   Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
 
+  // The web view does not resize for the keyboard (Keyboard.resize = 'none'), so expose its height as --kb.
+  // Screens that opt in with data-kb-lift move above the keyboard and keep the focused field in view.
+  Keyboard.addListener('keyboardWillShow', (info) => root.style.setProperty('--kb', `${info.keyboardHeight}px`));
+  Keyboard.addListener('keyboardWillHide', () => root.style.setProperty('--kb', '0px'));
+  Keyboard.addListener('keyboardDidShow', () => {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && el.closest('[data-kb-lift]')) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+
   const status = await Network.getStatus();
   onOffline(!status.connected);
   Network.addListener('networkStatusChange', (s) => onOffline(!s.connected));
