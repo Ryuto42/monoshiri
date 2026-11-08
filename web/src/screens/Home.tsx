@@ -97,7 +97,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
     haptic('tap');
     setFlash(true);
     setTimeout(() => setFlash(false), 260);
-    analyze(await shotFromVideo(v.video));
+    analyze(await shotFromVideo(v.video, v.visibleRect()));
   }
 
   async function pickPhoto() {
