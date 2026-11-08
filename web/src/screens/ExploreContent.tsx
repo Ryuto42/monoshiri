@@ -15,7 +15,7 @@ import { UnitChips } from '../components/UnitChips';
 import { api } from '../lib/api';
 import { useStage } from '../lib/level';
 import { toast } from '../lib/toast';
-import { completeMission, unitLabel, useMission, useUnitLinks, type Mission } from '../lib/units';
+import { completeMission, unitById, unitLabel, unitStatus, useMission, useUnitLinks, type Mission } from '../lib/units';
 
 const list = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
 const item = { hidden: { opacity: 0, y: 18, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 380, damping: 30 } } } as const;
@@ -287,6 +287,11 @@ function SchoolUnits({ name }: { name: string }) {
   const { stage } = useStage();
   const mission = useMission();
   const achieved = mission?.done && links?.some((l) => l.id === mission.unit.id) ? mission : null;
+  // Units from school years already behind this person aren't shown; the rest are what's still ahead (or now).
+  const shown = (links ?? []).filter((l) => {
+    const u = unitById.get(l.id);
+    return u && unitStatus(u, stage) !== 'done';
+  });
   useEffect(() => {
     if (!links?.length) return;
     void api.events([{ name: 'unit_view' }]);
@@ -297,7 +302,7 @@ function SchoolUnits({ name }: { name: string }) {
   }, [links]);
   return (
     <AnimatePresence initial={false}>
-      {links && links.length > 0 && (
+      {(shown.length > 0 || achieved) && (
         <motion.section
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
@@ -306,12 +311,16 @@ function SchoolUnits({ name }: { name: string }) {
           aria-label="学校でならうよ"
         >
           {achieved && <MissionDone mission={achieved} />}
-          <h3 className="mt-8 flex items-center gap-2 px-6 text-[19px] font-black">
-            <Icon name="school" size={24} fill className="text-accent" />
-            学校でならうよ
-          </h3>
-          <p className="mt-0.5 px-6 text-[13px] text-ink-3">このモノは、授業のこんなところに出てくるよ</p>
-          <UnitChips links={links} stage={stage} className="mt-3 px-6" />
+          {shown.length > 0 && (
+            <>
+              <h3 className="mt-8 flex items-center gap-2 px-6 text-[19px] font-black">
+                <Icon name="school" size={24} fill className="text-accent" />
+                学校でならうよ
+              </h3>
+              <p className="mt-0.5 px-6 text-[13px] text-ink-3">このモノは、授業のこんなところに出てくるよ</p>
+              <UnitChips links={shown} stage={stage} className="mt-3 px-6" />
+            </>
+          )}
         </motion.section>
       )}
     </AnimatePresence>
