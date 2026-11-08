@@ -5,8 +5,9 @@ import { Home } from './screens/Home';
 import { Zukan } from './screens/Zukan';
 import { Toaster } from './components/Toast';
 import { toast } from './lib/toast';
-import { goBack, setupNative } from './lib/native';
-import { loadCards } from './lib/cards';
+import { goBack, setStatusBar, setupNative } from './lib/native';
+import { allCards, loadCards } from './lib/cards';
+import { resumeIllust } from './lib/illust';
 import { currentUser } from './lib/firebase';
 
 export function App() {
@@ -14,17 +15,24 @@ export function App() {
   const zukan = pathname.startsWith('/zukan');
   useEffect(() => {
     currentUser().catch(() => {});
-    void loadCards();
-    let wasOffline = false;
+    void loadCards().then(() => resumeIllust(allCards()));
+    // Network status can blip to "offline" while the app starts or switches networks, so only report lasting changes.
+    let shown = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     void setupNative((offline) => {
-      if (offline) toast('オフラインです。図鑑は見られますが、調べるには通信が必要です', 'wifi_off');
-      else if (wasOffline) toast('オンラインにもどりました', 'wifi');
-      wasOffline = offline;
+      clearTimeout(timer);
+      if (offline === shown) return;
+      timer = setTimeout(() => {
+        shown = offline;
+        if (offline) toast('オフラインです。図鑑は見られますが、調べるには通信が必要です', 'wifi_off');
+        else toast('オンラインにもどりました', 'wifi');
+      }, 1500);
     });
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && goBack();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+  useEffect(() => void setStatusBar(zukan), [zukan]);
   return (
     <>
       <div aria-hidden={zukan} className={zukan ? 'pointer-events-none' : ''}>

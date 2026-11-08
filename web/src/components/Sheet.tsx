@@ -1,9 +1,10 @@
 import { animate, motion, useMotionValue, type PanInfo } from 'motion/react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useDesktop } from '../lib/useDesktop';
+import { useSwipeDismiss } from '../lib/useSwipeDismiss';
 
-export function Sheet({ open, expanded, onExpandedChange, peek = 300, children }: {
-  open: boolean; expanded: boolean; onExpandedChange: (v: boolean) => void; peek?: number; children: ReactNode;
+export function Sheet({ open, expanded, onExpandedChange, onDismiss, peek = 300, children }: {
+  open: boolean; expanded: boolean; onExpandedChange: (v: boolean) => void; onDismiss: () => void; peek?: number; children: ReactNode;
 }) {
   const desktop = useDesktop();
   const [vh, setVh] = useState(() => window.innerHeight);
@@ -16,6 +17,8 @@ export function Sheet({ open, expanded, onExpandedChange, peek = 300, children }
   const height = Math.round(vh * 0.92);
   const target = !open ? height + 40 : expanded ? 0 : height - Math.min(peek, height * 0.6);
   const y = useMotionValue(height + 40);
+  const scroller = useRef<HTMLDivElement>(null);
+  useSwipeDismiss({ y, areas: [scroller], base: () => target, onDismiss, enabled: open && !desktop });
 
   useEffect(() => {
     if (desktop) return;
@@ -39,7 +42,7 @@ export function Sheet({ open, expanded, onExpandedChange, peek = 300, children }
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (info.velocity.y < -300 || info.offset.y < -60) onExpandedChange(true);
-    else if (info.velocity.y > 300 || info.offset.y > 60) onExpandedChange(false);
+    else if (info.velocity.y > 300 || info.offset.y > Math.min(150, vh * 0.2)) onDismiss();
     else animate(y, target, { type: 'spring', stiffness: 320, damping: 34 });
   };
 
@@ -61,6 +64,7 @@ export function Sheet({ open, expanded, onExpandedChange, peek = 300, children }
         <span className="h-1.5 w-11 rounded-full bg-ink/20" />
       </motion.div>
       <div
+        ref={scroller}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onScroll={(e) => !expanded && e.currentTarget.scrollTop > 8 && onExpandedChange(true)}

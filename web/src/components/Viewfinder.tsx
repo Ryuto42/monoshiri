@@ -1,6 +1,8 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type PointerEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Icon } from './ui';
+import { haptic } from '../lib/native';
+import { BLANK_POSTER } from '../lib/media';
 
 export type ViewfinderHandle = { video: HTMLVideoElement | null; live: boolean };
 
@@ -12,6 +14,8 @@ const SAMPLES = [
 
 export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick: () => void; onSample: (src: string) => void }>(function Viewfinder({ active, onPick, onSample }, ref) {
   const video = useRef<HTMLVideoElement>(null);
+  const track = useRef<MediaStreamTrack | null>(null);
+  const [focus, setFocus] = useState<{ x: number; y: number; k: number } | null>(null);
   const [status, setStatus] = useState<'starting' | 'live' | 'blocked'>(() => ('getUserMedia' in (navigator.mediaDevices ?? {}) ? 'starting' : 'blocked'));
 
   useImperativeHandle(ref, () => ({ video: video.current, live: status === 'live' }), [status]);
@@ -26,6 +30,7 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
       .then(async (s) => {
         if (cancelled) return s.getTracks().forEach((t) => t.stop());
         stream = s;
+        track.current = s.getVideoTracks()[0] ?? null;
         if (video.current) {
           video.current.srcObject = s;
           await video.current.play().catch(() => {});
@@ -35,13 +40,28 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
       .catch(() => !cancelled && setStatus('blocked'));
     return () => {
       cancelled = true;
+      track.current = null;
       stream?.getTracks().forEach((t) => t.stop());
     };
   }, [active]);
 
+  const onTap = (e: PointerEvent<HTMLDivElement>) => {
+    const v = video.current;
+    if (status !== 'live' || !v || e.target !== v) return;
+    const r = v.getBoundingClientRect();
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    setFocus({ x: px, y: py, k: e.timeStamp });
+    haptic('select');
+    // The preview is object-cover, so map the tap through the crop to frame coordinates.
+    const s = Math.max(r.width / (v.videoWidth || r.width), r.height / (v.videoHeight || r.height));
+    const dw = (v.videoWidth || r.width) * s, dh = (v.videoHeight || r.height) * s;
+    const x = (px - (r.width - dw) / 2) / dw, y = (py - (r.height - dh) / 2) / dh;
+    if (track.current) void focusAt(track.current, Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y)));
+  };
+
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#120e0b]">
-      <video ref={video} playsInline muted className={`h-full w-full object-cover transition-opacity duration-700 ${status === 'live' ? 'opacity-100' : 'opacity-0'}`} />
+    <div className="absolute inset-0 overflow-hidden bg-[#120e0b]" onPointerUp={onTap}>
+      <video ref={video} playsInline muted poster={BLANK_POSTER} className={`h-full w-full object-cover transition-opacity duration-700 ${status === 'live' ? 'opacity-100' : 'opacity-0'}`} />
       <AnimatePresence>
         {status === 'blocked' && (
           <motion.div
@@ -86,6 +106,21 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
         )}
       </AnimatePresence>
       {status === 'live' && <Reticle />}
+      <AnimatePresence>
+        {focus && status === 'live' && (
+          <motion.span
+            key={focus.k}
+            aria-hidden
+            className="pointer-events-none absolute h-[76px] w-[76px] rounded-[22px] border-2 border-[#ffd36b] shadow-[0_0_0_1px_rgb(0_0_0/0.15)]"
+            style={{ left: focus.x - 38, top: focus.y - 38 }}
+            initial={{ scale: 1.5, opacity: 0 }}
+            animate={{ scale: [1.5, 1, 1.06, 1], opacity: [0, 1, 1, 0.9] }}
+            exit={{ opacity: 0, transition: { duration: 0.3 } }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            onAnimationComplete={() => setTimeout(() => setFocus((f) => (f?.k === focus.k ? null : f)), 900)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 });
@@ -106,4 +141,26 @@ function Reticle() {
       <span className={`${corner} right-0 bottom-0 border-r-4 border-b-4 rounded-br-3xl`} />
     </motion.div>
   );
+}
+
+type FocusCaps = MediaTrackCapabilities & { focusMode?: string[]; pointsOfInterest?: unknown };
+
+// Chrome on Android honours pointsOfInterest/focusMode; other engines ignore what they don't support.
+async function focusAt(track: MediaStreamTrack, x: number, y: number) {
+  const caps = (track.getCapabilities?.() ?? {}) as FocusCaps;
+  const modes = caps.focusMode ?? [];
+  const set: Record<string, unknown> = {};
+  if ('pointsOfInterest' in caps) set.pointsOfInterest = [{ x, y }];
+  if (set.pointsOfInterest && modes.includes('continuous')) set.focusMode = 'continuous';
+  else if (modes.includes('single-shot')) set.focusMode = 'single-shot';
+  else if (modes.includes('continuous')) set.focusMode = 'continuous';
+  if (!Object.keys(set).length) return;
+  try {
+    await track.applyConstraints({ advanced: [set as MediaTrackConstraintSet] });
+    if (set.focusMode === 'single-shot' && modes.includes('continuous')) {
+      setTimeout(() => track.readyState === 'live' && track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }).catch(() => {}), 4000);
+    }
+  } catch {
+    // Unsupported constraint: the focus ring still gives feedback.
+  }
 }

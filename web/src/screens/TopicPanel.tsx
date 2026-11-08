@@ -1,16 +1,16 @@
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useMotionValue } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { api, errorMessage, mediaUrl } from '../lib/api';
 import type { CommonsImage, DeepMeta, DeepNote, Explore, Quiz as QuizT, Topic, Video } from '../lib/types';
-import { useCards } from '../lib/cards';
 import { Markdown } from '../components/Markdown';
-import { RollingCards } from '../components/RollingCards';
+import { LoadingCard } from '../components/LoadingCard';
 import { SearchEntry } from '../components/SearchEntry';
 import { Speak } from '../components/Speak';
 import { toast } from '../lib/toast';
 import { Button, Icon, IconButton } from '../components/ui';
 import { spring, TOPIC_COLORS } from '../components/theme';
 import { haptic, onBack, openExternal } from '../lib/native';
+import { slideOut, useSwipeDismiss } from '../lib/useSwipeDismiss';
 
 type Tab = 'photos' | 'videos' | 'diagram' | 'ai' | 'quiz';
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -31,10 +31,14 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
   const [media, setMedia] = useState<{ images: CommonsImage[]; videos: Video[] } | null>(null);
   const [diagram, setDiagram] = useState<string | null>(note?.diagram ?? null);
   const [video, setVideo] = useState<string | null>(note?.video ?? null);
-  const cards = useCards();
   const color = TOPIC_COLORS[index % TOPIC_COLORS.length];
   const done = !!meta;
   const noteRef = useRef<DeepNote | null>(note ?? null);
+  const y = useMotionValue(0);
+  const head = useRef<HTMLElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const prose = useRef<HTMLDivElement>(null);
+  useSwipeDismiss({ y, areas: [head, body], onDismiss: () => slideOut(y, onClose) });
 
   const save = (patch: Partial<DeepNote>) => {
     const n: DeepNote = { topicId: topic.id, title: topic.title, icon: topic.icon, text, sources: meta?.sources ?? [], ...noteRef.current, ...patch };
@@ -78,12 +82,14 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
       <motion.article
         layoutId={`topic-${topic.id}`}
         transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+        style={{ y }}
         className="relative flex h-[96dvh] w-full flex-col overflow-hidden rounded-t-[32px] bg-paper lg:h-[90dvh] lg:max-w-3xl lg:rounded-[32px]"
         role="dialog"
         aria-modal
         aria-label={topic.title}
       >
-        <header className="relative shrink-0 px-6 pb-5 pt-5" style={{ background: color[0] }}>
+        <header ref={head} className="relative shrink-0 px-6 pb-5 pt-3" style={{ background: color[0] }}>
+          <span aria-hidden className="mx-auto mb-2 block h-1.5 w-11 rounded-full bg-black/15 lg:hidden" />
           <div className="flex items-start justify-between gap-3">
             <motion.span layoutId={`topic-icon-${topic.id}`} className="grid h-14 w-14 place-items-center rounded-2xl bg-white/70" style={{ color: color[1] }}>
               <Icon name={topic.icon} size={30} fill />
@@ -98,26 +104,25 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
           </motion.h2>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar">
+        <div ref={body} className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.2 } }} className="px-6 pb-16 pt-5">
             {err ? (
               <div className="rounded-3xl bg-accent-soft p-5 text-center">
                 <p className="font-bold">{err}</p>
               </div>
             ) : !text ? (
-              <div>
-                <p className="text-[14px] font-bold text-ink-2">Google 検索で確かめながら、まとめています…</p>
-                <RollingCards cards={cards} height={200} count={6} />
-              </div>
+              <LoadingCard className="py-8" expected={7} icon={topic.icon} bg={color[0]} ink={color[1]} steps={['Google で調べています', '事実を確かめています', '説明を書いています']} />
             ) : (
               <>
-                <Markdown text={text} streaming={!done} />
+                <div ref={prose}>
+                  <Markdown text={text} streaming={!done} />
+                </div>
               </>
             )}
 
             {done && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 flex flex-wrap gap-2">
-                <Speak text={text} />
+                <Speak target={prose} />
                 <Button
                   tone="paper"
                   icon="search"

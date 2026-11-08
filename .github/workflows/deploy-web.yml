@@ -25,6 +25,8 @@ env:
 
 jobs:
   deploy:
+    # Forks have no access to the Google Cloud project, so only the upstream repository deploys.
+    if: github.repository == 'Ryuto42/monoshiri'
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:

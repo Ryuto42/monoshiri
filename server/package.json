@@ -4,7 +4,7 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "node src/index.ts",
-    "dev": "LOCAL_DEV=1 node --watch src/index.ts",
+    "dev": "LOCAL_DEV=1 node --env-file-if-exists=.env --watch src/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "type": "module",

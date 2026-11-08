@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { bodyLimit } from 'hono/body-limit';
 import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
 import { ALLOWED_ORIGINS, CAP_JPY, JPY_PER_USD, LOCAL, MODELS, PORT, PROJECT, VIDEO_LIMIT } from './config.ts';
-import { auth, BudgetError, ensureBudget, getCached, getCounter, getSpent, incrCounter, setCached, addSpent } from './store.ts';
+import { addCached, auth, BudgetError, ensureBudget, getCached, getCounter, getSpent, incrCounter, setCached, addSpent } from './store.ts';
 import {
   ai, accessToken, track, grounding, DETECT_PROMPT, explorePrompt, deepPrompt, quizPrompt, illustrationPrompt, diagramPrompt,
   CATEGORIES, TOPIC_KINDS, ICONS,
@@ -14,6 +15,12 @@ type Env = { Variables: { uid: string } };
 const app = new Hono<Env>();
 
 app.use('*', cors({ origin: ALLOWED_ORIGINS, allowHeaders: ['Authorization', 'Content-Type'], maxAge: 86400 }));
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('Referrer-Policy', 'no-referrer');
+});
+app.use('/api/*', bodyLimit({ maxSize: 4 * 1024 * 1024, onError: (c) => c.json({ error: 'too_large' }, 413) }));
 const mediaCache = new Map<string, { data: Buffer; type: string }>();
 app.get('/media/*', async (c) => {
   const name = c.req.path.slice('/media/'.length);
@@ -31,6 +38,7 @@ app.get('/media/*', async (c) => {
   const r = range && /bytes=(\d*)-(\d*)/.exec(range);
   if (r) {
     const start = Number(r[1] || 0), end = Math.min(m.data.length - 1, Number(r[2] || m.data.length - 1));
+    if (start > end) return c.body(null, 416, { 'Content-Range': `bytes */${m.data.length}` });
     return c.body(new Uint8Array(m.data.subarray(start, end + 1)), 206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${m.data.length}` });
   }
   return c.body(new Uint8Array(m.data), 200, headers);
@@ -40,6 +48,12 @@ app.get('/api/health', (c) => c.json({ ok: true }));
 
 const tokenCache = new Map<string, { uid: string; exp: number }>();
 const hits = new Map<string, number[]>();
+const WINDOW = 5 * 60_000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of tokenCache) if (v.exp < now) tokenCache.delete(k);
+  for (const [k, v] of hits) if (!v.some((t) => now - t < WINDOW)) hits.delete(k);
+}, 60_000).unref();
 
 app.use('/api/*', async (c, next) => {
   if (c.req.path === '/api/health') return next();
@@ -58,8 +72,8 @@ app.use('/api/*', async (c, next) => {
   c.set('uid', entry.uid);
   if (c.req.method === 'POST') {
     const now = Date.now();
-    const list = (hits.get(entry.uid) ?? []).filter((t) => now - t < 5 * 60_000);
-    if (list.length >= 60) return c.json({ error: 'rate_limited' }, 429);
+    const list = (hits.get(entry.uid) ?? []).filter((t) => now - t < WINDOW);
+    if (list.length >= 120) return c.json({ error: 'rate_limited' }, 429);
     list.push(now);
     hits.set(entry.uid, list);
   }
@@ -70,13 +84,22 @@ app.onError((err, c) => {
   if (err instanceof BudgetError) return c.json({ error: 'budget' }, 402);
   if ((err as any)?.status === 429) return c.json({ error: 'busy' }, 503);
   console.error(err);
-  return c.json({ error: 'internal', message: String(err?.message ?? err).slice(0, 200) }, 500);
+  return c.json({ error: 'internal', ...(LOCAL && { message: String(err?.message ?? err).slice(0, 200) }) }, 500);
 });
 
 const S = { STRING: 'STRING', INTEGER: 'INTEGER', ARRAY: 'ARRAY', OBJECT: 'OBJECT' } as const;
 const str = (extra: object = {}) => ({ type: S.STRING, ...extra });
 const json = <T>(text: string | undefined): T => JSON.parse(text ?? 'null');
 const clean = (v: unknown, max = 80) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
+
+// Paid endpoints only work for things the app has already explored (and for their listed topics),
+// so the API can't be used as a general-purpose Gemini proxy.
+async function explored(name: string, topic?: string) {
+  const ex = await getCached<{ topics?: { title: string }[] }>('cache_explore', keyOf('explore', name));
+  if (!ex) return false;
+  return topic === undefined || (ex.topics ?? []).some((t) => clean(t.title, 80) === topic);
+}
+const unknown = { error: 'unknown_subject' } as const;
 
 app.get('/api/usage', async (c) => {
   const spentJpy = (await getSpent()) * JPY_PER_USD;
@@ -156,13 +179,18 @@ app.post('/api/explore', async (c) => {
   const g = grounding(res);
   const wiki = await wikiSummary(data.name).catch(() => null);
   const key = keyOf('explore', clean(data.name, 30) || label);
+  const existing = await getCached<any>('cache_explore', key);
+  if (existing) {
+    await addCached('explore_alias', keyOf('alias', label), { target: key, name: label });
+    return c.json({ ...existing, cached: true });
+  }
   const out = {
     id: key, label, ...data, topics: (data.topics ?? []).slice(0, 6).map((t: any, i: number) => ({ id: `t${i}`, ...t })),
     entryPoint: g.entryPoint, queries: g.queries, wiki,
   };
-  await setCached('cache_explore', key, out);
+  await addCached('cache_explore', key, out);
   const names = new Set([label, clean(data.name, 30), clean(data.en, 40)].filter(Boolean));
-  await Promise.all([...names].map((n) => setCached('explore_alias', keyOf('alias', n), { target: key, name: n })));
+  await Promise.all([...names].map((n) => addCached('explore_alias', keyOf('alias', n), { target: key, name: n })));
   return c.json(out);
 });
 
@@ -171,7 +199,10 @@ app.post('/api/deep', async (c) => {
   const n = clean(name, 30), t = clean(topic, 80);
   const key = keyOf('deep', n, t);
   const hit = await getCached<{ text: string; meta: object }>('cache_deep', key);
-  if (!hit) await ensureBudget(0.01);
+  if (!hit) {
+    if (!(await explored(n, t))) return c.json(unknown, 400);
+    await ensureBudget(0.01);
+  }
   return streamSSE(c, async (stream) => {
     if (hit) {
       for (const chunk of hit.text.match(/[\s\S]{1,40}/g) ?? []) {
@@ -198,7 +229,8 @@ app.post('/api/deep', async (c) => {
         }
       }
     } catch (e: any) {
-      await stream.writeSSE({ event: 'error', data: JSON.stringify(String(e?.message ?? e).slice(0, 200)) });
+      console.error(e);
+      await stream.writeSSE({ event: 'error', data: JSON.stringify(LOCAL ? String(e?.message ?? e).slice(0, 200) : 'generation_failed') });
       return;
     }
     await track(MODELS.deep, last?.usageMetadata, 'deep');
@@ -214,6 +246,7 @@ app.post('/api/quiz', async (c) => {
   const key = keyOf('quiz', n, String(context ?? '').slice(0, 200));
   const hit = await getCached<any>('cache_quiz', key);
   if (hit) return c.json(hit);
+  if (!(await explored(n))) return c.json(unknown, 400);
   await ensureBudget(0.003);
   const res = await ai.models.generateContent({
     model: MODELS.quiz,
@@ -245,10 +278,16 @@ app.post('/api/quiz', async (c) => {
 
 app.get('/api/media', async (c) => {
   const name = clean(c.req.query('name'), 30), en = clean(c.req.query('en'), 40), topic = clean(c.req.query('topic'), 80);
+  // YouTube search has a small daily quota, so results are shared like the AI ones.
+  const key = keyOf('media', name, topic);
+  const hit = await getCached<{ images: unknown[]; videos: unknown[] }>('cache_media', key);
+  if (hit) return c.json({ images: hit.images, videos: hit.videos });
+  if (!(await explored(name, topic || undefined))) return c.json(unknown, 400);
   const [images, videos] = await Promise.all([
     commonsImages(en || name).catch(() => []),
     youtubeVideos(`${name} ${topic.replace(/[？?！!]/g, ' ')}`.trim()).catch(() => []),
   ]);
+  if (images.length || videos.length) await setCached('cache_media', key, { images, videos });
   return c.json({ images, videos });
 });
 
@@ -271,6 +310,7 @@ app.post('/api/illustrate', async (c) => {
   const key = keyOf('illust', n);
   const hit = await getCached<{ url: string }>('cache_illust', key);
   if (hit) return c.json({ url: hit.url, cached: true });
+  if (!(await explored(n))) return c.json(unknown, 400);
   const png = await generateImage(illustrationPrompt(n, e || n), '1:1', 'illust');
   const url = await saveMedia(`illust/${key}.webp`, await toWebp(png, 768), 'image/webp');
   await setCached('cache_illust', key, { url });
@@ -283,6 +323,7 @@ app.post('/api/diagram', async (c) => {
   const key = keyOf('diagram', n, t);
   const hit = await getCached<{ url: string }>('cache_diagram', key);
   if (hit) return c.json({ url: hit.url, cached: true });
+  if (!(await explored(n, t))) return c.json(unknown, 400);
   const png = await generateImage(diagramPrompt(n, clean(en, 40) || n, t, String(outline ?? '')), '16:9', 'diagram');
   const url = await saveMedia(`diagram/${key}.webp`, await toWebp(png, 1280), 'image/webp');
   await setCached('cache_diagram', key, { url });
@@ -301,13 +342,14 @@ app.post('/api/tts', async (c) => {
   const { text } = await c.req.json<{ text: string }>();
   const t = String(text ?? '').replace(/```[\s\S]*?```/g, '').replace(/[#*>`_\-]/g, '').trim().slice(0, 900);
   if (!t) return c.json({ error: 'empty' }, 400);
-  const key = keyOf('tts', t);
+  // v2: earlier audio was generated with a style prompt that the model sometimes read aloud.
+  const key = keyOf('tts2', t);
   const hit = await getCached<{ url: string }>('cache_tts', key);
   if (hit) return c.json({ url: hit.url, cached: true });
   await ensureBudget(0.01);
   const res = await ai.models.generateContent({
     model: MODELS.tts,
-    contents: [{ role: 'user', parts: [{ text: `やさしく、わくわくする調子で、子どもに語りかけるように読んでください:\n${t}` }] }],
+    contents: [{ role: 'user', parts: [{ text: t }] }],
     config: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Leda' } } } },
   });
   await track(MODELS.tts, res.usageMetadata, 'tts');
@@ -329,6 +371,7 @@ app.post('/api/video', async (c) => {
   const key = keyOf('video', n, t);
   const hit = await getCached<{ url: string }>('cache_video', key);
   if (hit) return c.json({ status: 'completed', url: hit.url, cached: true });
+  if (!(await explored(n, t))) return c.json(unknown, 400);
   if ((await getCounter('video')) >= VIDEO_LIMIT) return c.json({ error: 'video_limit' }, 429);
   await ensureBudget(VIDEO_EST_USD);
   await incrCounter('video');

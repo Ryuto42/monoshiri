@@ -1,7 +1,37 @@
+# Dependencies and build output
 node_modules/
 dist/
+dist-ssr/
+coverage/
+*.tsbuildinfo
+
+# Secrets and local config (Firebase web config, API base, keys)
+.env
 .env*.local
+!.env.example
+*.local
+*.pem
+service-account*.json
+
+# Signing keys (Android release)
+*.jks
+*.keystore
+keystore.properties
+
+# Local dev data
 .local-media/
-*.tmp.*
-.DS_Store
 .firebase/
+*.tmp.*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / editor / agent
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.sw?
+.claude/

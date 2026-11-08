@@ -10,7 +10,6 @@
 | @tanstack/react-router | ルーティング | MIT |
 | Tailwind CSS v4 | スタイル | MIT |
 | Motion | アニメーション | MIT |
-| matter-js | ローディングの物理演算 | MIT |
 | marked | Markdown 変換 | MIT |
 | DOMPurify | HTML サニタイズ | Apache-2.0 / MPL-2.0 |
 | Dexie | IndexedDB | Apache-2.0 |

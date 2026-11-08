@@ -1,11 +1,13 @@
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import { onBack } from '../lib/native';
+import { useBackTo } from '../lib/useBackTo';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { CardDetail } from './CardDetail';
 import { useCards } from '../lib/cards';
+import { clearReady, useIllustReady } from '../lib/illust';
 import { CardFace } from '../components/CardFace';
-import { RollingCards } from '../components/RollingCards';
+import { EmptySlots } from '../components/LoadingCard';
 import { Button, Icon, IconButton } from '../components/ui';
 import { CATEGORY_STYLE, spring } from '../components/theme';
 import { Logo } from '../components/Logo';
@@ -19,7 +21,14 @@ export function Zukan() {
   const cats = useMemo(() => ['すべて', ...Object.keys(CATEGORY_STYLE).filter((c) => cards.some((x) => x.category === c))], [cards]);
   const shown = cards.filter((c) => (cat === 'すべて' || c.category === cat) && (!q || `${c.name}${c.reading}${c.en}`.toLowerCase().includes(q.toLowerCase())));
   const notes = cards.reduce((n, c) => n + c.notes.length, 0);
-  useEffect(() => onBack(() => navigate({ to: '/' })), [navigate]);
+  const backTo = useBackTo();
+  const toCamera = () => backTo('/');
+  useEffect(() => onBack(toCamera, { history: false }));
+  // Inside the zukan the card itself fades its new art in, so the bubble on the camera screen isn't needed.
+  const ready = useIllustReady();
+  useEffect(() => {
+    if (ready) clearReady();
+  }, [ready]);
 
   return (
     <LayoutGroup>
@@ -27,10 +36,10 @@ export function Zukan() {
         <header className="sticky top-0 z-20 bg-paper/85 backdrop-blur-xl">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 pb-3 pt-[max(env(safe-area-inset-top),14px)] sm:px-6">
             <div className="flex items-center gap-2">
-              <IconButton icon="arrow_back" label="カメラにもどる" onClick={() => navigate({ to: '/' })} />
+              <IconButton icon="arrow_back" label="カメラにもどる" onClick={toCamera} />
               <span className="hidden sm:block"><Logo /></span>
             </div>
-            <Button icon="photo_camera" onClick={() => navigate({ to: '/' })} className="h-11">
+            <Button icon="photo_camera" onClick={toCamera} className="h-11">
               さがしに行く
             </Button>
           </div>
@@ -67,11 +76,11 @@ export function Zukan() {
 
           {cards.length === 0 ? (
             <div className="mt-8 overflow-hidden rounded-[32px] bg-paper-2">
-              <RollingCards cards={[]} height={260} count={8} />
+              <EmptySlots />
               <div className="px-6 pb-8 text-center">
                 <p className="text-[20px] font-black">まだカードがありません</p>
                 <p className="mt-1 text-ink-2">身の回りのモノを撮って、最初の1枚を手に入れよう！</p>
-                <Button className="mt-4" icon="photo_camera" onClick={() => navigate({ to: '/' })}>
+                <Button className="mt-4" icon="photo_camera" onClick={toCamera}>
                   カメラをひらく
                 </Button>
               </div>

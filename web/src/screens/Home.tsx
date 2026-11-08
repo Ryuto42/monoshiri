@@ -7,6 +7,7 @@ import { getFlow, resetFlow, setFlow, useFlow } from '../lib/flow';
 import { cropBox, shotFromBlob, shotFromVideo, type Shot } from '../lib/image';
 import type { Card, DeepNote } from '../lib/types';
 import { CardMaker } from '../components/CardMaker';
+import { ReadyBubble } from '../components/ReadyBubble';
 import { CardFace } from '../components/CardFace';
 import { Sheet } from '../components/Sheet';
 import { useDesktop } from '../lib/useDesktop';
@@ -18,7 +19,7 @@ import { spring } from '../components/theme';
 import { ExploreContent } from './ExploreContent';
 import { TopicPanel } from './TopicPanel';
 import { Logo } from '../components/Logo';
-import { haptic, onBack } from '../lib/native';
+import { goBack, haptic, onBack } from '../lib/native';
 import { GlassChrome, nativeChrome, pickNativePhoto } from '../lib/glass';
 
 export function Home({ paused = false }: { paused?: boolean }) {
@@ -34,7 +35,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const [flash, setFlash] = useState(false);
   const [dragging, setDragging] = useState(false);
   const live = flow.stage === 'camera';
-  useEffect(() => (live || paused ? undefined : onBack(resetFlow)), [live, paused]);
+  useEffect(() => (live ? undefined : onBack(resetFlow)), [live]);
 
   const crops = useMemo(() => (flow.shot ? flow.objects.map((o) => cropBox(flow.shot!, o.box, 320).dataUrl) : []), [flow.shot, flow.objects]);
 
@@ -207,7 +208,12 @@ export function Home({ paused = false }: { paused?: boolean }) {
             </motion.div>
           )}
         </AnimatePresence>
-        {(live || desktop) && <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />}
+        {(live || desktop) && (
+          <div className="relative hidden lg:block">
+            <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
+            {!paused && <ReadyBubble placement="below" radius={999} tail={60} />}
+          </div>
+        )}
       </header>
 
       <AnimatePresence>
@@ -230,7 +236,10 @@ export function Home({ paused = false }: { paused?: boolean }) {
               {desktop ? (
                 <IconButton icon="content_paste" label="画像を貼り付け（Ctrl+V）" tone="glass" size={56} onClick={() => toast('画像をコピーして Ctrl+V（⌘+V）で貼り付けできます', 'content_paste')} />
               ) : (
-                <MiniZukan ref={zukanBtn} cards={cards} onClick={() => navigate({ to: '/zukan' })} />
+                <div className="relative">
+                  <MiniZukan ref={zukanBtn} cards={cards} onClick={() => navigate({ to: '/zukan' })} />
+                  {!paused && <ReadyBubble placement="above" radius={10} tail={19} />}
+                </div>
               )}
             </div>
             )}
@@ -246,10 +255,19 @@ export function Home({ paused = false }: { paused?: boolean }) {
         )}
       </AnimatePresence>
 
+      {nativeChrome && live && !paused && (
+        <div
+          className="pointer-events-none absolute z-20 h-[58px] w-[58px]"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 26px)', right: 'calc(50% - min(160px, 50vw - 32px))' }}
+        >
+          <ReadyBubble placement="above" radius={29} tail={23} />
+        </div>
+      )}
+
       <input ref={file} type="file" accept="image/*" hidden onChange={(e) => fromFile(e.target.files?.[0])} />
 
       <div className="text-ink">
-        <Sheet open={!live} expanded={expanded} onExpandedChange={setExpanded} peek={peek}>
+        <Sheet open={!live} expanded={expanded} onExpandedChange={setExpanded} onDismiss={goBack} peek={peek}>
           <ExploreContent
             flow={flow}
             crops={crops}

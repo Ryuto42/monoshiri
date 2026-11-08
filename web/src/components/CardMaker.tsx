@@ -1,7 +1,7 @@
 import { animate, motion, useMotionValue } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
-import { api, errorMessage } from '../lib/api';
 import { getCard, saveCard, useCards } from '../lib/cards';
+import { illustFor, notifyWhenReady, startIllust, usePendingIllust } from '../lib/illust';
 import { thumbFrom } from '../lib/image';
 import type { Card, DeepNote, Explore } from '../lib/types';
 import { CardBack, CardFace } from './CardFace';
@@ -14,9 +14,9 @@ export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
 }) {
   const existing = getCard(ex.id);
   const cards = useCards();
-  const [illustration, setIllustration] = useState<string | null>(existing?.illustration ?? null);
+  const [illustration, setIllustration] = useState<string | null>(existing?.illustration ?? illustFor(ex.id));
   const [flipped, setFlipped] = useState(!!existing);
-  const [busy, setBusy] = useState(!existing?.illustration);
+  const busy = usePendingIllust().has(ex.id) && !illustration;
   const box = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0), y = useMotionValue(0), scale = useMotionValue(1), opacity = useMotionValue(1);
   const no = existing ? cards.length - cards.findIndex((c) => c.id === ex.id) : cards.length + 1;
@@ -28,17 +28,12 @@ export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
       setFlipped(true);
       haptic('select');
     }, 650);
-    if (!existing?.illustration) {
-      api
-        .illustrate(ex.name, ex.en)
-        .then(({ url }) => setIllustration(url))
-        .catch((e) => {
-          const m = errorMessage(e);
-          if (m) toast(m);
-        })
-        .finally(() => setBusy(false));
-    }
-    return () => clearTimeout(t);
+    let alive = true;
+    if (!illustration) void startIllust(ex.id, ex.name, ex.en).then((url) => alive && url && setIllustration(url));
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ex.id]);
 
@@ -52,6 +47,7 @@ export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
       createdAt: existing?.createdAt ?? Date.now(), updatedAt: Date.now(),
     };
     void saveCard(card);
+    if (!illustration) notifyWhenReady(ex.id);
     haptic('success');
     const target = flyTo();
     const el = box.current?.getBoundingClientRect();
@@ -65,7 +61,8 @@ export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
         animate(opacity, [1, 1, 0], { duration: 0.7 }),
       ]);
     }
-    toast(existing ? 'カードを更新しました' : `図鑑 No.${String(no).padStart(3, '0')} に追加！`, 'auto_awesome');
+    if (illustration || !busy) toast(existing ? 'カードを更新しました' : `図鑑 No.${String(no).padStart(3, '0')} に追加！`, 'auto_awesome');
+    else toast('イラストができたら図鑑でお知らせします', 'brush');
     onClose();
   };
 
@@ -90,15 +87,16 @@ export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
           </motion.div>
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.9 } }} className="mt-7 flex gap-2">
-          <Button icon="inventory_2" iconFill onClick={store} disabled={busy}>
-            {busy ? 'イラスト作成中…' : existing ? '図鑑を更新' : '図鑑にしまう'}
+          <Button icon="inventory_2" iconFill onClick={store}>
+            {existing ? '図鑑を更新' : '図鑑にしまう'}
           </Button>
           <Button tone="glass" onClick={onClose} aria-label="とじる">
             <Icon name="close" size={22} />
           </Button>
         </motion.div>
+        {busy && <p className="mt-3 text-center text-[13px] font-bold text-white/70">イラストを待たずにしまえます</p>}
         {notes.length > 0 && (
-          <p className="mt-3 text-[13px] font-bold text-white/70">深掘りした {notes.length} テーマもカードに記録されます</p>
+          <p className="mt-1.5 text-[13px] font-bold text-white/70">深掘りした {notes.length} テーマもカードに記録されます</p>
         )}
       </div>
     </motion.div>

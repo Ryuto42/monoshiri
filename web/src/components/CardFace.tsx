@@ -3,8 +3,10 @@ import type { PointerEvent } from 'react';
 import { Icon } from './ui';
 import { catStyle } from './theme';
 import { mediaUrl } from '../lib/api';
+import { usePendingIllust } from '../lib/illust';
 
 export type CardLike = {
+  id?: string;
   name: string;
   reading?: string;
   category: string;
@@ -18,6 +20,8 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
   card: CardLike; no?: number; size?: 'sm' | 'md' | 'lg'; loadingArt?: boolean; tilt?: boolean;
 }) {
   const c = catStyle(card.category);
+  const pending = usePendingIllust();
+  const drawing = loadingArt ?? (!!card.id && !card.illustration && pending.has(card.id));
   const mx = useMotionValue(0.5), my = useMotionValue(0.5);
   const rx = useSpring(useTransform(my, [0, 1], [9, -9]), { stiffness: 220, damping: 18 });
   const ry = useSpring(useTransform(mx, [0, 1], [-11, 11]), { stiffness: 220, damping: 18 });
@@ -70,12 +74,18 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
           ) : (
             <Icon name={card.icon} size={big ? 96 : small ? 40 : 64} fill style={{ color: c.ink, opacity: 0.8 }} />
           )}
-          {loadingArt && (
+          {drawing && (
             <div className="absolute inset-0 grid place-items-center">
-              <div className="flex flex-col items-center gap-2 rounded-2xl bg-white/75 px-4 py-3 backdrop-blur-sm" style={{ color: c.ink }}>
-                <Icon name="brush" size={28} fill className="animate-bounce" />
-                <span className="text-[12px] font-bold">イラストを描いています</span>
-              </div>
+              {small ? (
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-white/80" style={{ color: c.ink }}>
+                  <Icon name="brush" size={16} fill className="animate-bounce" />
+                </span>
+              ) : (
+                <div className={`flex flex-col items-center rounded-2xl bg-white/75 backdrop-blur-sm ${big ? 'gap-2 px-4 py-3' : 'gap-1 px-3 py-2'}`} style={{ color: c.ink }}>
+                  <Icon name="brush" size={big ? 28 : 22} fill className="animate-bounce" />
+                  <span className="whitespace-nowrap text-[12px] font-bold">{big ? 'イラストを描いています' : '描いています'}</span>
+                </div>
+              )}
             </div>
           )}
         </div>

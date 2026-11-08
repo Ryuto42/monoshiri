@@ -4,8 +4,10 @@ export const PORT = Number(process.env.PORT ?? 8080);
 export const BUCKET = process.env.MEDIA_BUCKET ?? `${PROJECT}-media`;
 export const YT_KEY = process.env.YOUTUBE_API_KEY ?? '';
 
+// capacitor://localhost and https://localhost are the iOS and Android app shells; the Vite dev server is allowed only in local dev.
 export const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ??
-  `https://${PROJECT}.web.app,https://${PROJECT}.firebaseapp.com,capacitor://localhost,https://localhost,http://localhost:5173,http://127.0.0.1:5173`)
+  [`https://${PROJECT}.web.app`, `https://${PROJECT}.firebaseapp.com`, 'capacitor://localhost', 'https://localhost',
+    ...(LOCAL ? ['http://localhost:5173', 'http://127.0.0.1:5173'] : [])].join(','))
   .split(',');
 
 export const MODELS = {

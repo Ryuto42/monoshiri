@@ -86,6 +86,8 @@ export async function removeCard(id: string) {
   }
 }
 
+export const allCards = () => cards;
+
 export function getCard(id: string) {
   return cards.find((c) => c.id === id);
 }

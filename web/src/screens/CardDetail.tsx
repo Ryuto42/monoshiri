@@ -1,5 +1,5 @@
-import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { AnimatePresence, motion, useMotionValue } from 'motion/react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { removeCard, useCards } from '../lib/cards';
 import { resetFlow, setFlow } from '../lib/flow';
@@ -11,6 +11,8 @@ import { toast } from '../lib/toast';
 import { Button, Icon, IconButton } from '../components/ui';
 import { catStyle } from '../components/theme';
 import { onBack } from '../lib/native';
+import { useBackTo } from '../lib/useBackTo';
+import { slideOut, useSwipeDismiss } from '../lib/useSwipeDismiss';
 
 export function CardDetail({ cardId }: { cardId: string }) {
   const cards = useCards();
@@ -18,9 +20,14 @@ export function CardDetail({ cardId }: { cardId: string }) {
   const navigate = useNavigate();
   const [flipped, setFlipped] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
-  const close = () => navigate({ to: '/zukan' });
+  const backTo = useBackTo();
+  const close = () => backTo('/zukan');
 
-  useEffect(() => onBack(close));
+  useEffect(() => onBack(close, { history: false }));
+  const y = useMotionValue(0);
+  const scroller = useRef<HTMLDivElement>(null);
+  const intro = useRef<HTMLDivElement>(null);
+  useSwipeDismiss({ y, areas: [scroller], onDismiss: () => slideOut(y, close) });
 
   if (!card) return null;
   const c = catStyle(card.category);
@@ -28,7 +35,7 @@ export function CardDetail({ cardId }: { cardId: string }) {
 
   const again = async () => {
     resetFlow();
-    navigate({ to: '/' });
+    navigate({ to: '/', replace: true });
     setFlow({ stage: 'exploring', crop: card.photo ?? null, objects: [{ label: card.name, en: card.en, box: [0, 0, 1000, 1000] }], selected: 0 });
     try {
       const ex = await api.explore(card.name);
@@ -39,9 +46,9 @@ export function CardDetail({ cardId }: { cardId: string }) {
   };
 
   return (
-    <motion.div className="fixed inset-0 z-40 overflow-y-auto overscroll-contain" initial={{ opacity: 1 }} exit={{ opacity: 1 }}>
+    <motion.div ref={scroller} className="fixed inset-0 z-40 overflow-y-auto overscroll-contain" initial={{ opacity: 1 }} exit={{ opacity: 1 }}>
       <motion.div className="fixed inset-0 bg-[#120e0b]/70 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} />
-      <div className="relative mx-auto flex min-h-full max-w-5xl flex-col items-center gap-8 px-5 pb-16 pt-[max(env(safe-area-inset-top),20px)] lg:flex-row lg:items-start lg:pt-16">
+      <motion.div style={{ y }} className="relative mx-auto flex min-h-full max-w-5xl flex-col items-center gap-8 px-5 pb-16 pt-[max(env(safe-area-inset-top),20px)] lg:flex-row lg:items-start lg:pt-16">
         <div className="absolute right-4 top-[max(env(safe-area-inset-top),16px)] z-10">
           <IconButton icon="close" label="とじる" tone="glass" onClick={close} />
         </div>
@@ -73,13 +80,15 @@ export function CardDetail({ cardId }: { cardId: string }) {
           exit={{ opacity: 0, y: 24 }}
           className="w-full flex-1 rounded-[32px] bg-paper p-6 text-ink shadow-[var(--shadow-float)]"
         >
-          <p className="text-[12px] font-bold tracking-wider text-ink-3">{card.reading}・{card.en}</p>
-          <h2 className="text-[30px] font-black leading-tight">{card.name}</h2>
-          <p className="mt-2 text-[17px] font-bold text-accent">{card.oneLiner}</p>
-          <p className="mt-3 text-ink-2">{card.summary}</p>
+          <div ref={intro}>
+            <p className="text-[12px] font-bold tracking-wider text-ink-3">{card.reading}・{card.en}</p>
+            <h2 data-speak className="text-[30px] font-black leading-tight">{card.name}</h2>
+            <p data-speak className="mt-2 text-[17px] font-bold text-accent">{card.oneLiner}</p>
+            <p data-speak className="mt-3 text-ink-2">{card.summary}</p>
+          </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button icon="travel_explore" onClick={again}>もっと調べる</Button>
-            <Speak text={`${card.name}。${card.summary}。知ってた？${card.funFact}`} />
+            <Speak target={intro} text={`知ってた？${card.funFact}`} />
             <Button
               tone="ghost"
               icon="delete"
@@ -140,7 +149,7 @@ export function CardDetail({ cardId }: { cardId: string }) {
             </ul>
           )}
         </motion.section>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }

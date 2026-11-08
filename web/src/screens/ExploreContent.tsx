@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { DetectedObject, Explore } from '../lib/types';
 import type { Flow } from '../lib/flow';
 import { useCards } from '../lib/cards';
-import { RollingCards } from '../components/RollingCards';
+import { LoadingCard } from '../components/LoadingCard';
 import { SearchEntry } from '../components/SearchEntry';
 import { Button, Chip, Icon, IconButton } from '../components/ui';
 import { catStyle, spring, TOPIC_COLORS } from '../components/theme';
@@ -96,18 +96,13 @@ function Picker({ objects, crops, onPick, onAsk, onReset }: {
 }
 
 function Exploring({ label, crop }: { label: string; crop: string | null }) {
-  const cards = useCards();
   return (
-    <div className="pt-1 pb-6">
-      <div className="flex items-center gap-4 px-6">
-        {crop && <motion.img layoutId="crop" src={crop} alt="" className="h-16 w-16 rounded-2xl object-cover shadow-[var(--shadow-card)]" />}
-        <div>
-          <p className="text-[13px] font-bold text-accent">モノシリ中…</p>
-          <h2 className="text-[26px] font-black leading-tight">{label}</h2>
-        </div>
-      </div>
-      <p className="mt-3 px-6 text-[14px] text-ink-2">Google 検索で確かめながら、学べるテーマを集めています</p>
-      <RollingCards cards={cards} height={230} />
+    <div className="px-6 pt-1 pb-6">
+      <LoadingCard img={crop} expected={14} steps={['写真をよく見ています', 'Google で調べています', '学べるテーマを集めています', 'カードにまとめています']}>
+        <p className="text-[13px] font-bold text-accent">モノシリ中…</p>
+        <h2 className="text-[26px] font-black leading-tight">{label}</h2>
+        <p className="mt-1 text-[13px] text-ink-3">Google 検索で確かめながら、学べるテーマを集めています</p>
+      </LoadingCard>
     </div>
   );
 }
@@ -118,8 +113,9 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
   const c = catStyle(ex.category);
   const cards = useCards();
   const saved = cards.some((x) => x.id === ex.id);
+  const root = useRef<HTMLDivElement>(null);
   return (
-    <motion.div initial="hidden" animate="show" variants={list} className="pb-10">
+    <motion.div ref={root} initial="hidden" animate="show" variants={list} className="pb-10">
       <motion.header variants={item} className="flex items-center gap-4 px-6 pt-1">
         <div className="relative shrink-0">
           {crop ? (
@@ -139,20 +135,20 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
             {ex.cached && <Chip className="bg-leaf-soft text-leaf" icon="bolt">すぐ表示</Chip>}
           </div>
           <p className="mt-1 text-[12px] font-bold tracking-wider text-ink-3">{ex.reading}・{ex.en}</p>
-          <h2 className="text-[28px] font-black leading-tight">{ex.name}</h2>
+          <h2 data-speak className="text-[28px] font-black leading-tight">{ex.name}</h2>
         </div>
       </motion.header>
 
-      <motion.p variants={item} className="mt-4 px-6 text-[17px] font-bold leading-relaxed text-accent">
+      <motion.p data-speak variants={item} className="mx-6 mt-4 text-[17px] font-bold leading-relaxed text-accent">
         {ex.oneLiner}
       </motion.p>
-      <motion.p variants={item} className="mt-2 px-6 text-ink-2">
+      <motion.p data-speak variants={item} className="mx-6 mt-2 text-ink-2">
         {ex.summary}
       </motion.p>
 
       <motion.div variants={item} className="mx-6 mt-4 flex gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--sun)_22%,var(--paper))] p-4">
         <Icon name="lightbulb" size={26} fill className="mt-0.5 shrink-0 text-[#b7800b]" />
-        <div>
+        <div data-speak>
           <p className="text-[12px] font-black text-[#9a6b06]">知ってた？</p>
           <p className="text-[15px] font-bold leading-relaxed">{ex.funFact}</p>
         </div>
@@ -162,7 +158,7 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes }: {
         <Button icon={saved ? 'library_add_check' : 'style'} iconFill onClick={onMakeCard}>
           {saved ? (notes ? 'カードを更新' : 'カードを見る') : 'カードにする'}
         </Button>
-        <Speak text={`${ex.name}。${ex.oneLiner}。${ex.summary}。知ってた？${ex.funFact}`} />
+        <Speak target={root} />
         <Button tone="paper" icon="search" onClick={() => openExternal(`https://www.google.com/search?q=${encodeURIComponent(ex.name)}`)}>
           Google
         </Button>

@@ -20,6 +20,22 @@ export async function setCached(col: string, id: string, data: object) {
   await db.collection(col).doc(id).set({ ...data, cachedAt: Date.now() });
 }
 
+// Shared results must not be replaced by a later request (a crafted photo could otherwise rewrite what everyone sees).
+export async function addCached(col: string, id: string, data: object): Promise<boolean> {
+  if (!db) {
+    if (mem.has(`${col}/${id}`)) return false;
+    mem.set(`${col}/${id}`, data);
+    return true;
+  }
+  try {
+    await db.collection(col).doc(id).create({ ...data, cachedAt: Date.now() });
+    return true;
+  } catch (e: any) {
+    if (e?.code === 6) return false;
+    throw e;
+  }
+}
+
 let spentCache = { usd: 0, at: 0 };
 
 export async function getSpent(): Promise<number> {
