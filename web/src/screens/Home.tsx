@@ -1,21 +1,21 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { api, errorMessage } from '../lib/api';
+import { api, errorMessage, mediaUrl } from '../lib/api';
 import { saveCard, getCard, useCards } from '../lib/cards';
 import { getFlow, resetFlow, setFlow, useFlow } from '../lib/flow';
 import { cropBox, shotFromBlob, shotFromVideo, type Shot } from '../lib/image';
 import type { Card, DeepNote } from '../lib/types';
 import { CardMaker } from '../components/CardMaker';
 import { ReadyBubble } from '../components/ReadyBubble';
-import { CardFace } from '../components/CardFace';
 import { Sheet } from '../components/Sheet';
 import { useDesktop } from '../lib/useDesktop';
 import { Stage } from '../components/Stage';
 import { Viewfinder, type ViewfinderHandle } from '../components/Viewfinder';
 import { toast } from '../lib/toast';
 import { Icon, IconButton } from '../components/ui';
-import { spring } from '../components/theme';
+import { catStyle, spring } from '../components/theme';
+import { usePendingIllust } from '../lib/illust';
 import { ExploreContent } from './ExploreContent';
 import { TopicPanel } from './TopicPanel';
 import { Logo } from '../components/Logo';
@@ -350,7 +350,7 @@ const MiniZukan = forwardRef<HTMLButtonElement, { cards: Card[]; onClick: () => 
               className="absolute inset-0 overflow-hidden rounded-[10px] border-2 border-white shadow-lg"
               style={{ rotate: (arr.length - 1 - i) * -7, x: (arr.length - 1 - i) * -4 }}
             >
-              <CardFace card={c} size="sm" tilt={false} />
+              <CardThumb card={c} />
             </motion.span>
           ))
       )}
@@ -362,6 +362,39 @@ const MiniZukan = forwardRef<HTMLButtonElement, { cards: Card[]; onClick: () => 
     </motion.button>
   );
 });
+
+// The stack is only 50px wide, so it shows just the card's art instead of a shrunken card face.
+function CardThumb({ card }: { card: Card }) {
+  const c = catStyle(card.category);
+  const drawing = usePendingIllust().has(card.id) && !card.illustration;
+  return (
+    <span className="block h-full w-full bg-[#fffdf8] p-[3px]">
+      <span className="relative grid h-full w-full place-items-center overflow-hidden rounded-[6px]" style={{ background: c.bg }}>
+        {card.illustration ? (
+          <motion.img
+            key={card.illustration}
+            src={mediaUrl(card.illustration)}
+            alt=""
+            draggable={false}
+            initial={{ opacity: 0, scale: 1.15 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className="h-full w-full object-cover mix-blend-multiply"
+          />
+        ) : card.photo ? (
+          <img src={card.photo} alt="" draggable={false} className="h-full w-full object-cover" />
+        ) : (
+          <Icon name={card.icon} size={22} fill style={{ color: c.ink }} />
+        )}
+        {drawing && (
+          <span className="absolute inset-0 grid place-items-center bg-white/45">
+            <Icon name="brush" size={16} fill className="animate-bounce" style={{ color: c.ink }} />
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
 
 const ZukanButton = forwardRef<HTMLButtonElement, { count: number; cards: Card[]; onClick: () => void }>(function ZukanButton({ count, onClick }, ref) {
   return (
