@@ -400,6 +400,10 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
             <p className="phrase-wrap mt-1.5 max-w-xs text-[14px] leading-relaxed text-white/70">
               「許可」をおすと、カメラで しらべられるよ。
             </p>
+            {/* A PC may never answer the camera prompt (or have no camera); the other ways in are easy to miss there. */}
+            <p className="phrase-wrap mt-4 hidden max-w-sm text-[13px] leading-relaxed text-white/55 lg:block">
+              <Phrases text="写真をここにドロップしたり、Ctrl+V（⌘+V）で貼り付けたりしても調べられます。" />
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
