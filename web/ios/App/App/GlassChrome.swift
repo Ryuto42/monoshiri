@@ -107,7 +107,22 @@ public final class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, @unchecked Se
     @MainActor private func buildBar() {
         guard let host else { return }
         let gallery = makeButton(id: "gallery", symbol: "photo.on.rectangle.angled", size: 58, label: "写真をえらぶ")
-        let shutter = makeButton(id: "shutter", symbol: "magnifyingglass", size: 86, prominent: true, label: "撮影する")
+        let shutter = makeButton(id: "shutter", symbol: "magnifyingglass", size: 74, prominent: true, label: "撮影する")
+        // Web版と同じく、白い丸のまわりに白い輪を重ねて、カメラのシャッターらしい二重丸にする
+        let ring = UIView()
+        ring.isUserInteractionEnabled = false
+        ring.backgroundColor = .clear
+        ring.layer.borderColor = UIColor.white.withAlphaComponent(0.95).cgColor
+        ring.layer.borderWidth = 4
+        ring.layer.cornerRadius = 45
+        ring.translatesAutoresizingMaskIntoConstraints = false
+        shutter.addSubview(ring)
+        NSLayoutConstraint.activate([
+            ring.centerXAnchor.constraint(equalTo: shutter.centerXAnchor),
+            ring.centerYAnchor.constraint(equalTo: shutter.centerYAnchor),
+            ring.widthAnchor.constraint(equalToConstant: 90),
+            ring.heightAnchor.constraint(equalToConstant: 90),
+        ])
         let zukan = makeButton(id: "zukan", symbol: "rectangle.stack.fill", size: 58, label: "図鑑をひらく")
 
         let badge = UILabel()
