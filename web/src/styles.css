@@ -6,7 +6,7 @@
   font-style: normal;
   font-weight: 300 700;
   font-display: block;
-  src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
+  src: url('./assets/fonts/material-symbols-rounded.woff2') format('woff2');
 }
 
 @theme {
@@ -122,6 +122,11 @@ body {
   outline: 3px solid color-mix(in oklab, var(--accent) 70%, transparent);
   outline-offset: 2px;
   border-radius: 12px;
+}
+
+/* Text fields show focus on their own frame (.field), so the inner ring would double it. */
+.field input:focus-visible {
+  outline: none;
 }
 
 /* In a layer so Tailwind utilities (hidden, sm:inline, text sizes) can override it. */

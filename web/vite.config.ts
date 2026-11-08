@@ -22,8 +22,20 @@ const webFonts = (): Plugin => ({
         ],
 })
 
+// The icon font gets a content hash (so a new icon set is never served from an old cache); preload it under that name.
+const iconFontPreload = (): Plugin => ({
+  name: 'monoshiri-icon-font-preload',
+  transformIndexHtml: {
+    order: 'post',
+    handler: (_html, ctx) => {
+      const file = Object.keys(ctx.bundle ?? {}).find((f) => /material-symbols-rounded-[\w-]+\.woff2$/.test(f));
+      return file ? [{ tag: 'link', attrs: { rel: 'preload', href: `/${file}`, as: 'font', type: 'font/woff2', crossorigin: '' }, injectTo: 'head' }] : [];
+    },
+  },
+});
+
 export default defineConfig({
-  plugins: [react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss(), webFonts()],
+  plugins: [react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss(), webFonts(), iconFontPreload()],
   build: {
     target: 'es2022',
     rolldownOptions: {

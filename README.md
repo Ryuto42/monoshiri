@@ -6,7 +6,7 @@
 
 > **English summary:** Monoshiri is a learning app that turns everyday objects into lessons. Take a photo and Gemini (on Vertex AI) finds the objects, explains each one with Google Search grounding, and lets you dig into questions such as "how is it made?" with diagrams, photos, videos, read-aloud and quizzes. Explored objects become illustrated cards in your collection. Web + iOS + Android (Capacitor), with a Hono API on Cloud Run. The UI and docs are in Japanese. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-- アプリ: https://monoshiri-df26.web.app
+- アプリ: https://monoshiri.web.app
 - カテゴリ: 教育（DevFest GDGoC Japan Hackathon 2026）
 - ライセンス: [MIT](LICENSE)
 
@@ -104,7 +104,7 @@
 │  │  │  ├─ native.ts        Capacitor 連携、戻る操作のスタック
 │  │  │  ├─ glass.ts         iOS ネイティブボタン（GlassChrome プラグイン）とのやりとり
 │  │  └─ styles.css          Tailwind とデザイントークン
-│  ├─ public/                フォント（アイコンのサブセット）、サンプル写真、PWA マニフェスト
+│  ├─ public/                サンプル写真、アイコン画像、PWA マニフェスト
 │  ├─ ios/                   Xcode プロジェクト（App/App/GlassChrome.swift がネイティブボタン）
 │  ├─ android/               Android Studio プロジェクト
 │  └─ capacitor.config.ts
@@ -358,6 +358,10 @@ cd server && gcloud run deploy monoshiri-api --source=. --region=asia-northeast1
 `--allow-unauthenticated` は Cloud Run の入口を開けるだけで、各 API はアプリ側で Firebase の ID トークンを検証します。独自ドメインで Web を配信するときは `ALLOWED_ORIGINS` にそのオリジンを足してください。
 
 ### 3. Web（Firebase Hosting）と Firestore ルール
+
+公開 URL は Hosting のサイト `monoshiri`（https://monoshiri.web.app）です。スクリプトはプロジェクトが `monoshiri-df26` のときこのサイトに出し、ほかのプロジェクトではプロジェクト名のサイトに出します（`SITE=<サイト名>` で変更可）。ログインのポップアップと確認メールもこのドメインで動かすため、`write-web-env.mjs` は `authDomain` を `<サイト>.web.app` にします。自分のプロジェクトで使うときは、Google Cloud の OAuth クライアント（Web client）の承認済みリダイレクト URI に `https://<サイト>.web.app/__/auth/handler` を足してください。
+
+HTML と画面のパスは `no-cache`（毎回サーバーに確認）、ファイル名にハッシュが付く `/assets/*`（JS・CSS・アイコンフォント）は1年キャッシュです。`infra/deploy-hosting.mjs` は、直前の版の index.html から参照されているファイルを1世代残すので、デプロイ直前に開いた画面も壊れません。`CHANNEL=<名前> node infra/deploy-hosting.mjs` で、7日で消えるプレビュー URL に出せます。
 
 ```bash
 PROJECT=<project> VITE_API_BASE=<Cloud Run の URL> node infra/write-web-env.mjs   # web/.env.production.local を作る
