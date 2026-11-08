@@ -21,6 +21,8 @@ import { TopicPanel } from './TopicPanel';
 import { Logo } from '../components/Logo';
 import { goBack, haptic, onBack } from '../lib/native';
 import { GlassChrome, nativeChrome, pickNativePhoto } from '../lib/glass';
+import { useMe } from '../lib/firebase';
+import { Avatar } from './Account';
 
 export function Home({ paused = false }: { paused?: boolean }) {
   const flow = useFlow();
@@ -52,11 +54,14 @@ export function Home({ paused = false }: { paused?: boolean }) {
     }
   }
 
-  async function explore(label: string, crop: string | null, cropB64?: string) {
-    setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null });
+  async function explore(label: string, crop: string | null, cropB64?: string, from?: string) {
+    setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null, known: null, label });
+    void api.known(label).then(({ known }) => getFlow().stage === 'exploring' && setFlow({ known })).catch(() => {});
     try {
-      const ex = await api.explore(label, cropB64);
+      const ex = await api.explore(label, cropB64, from);
       if (getFlow().stage !== 'exploring') return;
+      // A correction renames the marker only once the new name worked, so "もう一度" after a failure retries the original.
+      if (from) setFlow((s) => ({ objects: s.objects.map((x, i) => (i === s.selected ? { ...x, label, alts: [] } : x)) }));
       const saved = getCard(ex.id);
       const notes = Object.fromEntries((saved?.notes ?? []).map((n) => [n.topicId, n]));
       setFlow({ stage: 'explore', explore: ex, notes });
@@ -73,6 +78,17 @@ export function Home({ paused = false }: { paused?: boolean }) {
     haptic('select');
     setFlow({ selected: i });
     void explore(o.label, c.dataUrl, c.base64);
+  }
+
+  // The person says the photo was misread: rename the marker and explore the name they chose, with the same photo crop.
+  function correct(label: string) {
+    const s = getFlow();
+    if (!s.shot || s.selected == null) return;
+    const o = s.objects[s.selected];
+    if (!o || label === o.label) return;
+    const c = cropBox(s.shot, o.box, 640);
+    haptic('select');
+    void explore(label, c.dataUrl, c.base64, o.label);
   }
 
   async function capture() {
@@ -209,10 +225,13 @@ export function Home({ paused = false }: { paused?: boolean }) {
           )}
         </AnimatePresence>
         {(live || desktop) && (
-          <div className="relative hidden lg:block">
-            <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
-            {!paused && <ReadyBubble placement="below" radius={999} tail={60} />}
-          </div>
+          <motion.div key="right" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2.5">
+            <div className="relative hidden lg:block">
+              <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
+              {!paused && <ReadyBubble placement="below" radius={999} tail={60} />}
+            </div>
+            <AccountButton hasCards={cards.length > 0} onClick={() => navigate({ to: '/account' })} />
+          </motion.div>
         )}
       </header>
 
@@ -273,6 +292,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
             crops={crops}
             onPick={pick}
             onAsk={(label) => explore(label, null)}
+            onCorrect={correct}
             onTopic={(id) => setFlow({ topicId: id })}
             onMakeCard={() => setMaking(true)}
             onRetry={() => (flow.selected != null ? pick(flow.selected) : flow.shot ? analyze(flow.shot) : resetFlow())}
@@ -310,6 +330,47 @@ export function Home({ paused = false }: { paused?: boolean }) {
         </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+function AccountButton({ hasCards, onClick }: { hasCards: boolean; onClick: () => void }) {
+  const me = useMe();
+  const member = me && !me.guest;
+  const dot = !me ? null : me.guest ? (hasCards ? 'bg-accent' : null) : me.provider === 'password' && !me.verified ? 'bg-sun' : null;
+  const label = !member ? 'ログイン・登録' : me.provider === 'password' && !me.verified ? 'アカウント（メールの確認が必要です）' : 'アカウント';
+  return (
+    <motion.button
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      whileTap={{ scale: 0.88 }}
+      whileHover={{ scale: 1.05 }}
+      transition={spring}
+      className="glass relative grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-black/35 text-white backdrop-blur-xl"
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        {member ? (
+          <motion.span key={me.uid} initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={spring}>
+            <Avatar me={me} size={36} />
+          </motion.span>
+        ) : (
+          <motion.span key="guest" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={spring} className="grid">
+            <Icon name="person" size={24} fill />
+          </motion.span>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {dot && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            transition={{ type: 'spring', stiffness: 600, damping: 15 }}
+            className={`absolute right-0 top-0 h-3 w-3 rounded-full ring-2 ring-black/40 ${dot}`}
+          />
+        )}
+      </AnimatePresence>
+    </motion.button>
   );
 }
 

@@ -24,6 +24,8 @@ const config: CapacitorConfig = {
     },
     StatusBar: { overlaysWebView: true, style: 'DARK', backgroundColor: '#00000000' },
     Keyboard: { resize: 'none' },
+    // Native Google sign-in; the other providers stay out of the app bundle.
+    SocialLogin: { providers: { google: true, apple: false, facebook: false, twitter: false } },
   },
 };
 
