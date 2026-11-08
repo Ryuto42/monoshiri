@@ -122,66 +122,42 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
 
   Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
 
-  // The web view does not resize for the keyboard (Keyboard.resize = 'none'), so expose its height as --kb.
-  // Screens that opt in with data-kb-lift / data-kb-sheet / data-kb-scroll move above the keyboard, and the
-  // focused field is scrolled into view in the same motion (computed up front, not after the keyboard settles).
-  // Moving focus between fields can fire hide→show back to back; the short delay on hide keeps the sheet still.
+  // The web view does not resize for the keyboard (Keyboard.resize = 'none'). A screen that opts in with
+  // data-kb-lift is slid up (--kb-lift, a GPU transform) only as far as the focused field needs to clear the
+  // keyboard, so moving between fields that are both visible does not move anything.
+  // Moving focus between fields can fire hide→show back to back; the short delay on hide keeps the screen still.
   let kb = 0;
+  let lift = 0;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
-  let scrollAnim = 0;
-  const KB_MS = 250; // keep in sync with the duration-[250ms] transitions in Account.tsx
-  const ease = (t: number) => 1 - (1 - t) ** 3; // = cubic-bezier(0.33,1,0.68,1)
-  const scrollTo = (el: HTMLElement, to: number) => {
-    cancelAnimationFrame(scrollAnim);
-    const from = el.scrollTop;
-    if (Math.abs(to - from) < 1) return;
-    const t0 = performance.now();
-    const step = (now: number) => {
-      const t = Math.min(1, (now - t0) / KB_MS);
-      el.scrollTop = from + (to - from) * ease(t);
-      if (t < 1) scrollAnim = requestAnimationFrame(step);
-    };
-    scrollAnim = requestAnimationFrame(step);
+  const setLift = (v: number) => {
+    v = Math.max(0, Math.round(v));
+    if (Math.abs(v - lift) < 2) return;
+    lift = v;
+    root.style.setProperty('--kb-lift', `${v}px`);
   };
-  const reveal = (nextKb: number) => {
+  const reveal = () => {
     const el = document.activeElement;
-    if (!nextKb || !(el instanceof HTMLElement) || !el.closest('[data-kb-lift]')) return;
-    const sheet = el.closest<HTMLElement>('[data-kb-sheet]');
-    const sc = el.closest<HTMLElement>('[data-kb-scroll]');
-    if (!sheet || !sc) return;
-    const target = el.closest('label') ?? el;
-    const H = window.innerHeight;
-    const sr = sheet.getBoundingClientRect();
-    // Where the sheet will be once it has moved above the keyboard (max-height: 94dvh - kb).
-    const natural = sheet.offsetHeight + (sc.scrollHeight - sc.clientHeight);
-    const newH = Math.min(natural, H * 0.94 - nextKb);
-    const shift = H - nextKb - newH - sr.top;
-    const top = sc.getBoundingClientRect().top + shift;
-    const bottom = H - nextKb;
-    const tr = target.getBoundingClientRect();
-    let d = 0;
-    if (tr.bottom + shift + 56 > bottom) d = tr.bottom + shift + 56 - bottom; // room for the hints under the field
-    else if (tr.top + shift - 16 < top) d = tr.top + shift - 16 - top;
-    const max = sc.scrollHeight - (sc.clientHeight - (sheet.offsetHeight - newH));
-    scrollTo(sc, Math.max(0, Math.min(max, sc.scrollTop + d)));
+    if (!kb || !(el instanceof HTMLElement) || !el.closest('[data-kb-lift]')) return setLift(0);
+    // The whole field, plus room for the hints under it (password rules).
+    const r = (el.closest('label') ?? el).getBoundingClientRect();
+    const bottom = r.bottom + lift + 52; // position without the current lift
+    const top = r.top + lift;
+    // Enough to clear the keyboard, but never push the field under the status bar.
+    setLift(Math.min(bottom - (window.innerHeight - kb), top - 64));
   };
   Keyboard.addListener('keyboardWillShow', (info) => {
     clearTimeout(hideTimer);
-    const h = Math.round(info.keyboardHeight);
-    reveal(h); // measure before --kb changes the layout
-    if (h !== kb) {
-      kb = h;
-      root.style.setProperty('--kb', `${h}px`);
-    }
+    kb = Math.round(info.keyboardHeight);
+    reveal();
   });
   Keyboard.addListener('keyboardWillHide', () => {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => {
       kb = 0;
-      root.style.setProperty('--kb', '0px');
+      setLift(0);
     }, 40);
   });
-  document.addEventListener('focusin', () => kb && reveal(kb));
+  document.addEventListener('focusin', () => kb && reveal());
 
   const status = await Network.getStatus();
   onOffline(!status.connected);
