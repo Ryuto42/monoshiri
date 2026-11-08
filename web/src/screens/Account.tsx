@@ -34,7 +34,7 @@ export function Account() {
     <motion.div className="fixed inset-0 z-[50] flex items-end justify-center lg:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.button aria-label="とじる" tabIndex={-1} className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={close} />
       {/* Slides up only as far as the focused field needs to clear the keyboard (--kb-lift, set in lib/native.ts). */}
-      <div data-kb-lift className="flex w-full justify-center transition-transform duration-[250ms] ease-[cubic-bezier(0.38,0.7,0.125,1)] [transform:translate3d(0,calc(var(--kb-lift,0px)*-1),0)]">
+      <div data-kb-lift className="flex w-full justify-center transition-transform duration-300 ease-out [transform:translate3d(0,calc(var(--kb-lift,0px)*-1),0)]">
       <motion.section
         role="dialog"
         aria-modal
@@ -268,7 +268,7 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
       </Field>
 
       {/* 登録とログインで同じ高さの枠を使い、切り替えてもシートの高さが変わらないようにする */}
-      <div className="mt-2.5 flex min-h-[30px] items-center">
+      <div data-kb-bottom className="mt-2.5 flex min-h-[30px] items-center">
         {signup ? (
           <Strength pw={pw} email={email.trim()} />
         ) : (

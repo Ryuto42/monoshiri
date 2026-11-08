@@ -123,7 +123,7 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
   Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
 
   // The web view does not resize for the keyboard (Keyboard.resize = 'none'). A screen that opts in with
-  // data-kb-lift is slid up (--kb-lift, a GPU transform) only as far as the focused field needs to clear the
+  // data-kb-lift is slid up (--kb-lift, a GPU transform) only as far as its form needs to clear the
   // keyboard, so moving between fields that are both visible does not move anything.
   // Moving focus between fields can fire hide→show back to back; the short delay on hide keeps the screen still.
   let kb = 0;
@@ -138,10 +138,12 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
   const reveal = () => {
     const el = document.activeElement;
     if (!kb || !(el instanceof HTMLElement) || !el.closest('[data-kb-lift]')) return setLift(0);
-    // The whole field, plus room for the hints under it (password rules).
-    const r = (el.closest('label') ?? el).getBoundingClientRect();
-    const bottom = r.bottom + lift + 52; // position without the current lift
-    const top = r.top + lift;
+    // Keep the whole form visible down to [data-kb-bottom] (password + its hints), so the user can go from
+    // email to password without anything moving; otherwise just the focused field.
+    const field = el.closest('label') ?? el;
+    const end = el.closest('[data-kb-lift]')!.querySelector('[data-kb-bottom]');
+    const bottom = (end ?? field).getBoundingClientRect().bottom + lift + (end ? 16 : 52); // without the current lift
+    const top = field.getBoundingClientRect().top + lift;
     // Enough to clear the keyboard, but never push the field under the status bar.
     setLift(Math.min(bottom - (window.innerHeight - kb), top - 64));
   };
