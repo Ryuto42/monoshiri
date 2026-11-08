@@ -216,7 +216,7 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
         <Icon name="explore" size={24} fill className="text-accent" />
         もっと知りたい！
       </motion.h3>
-      <motion.ul variants={list} className="mt-3 grid gap-3 px-6 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+      <motion.ul variants={list} className="mt-3 grid gap-3 px-6">
         {ex.topics.map((t, i) => (
           <motion.li key={t.id} variants={item}>
             <motion.button

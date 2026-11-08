@@ -20,7 +20,7 @@ export function Icon({ name, fill = false, size = 24, weight, className = '', st
 type Tone = 'accent' | 'ink' | 'ghost' | 'paper' | 'glass';
 
 const tones: Record<Tone, string> = {
-  accent: 'bg-accent text-accent-ink shadow-[0_6px_18px_-6px_color-mix(in_oklab,var(--accent)_70%,transparent)]',
+  accent: 'bg-accent text-accent-ink',
   ink: 'bg-ink text-paper',
   ghost: 'bg-transparent text-ink hover:bg-ink/6',
   paper: 'bg-paper text-ink shadow-[var(--shadow-card)] hover:bg-paper-2',
