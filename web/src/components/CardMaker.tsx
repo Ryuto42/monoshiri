@@ -44,6 +44,7 @@ export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
     const card: Card = {
       id: ex.id, name: ex.name, reading: ex.reading, en: ex.en, category: ex.category, icon: ex.icon, oneLiner: ex.oneLiner,
       summary: ex.summary, funFact: ex.funFact, topics: ex.topics, notes: [...byTopic.values()], illustration, photo,
+      ...((ex.firstFind || existing?.firstFind) && { firstFind: true }),
       createdAt: existing?.createdAt ?? Date.now(), updatedAt: Date.now(),
     };
     void saveCard(card);

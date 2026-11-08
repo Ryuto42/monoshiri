@@ -153,6 +153,15 @@ const exploreSchema = {
   required: ['name', 'reading', 'en', 'category', 'icon', 'oneLiner', 'summary', 'funFact', 'topics', 'keywords'],
 };
 
+// Lets the app say "nobody has explored this yet" while a new explanation is being written. Reads the cache only.
+app.get('/api/known', async (c) => {
+  const label = clean(c.req.query('label'), 30);
+  if (!label) return c.json({ error: 'bad_label' }, 400);
+  const alias = await getCached<{ target: string }>('explore_alias', keyOf('alias', label));
+  const hit = await getCached<object>('cache_explore', alias?.target ?? keyOf('explore', label));
+  return c.json({ known: !!hit });
+});
+
 app.post('/api/explore', async (c) => {
   const body = await c.req.json<{ label: string; image?: string }>();
   const label = clean(body.label, 30);
@@ -186,12 +195,14 @@ app.post('/api/explore', async (c) => {
   }
   const out = {
     id: key, label, ...data, topics: (data.topics ?? []).slice(0, 6).map((t: any, i: number) => ({ id: `t${i}`, ...t })),
-    entryPoint: g.entryPoint, queries: g.queries, wiki,
+    entryPoint: g.entryPoint, queries: g.queries, wiki, foundAt: Date.now(),
   };
-  await addCached('cache_explore', key, out);
+  // create() only succeeds once, so exactly one person becomes the first finder even if two explore the same thing at once.
+  const created = await addCached('cache_explore', key, out);
   const names = new Set([label, clean(data.name, 30), clean(data.en, 40)].filter(Boolean));
   await Promise.all([...names].map((n) => addCached('explore_alias', keyOf('alias', n), { target: key, name: n })));
-  return c.json(out);
+  if (!created) return c.json({ ...((await getCached<object>('cache_explore', key)) ?? out), cached: true });
+  return c.json({ ...out, firstFind: true });
 });
 
 app.post('/api/deep', async (c) => {

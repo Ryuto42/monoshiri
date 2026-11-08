@@ -53,7 +53,8 @@ export function Home({ paused = false }: { paused?: boolean }) {
   }
 
   async function explore(label: string, crop: string | null, cropB64?: string) {
-    setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null });
+    setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null, known: null });
+    void api.known(label).then(({ known }) => getFlow().stage === 'exploring' && setFlow({ known })).catch(() => {});
     try {
       const ex = await api.explore(label, cropB64);
       if (getFlow().stage !== 'exploring') return;

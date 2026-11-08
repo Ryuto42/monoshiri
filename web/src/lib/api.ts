@@ -33,6 +33,7 @@ const post = <T>(path: string, body: object, signal?: AbortSignal) =>
 export const api = {
   detect: (image: string) => post<{ objects: DetectedObject[] }>('/api/detect', { image }),
   explore: (label: string, image?: string) => post<Explore>('/api/explore', { label, image }),
+  known: (label: string) => call<{ known: boolean }>(`/api/known?${new URLSearchParams({ label })}`),
   quiz: (name: string, context: string) => post<Quiz>('/api/quiz', { name, context }),
   illustrate: (name: string, en: string) => post<{ url: string }>('/api/illustrate', { name, en }),
   diagram: (b: { name: string; en: string; topic: string; outline: string }) => post<{ url: string }>('/api/diagram', b),
