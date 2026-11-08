@@ -1,5 +1,9 @@
 import {
   EmailAuthProvider,
+  applyActionCode,
+  checkActionCode,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
   GoogleAuthProvider,
   deleteUser,
   linkWithCredential,
@@ -20,6 +24,7 @@ import { useSyncExternalStore } from 'react';
 import { auth, currentUser, refreshMe } from './firebase';
 import { clearLocalCards, deleteCloudCards, syncCloud } from './cards';
 import { isNative, platform } from './native';
+import { api } from './api';
 
 // The WebViews can't open Firebase's popup, so the native apps get an ID token from the OS sign-in sheet
 // (@capgo/capacitor-social-login) and hand it to the JS SDK as a credential. Each needs its OAuth client ID.
@@ -28,6 +33,17 @@ const IOS_CLIENT_ID = import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID ?? '';
 export const googleAvailable = !isNative || (platform === 'ios' ? !!IOS_CLIENT_ID : !!WEB_CLIENT_ID);
 
 const verifyLink = () => (isNative ? undefined : { url: `${location.origin}/account` });
+
+// The API sends the app-styled email whose link opens /auth/action. If it can't (SMTP not set up, a native guest without
+// App Check, sending limits), Firebase's standard email still goes out.
+async function sendVerify(user: User) {
+  try {
+    await user.getIdToken(true);
+    await api.mailVerify();
+  } catch {
+    await sendEmailVerification(user, verifyLink());
+  }
+}
 
 export class AccountError extends Error {}
 
@@ -67,6 +83,13 @@ export function accountMessage(e: unknown): string | null {
       return 'もう一度ログインしなおしてから操作してください';
     case 'auth/operation-not-allowed':
       return 'このログイン方法はいま使えません';
+    case 'auth/expired-action-code':
+      return 'このリンクは有効期限が切れています。アプリからもう一度メールを送ってください';
+    case 'auth/invalid-action-code':
+      return 'このリンクはもう使えません。すでに使ったか、新しいメールが届いているかもしれません';
+    case 'auth/user-disabled':
+    case 'auth/user-token-expired':
+      return 'このアカウントはいま使えません';
     default:
       return 'うまくいきませんでした。もう一度お試しください';
   }
@@ -104,7 +127,7 @@ export async function signUpEmail(email: string, password: string) {
   const cred = EmailAuthProvider.credential(email.trim(), password);
   if (user.isAnonymous) await linkWithCredential(user, cred);
   else throw new AccountError('すでにログインしています');
-  await sendEmailVerification(user, verifyLink()).catch(() => {});
+  await sendVerify(user).catch(() => {});
   await afterLogin();
 }
 
@@ -169,7 +192,7 @@ export async function signInGoogle() {
 // Always reports success: whether a reset mail was really sent must not reveal if the address is registered.
 export async function resetPassword(email: string) {
   try {
-    await sendPasswordResetEmail(auth, email.trim(), verifyLink());
+    await api.mailReset(email.trim()).catch(() => sendPasswordResetEmail(auth, email.trim(), verifyLink()));
   } catch (e) {
     if (['auth/too-many-requests', 'auth/network-request-failed'].includes(code(e))) throw e;
   }
@@ -177,7 +200,7 @@ export async function resetPassword(email: string) {
 
 export async function resendVerification() {
   const user = auth.currentUser;
-  if (user && !user.emailVerified) await sendEmailVerification(user, verifyLink());
+  if (user && !user.emailVerified) await sendVerify(user);
 }
 
 // The ID token only carries email_verified after a reload + forced refresh, and Firestore rules read the token.
@@ -189,6 +212,27 @@ export async function checkVerified() {
   await user.getIdToken(true);
   await afterLogin();
   return true;
+}
+
+// Links in Firebase's emails (verify, reset password, undo an email change) open /auth/action in this app.
+export type EmailAction = 'verifyEmail' | 'resetPassword' | 'recoverEmail' | 'verifyAndChangeEmail';
+
+/** Confirms an address (or undoes an email change). Returns the address the link was for. */
+export async function applyEmailLink(oobCode: string): Promise<string | null> {
+  const info = await checkActionCode(auth, oobCode);
+  await applyActionCode(auth, oobCode);
+  const email = info.data.email ?? null;
+  // When the link is opened where that account is signed in, the token now says "verified" and the zukan starts syncing.
+  const user = auth.currentUser;
+  if (user && !user.isAnonymous && email && user.email?.toLowerCase() === email.toLowerCase()) await checkVerified().catch(() => false);
+  return email;
+}
+
+/** Checks a reset link before showing the form; returns the account's address. */
+export const resetLinkEmail = (oobCode: string) => verifyPasswordResetCode(auth, oobCode);
+
+export async function setNewPassword(oobCode: string, password: string) {
+  await confirmPasswordReset(auth, oobCode, password);
 }
 
 async function startOver() {

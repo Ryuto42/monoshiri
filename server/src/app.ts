@@ -13,6 +13,7 @@ import { media } from './routes/media.ts';
 import { speech } from './routes/speech.ts';
 import { video } from './routes/video.ts';
 import { learn } from './routes/learn.ts';
+import { mail } from './routes/mail.ts';
 
 export function createApp(deps: AuthDeps = defaultAuthDeps) {
   const app = new Hono<Env>();
@@ -36,6 +37,6 @@ export function createApp(deps: AuthDeps = defaultAuthDeps) {
     return c.json({ error: 'internal', ...(LOCAL && { message: String(err?.message ?? err).slice(0, 200) }) }, 500);
   });
 
-  for (const r of [detect, explore, deep, media, speech, video, learn]) app.route('/', r);
+  for (const r of [detect, explore, deep, media, speech, video, learn, mail]) app.route('/', r);
   return app;
 }
