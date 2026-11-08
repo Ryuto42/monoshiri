@@ -92,6 +92,7 @@ export const DETECT_PROMPT = `あなたは写真の中のモノを見つける�
 - label: 子どもにも分かる日本語の一般名（例: ペットボトル, マグカップ, イチョウの葉）。商品名・人名は使わない。
 - en: 英語の一般名
 - box_2d: [ymin, xmin, ymax, xmax] を 0〜1000 に正規化した整数
+- alts: 見まちがえやすい別の候補の一般名（日本語、最大2個。自信があれば空の配列）
 - 人物そのものは対象にしない（服やメガネなど身につけているモノは可）
 - 何も見つからなければ空の配列`;
 
@@ -113,7 +114,10 @@ export function explorePrompt(label: string) {
   - kind: 次から1つ ${TOPIC_KINDS.join(' / ')}
   - icon: 上と同じリストから1つ
   6個の kind はできるだけバラバラにする（つくりかた・れきし・しくみ・かんきょう を優先）
-- keywords: 関連キーワード 4個`;
+- keywords: 関連キーワード 4個
+- ok: 「${label}」が、子ども向けに説明してよい具体的なモノ・生き物・食べ物・自然などの一般名なら true。
+  人名や個人を特定する情報、暴力的・性的な内容、危険な物の作り方につながる名前、意味のない文字列なら false
+  （false のときは、ほかの項目は空でよい）`;
 }
 
 export function deepPrompt(name: string, topic: string) {
