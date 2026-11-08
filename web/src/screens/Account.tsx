@@ -270,7 +270,7 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
           <Strength pw={pw} email={email.trim()} />
         ) : (
           <button type="button" onClick={onForgot} className="ml-auto flex items-center gap-1 px-1 text-[13px] font-bold text-ink-2">
-            <Icon name="search" size={15} className="text-ink-3" />
+            <Icon name="help" size={16} className="translate-y-px text-ink-3" />
             <span className="underline decoration-ink/20 underline-offset-4">パスワードを忘れてしまった</span>
           </button>
         )}
