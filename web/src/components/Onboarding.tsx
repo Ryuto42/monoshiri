@@ -113,9 +113,8 @@ function Consent({ child, onBack, onAgree }: { child: boolean; onBack: () => voi
         </Point>
       </ul>
       <p className="mt-1 text-center">
-        <PrivacyLink className="inline-flex min-h-11 items-center gap-1 px-2 text-[14px] text-leaf">
+        <PrivacyLink icon="chevron_right" className="inline-flex min-h-11 items-center gap-1 px-2 text-[14px] text-leaf">
           プライバシーポリシーを 読む
-          <Icon name="chevron_right" size={18} />
         </PrivacyLink>
       </p>
 
