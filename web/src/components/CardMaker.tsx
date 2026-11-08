@@ -2,6 +2,7 @@ import { animate, motion, useMotionValue } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { getCard, saveCard, useCards } from '../lib/cards';
 import { illustFor, notifyWhenReady, startIllust, usePendingIllust } from '../lib/illust';
+import { maybeNudge } from '../lib/account';
 import { thumbFrom } from '../lib/image';
 import type { Card, DeepNote, Explore } from '../lib/types';
 import { CardBack, CardFace } from './CardFace';
@@ -64,6 +65,7 @@ export function CardMaker({ ex, crop, notes, onClose, flyTo }: {
     if (illustration || !busy) toast(existing ? 'カードを更新しました' : `図鑑 No.${String(no).padStart(3, '0')} に追加！`, 'auto_awesome');
     else toast('イラストができたら図鑑でお知らせします', 'brush');
     onClose();
+    if (!existing) maybeNudge(no);
   };
 
   return (
