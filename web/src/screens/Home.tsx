@@ -54,11 +54,14 @@ export function Home({ paused = false }: { paused?: boolean }) {
     }
   }
 
-  async function explore(label: string, crop: string | null, cropB64?: string) {
-    setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null });
+  async function explore(label: string, crop: string | null, cropB64?: string, from?: string) {
+    setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null, known: null, label });
+    void api.known(label).then(({ known }) => getFlow().stage === 'exploring' && setFlow({ known })).catch(() => {});
     try {
-      const ex = await api.explore(label, cropB64);
+      const ex = await api.explore(label, cropB64, from);
       if (getFlow().stage !== 'exploring') return;
+      // A correction renames the marker only once the new name worked, so "もう一度" after a failure retries the original.
+      if (from) setFlow((s) => ({ objects: s.objects.map((x, i) => (i === s.selected ? { ...x, label, alts: [] } : x)) }));
       const saved = getCard(ex.id);
       const notes = Object.fromEntries((saved?.notes ?? []).map((n) => [n.topicId, n]));
       setFlow({ stage: 'explore', explore: ex, notes });
@@ -75,6 +78,17 @@ export function Home({ paused = false }: { paused?: boolean }) {
     haptic('select');
     setFlow({ selected: i });
     void explore(o.label, c.dataUrl, c.base64);
+  }
+
+  // The person says the photo was misread: rename the marker and explore the name they chose, with the same photo crop.
+  function correct(label: string) {
+    const s = getFlow();
+    if (!s.shot || s.selected == null) return;
+    const o = s.objects[s.selected];
+    if (!o || label === o.label) return;
+    const c = cropBox(s.shot, o.box, 640);
+    haptic('select');
+    void explore(label, c.dataUrl, c.base64, o.label);
   }
 
   async function capture() {
@@ -278,6 +292,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
             crops={crops}
             onPick={pick}
             onAsk={(label) => explore(label, null)}
+            onCorrect={correct}
             onTopic={(id) => setFlow({ topicId: id })}
             onMakeCard={() => setMaking(true)}
             onRetry={() => (flow.selected != null ? pick(flow.selected) : flow.shot ? analyze(flow.shot) : resetFlow())}
