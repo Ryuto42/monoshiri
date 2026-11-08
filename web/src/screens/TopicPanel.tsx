@@ -151,7 +151,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
                     }}
                     className="relative flex h-10 flex-1 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full px-3 text-[14px] font-bold"
                   >
-                    {tab === t.id && <motion.span layoutId="tab-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-card)]" transition={spring} />}
+                    {tab === t.id && <motion.span layoutId="tab-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-tab)]" transition={spring} />}
                     <span className={`relative flex items-center gap-1 ${tab === t.id ? 'text-ink' : 'text-ink-3'}`}>
                       <Icon name={t.icon} size={18} fill={tab === t.id} />
                       {t.label}
