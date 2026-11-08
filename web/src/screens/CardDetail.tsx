@@ -23,7 +23,9 @@ import { stripRuby } from '../lib/ruby';
 import { useStage, type Stage } from '../lib/level';
 import { unitById, unitStatus, useUnitLinks } from '../lib/units';
 
-const gridCard = (id: string) => document.querySelector<HTMLElement>(`#zukan-scroll [data-card-id="${CSS.escape(id)}"]`);
+const gridCard = (id: string) =>
+  document.querySelector<HTMLElement>(`#zukan-scroll [data-card-open][data-card-id="${CSS.escape(id)}"]`) ??
+  document.querySelector<HTMLElement>(`#zukan-scroll [data-card-id="${CSS.escape(id)}"]`);
 
 // Where the card should land in the zukan; scrolls it into view (under the cover of the detail) when it is off screen.
 function landing(grid: HTMLElement) {
@@ -210,7 +212,9 @@ export function CardDetail({ cardId }: { cardId: string }) {
         style={{ x, y, scale: shrink, originX: 0, originY: 0, willChange: 'transform' }}
         className="relative mx-auto flex min-h-full max-w-5xl flex-col items-center gap-8 px-5 pb-16 pt-[max(env(safe-area-inset-top),20px)] lg:flex-row lg:items-start lg:pt-16"
       >
-        <div ref={(e) => void (fades.current[0] = e)} className="absolute right-4 top-[max(env(safe-area-inset-top),16px)] z-10">
+        {/* min-w-0 on the panel below keeps long content from widening it past this button's right edge (on a PC the
+            button sat well inside the panel's corner). */}
+        <div ref={(e) => void (fades.current[0] = e)} className="absolute right-4 top-[max(env(safe-area-inset-top),16px)] z-10 lg:right-5">
           <IconButton icon="close" label="とじる" tone="glass" onClick={close} />
         </div>
 
@@ -239,7 +243,7 @@ export function CardDetail({ cardId }: { cardId: string }) {
           ref={(e) => void (fades.current[2] = e)}
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0, transition: { delay: 0.15, type: 'spring', stiffness: 260, damping: 28 } }}
-          className="w-full flex-1 rounded-[32px] bg-paper p-6 text-ink shadow-[var(--shadow-float)]"
+          className="w-full min-w-0 flex-1 rounded-[32px] bg-paper p-6 text-ink shadow-[var(--shadow-float)]"
         >
           <div ref={intro}>
             <div className="flex items-center gap-3">

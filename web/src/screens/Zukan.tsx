@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
 import { useNavigate, useParams } from '@tanstack/react-router';
@@ -17,7 +17,7 @@ import { api } from '../lib/api';
 import { useStage } from '../lib/level';
 import { stripRuby } from '../lib/ruby';
 import { backfillUnits, cardsByUnit, SUBJECTS, unitById, UNITS } from '../lib/units';
-import { UnitDetail, ZukanUnits } from './ZukanUnits';
+import { ZukanUnits } from './ZukanUnits';
 
 type Mode = 'genre' | 'units';
 const MODE_KEY = 'monoshiri.zukan.mode';
@@ -37,7 +37,6 @@ export function Zukan() {
   const [q, setQ] = useState('');
   const [mode, setModeState] = useState<Mode>(readMode);
   const [subject, setSubject] = useState('すべて');
-  const [unitId, setUnitId] = useState<string | null>(null);
   const { stage } = useStage();
   const cats = useMemo(() => ['すべて', ...Object.keys(CATEGORY_STYLE).filter((c) => cards.some((x) => x.category === c))], [cards]);
   const shown = cards.filter((c) => (cat === 'すべて' || c.category === cat) && (!q || stripRuby(`${c.name}${c.reading}${c.en}`).toLowerCase().includes(q.toLowerCase())));
@@ -47,7 +46,6 @@ export function Zukan() {
   const subj = subjects.includes(subject) ? subject : 'すべて';
   const backTo = useBackTo();
   const toCamera = () => backTo('/');
-  // Registered once so layers opened inside the zukan (a unit) stay above it in the back stack.
   useEffect(() => onBack(() => backTo('/'), { history: false }), [backTo]);
   useEffect(() => {
     void backfillUnits(cards);
@@ -57,30 +55,34 @@ export function Zukan() {
   }, [mode]);
   const setMode = (m: Mode) => {
     setModeState(m);
-    setUnitId(null);
     try {
       localStorage.setItem(MODE_KEY, m);
     } catch {
       /* the zukan just opens on genres next time */
     }
   };
-  const scrollBack = useRef(0);
-  const openUnit = (id: string) => {
-    scrollBack.current = document.getElementById('zukan-scroll')?.scrollTop ?? 0;
-    if (mode !== 'units') setMode('units');
-    setUnitId(id);
-  };
-  const closeUnit = useCallback(() => {
-    setUnitId(null);
-    requestAnimationFrame(() => document.getElementById('zukan-scroll')?.scrollTo({ top: scrollBack.current }));
-  }, []);
   // Inside the zukan the card itself fades its new art in, so the bubble on the camera screen isn't needed.
   const ready = useIllustReady();
   useEffect(() => {
     if (ready) clearReady();
   }, [ready]);
 
-  const open = (id: string) => navigate({ to: '/zukan/$cardId', params: { cardId: id } });
+  // A card can sit under several units, so the one that was tapped is marked for CardDetail to fly back onto.
+  // Changing the filter while scrolled down brings the top of the new list up under the bar, instead of leaving the view
+  // somewhere past its end.
+  const bar = useRef<HTMLDivElement>(null);
+  const pickCat = (c: string) => {
+    setCat(c);
+    const scroller = document.getElementById('zukan-scroll');
+    const grid = document.getElementById('zukan-grid');
+    const barBottom = bar.current?.getBoundingClientRect().bottom ?? 0;
+    if (scroller && grid && grid.getBoundingClientRect().top < barBottom) scroller.scrollTop += grid.getBoundingClientRect().top - barBottom - 16;
+  };
+  const open = (id: string, el?: HTMLElement) => {
+    document.querySelectorAll('[data-card-open]').forEach((e) => e.removeAttribute('data-card-open'));
+    el?.setAttribute('data-card-open', '');
+    void navigate({ to: '/zukan/$cardId', params: { cardId: id } });
+  };
   // The filter bar sticks right under the header. Its height depends on the safe area, so it is measured: a guessed
   // offset left a sliver between the two where cards showed through while scrolling. Both are opaque for the same reason.
   const head = useRef<HTMLElement>(null);
@@ -95,7 +97,7 @@ export function Zukan() {
 
   return (
     <>
-      <div className="fixed inset-0 overflow-y-auto overscroll-contain bg-paper paper-grain" id="zukan-scroll">
+      <div className="fixed inset-0 overflow-y-auto overflow-x-hidden overscroll-contain bg-paper paper-grain" id="zukan-scroll">
         <header ref={head} className="sticky top-0 z-20 bg-paper">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 pb-3 pt-[max(env(safe-area-inset-top),14px)] sm:px-6">
             <div className="flex items-center gap-2">
@@ -118,7 +120,13 @@ export function Zukan() {
           </motion.section>
 
           {(cards.length > 0 || UNITS.length > 0) && (
-            <div className="sticky z-10 -mx-4 mt-5 bg-paper px-4 py-2 shadow-[0_10px_14px_-12px_rgb(0_0_0/0.45)] sm:-mx-6 sm:px-6" style={{ top: headHeight }}>
+            <div
+              ref={bar}
+              // The opaque band behind the bar spans the whole window and reaches a little up under the header, so no sliver
+              // shows between the two at any width or zoom (on a PC it used to stop at the content's width).
+              className="sticky z-10 mt-5 py-2 before:absolute before:-top-2 before:bottom-0 before:left-1/2 before:-z-10 before:w-screen before:-translate-x-1/2 before:bg-paper before:shadow-[0_10px_14px_-12px_rgb(0_0_0/0.45)] before:content-['']"
+              style={{ top: headHeight }}
+            >
               <div className="flex items-center gap-2">
                 {UNITS.length > 0 && (
                   <div className="flex shrink-0 rounded-full bg-paper-2 p-1" role="tablist" aria-label="図鑑の見かた">
@@ -141,7 +149,7 @@ export function Zukan() {
                     ))}
                   </div>
                 )}
-                {(mode === 'units' ? !unitId && have.size > 0 : cards.length > 0) && (
+                {(mode === 'units' ? have.size > 0 : cards.length > 0) && (
                   <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-paper-2 px-4 sm:max-w-xs">
                     <Icon name="search" size={20} className="text-ink-3" />
                     <input
@@ -157,14 +165,14 @@ export function Zukan() {
               {mode === 'genre' && cards.length > 0 && (
                 <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
                   {cats.map((c) => (
-                    <motion.button key={c} onClick={() => setCat(c)} whileTap={{ scale: 0.97 }} transition={spring} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
+                    <motion.button key={c} onClick={() => pickCat(c)} whileTap={{ scale: 0.97 }} transition={spring} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
                       {cat === c && <motion.span layoutId="cat-pill" className="absolute inset-0 rounded-full bg-ink" transition={spring} />}
                       <span className={`relative ${cat === c ? 'text-paper' : 'text-ink-2'}`}>{c}</span>
                     </motion.button>
                   ))}
                 </div>
               )}
-              {mode === 'units' && !unitId && subjects.length > 1 && (
+              {mode === 'units' && subjects.length > 1 && (
                 <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
                   {['すべて', ...subjects].map((c) => (
                     <motion.button key={c} onClick={() => setSubject(c)} whileTap={{ scale: 0.97 }} transition={spring} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
@@ -177,31 +185,32 @@ export function Zukan() {
             </div>
           )}
 
-          {mode === 'units' ? (
-            unitId ? (
-              <UnitDetail unitId={unitId} cards={cards} stage={stage} onClose={closeUnit} onOpenCard={open} />
-            ) : (
-              <ZukanUnits cards={cards} q={q} subject={subj} stage={stage} onOpenUnit={openUnit} />
-            )
-          ) : cards.length === 0 ? (
-            <div className="mt-8 overflow-hidden rounded-[32px] bg-paper-2">
-              <EmptySlots />
-              <div className="px-6 pb-8 text-center">
-                <p className="text-[20px] font-black">まだカードがありません</p>
-                <p className="phrase-wrap mt-1 text-ink-2">
-                  <Phrases text="身の回りのモノを撮って、最初の1枚を手に入れよう！" />
-                </p>
-              </div>
-            </div>
-          ) : (
-            <CardGrid shown={shown} cards={cards} onOpen={open} />
-          )}
-          {mode === 'genre' && cards.length > 0 && shown.length === 0 && <p className="mt-10 text-center text-ink-3">見つかりませんでした</p>}
+          {/* Both views come in the same way: a short fade in place. */}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div key={mode} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+              {mode === 'units' ? (
+                <ZukanUnits cards={cards} q={q} subject={subj} stage={stage} onOpenCard={open} />
+              ) : cards.length === 0 ? (
+                <div className="mt-8 overflow-hidden rounded-[32px] bg-paper-2">
+                  <EmptySlots />
+                  <div className="px-6 pb-8 text-center">
+                    <p className="text-[20px] font-black">まだカードがありません</p>
+                    <p className="phrase-wrap mt-1 text-ink-2">
+                      <Phrases text="身の回りのモノを撮って、最初の1枚を手に入れよう！" />
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <CardGrid shown={shown} cards={cards} filter={cat} onOpen={open} />
+              )}
+              {mode === 'genre' && cards.length > 0 && shown.length === 0 && <p className="mt-10 text-center text-ink-3">見つかりませんでした</p>}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
-      {/* The only ways back to the camera are this and the arrow at the top left; hidden while a unit or a card is open. */}
+      {/* The only ways back to the camera are this and the arrow at the top left; hidden while a card is open. */}
       <AnimatePresence>
-        {!unitId && !params.cardId && (
+        {!params.cardId && (
           <motion.div
             key="go"
             initial={{ opacity: 0, y: 24 }}
@@ -223,34 +232,30 @@ export function Zukan() {
 
 // Kept apart from the route params so opening or closing a card does not re-render (and re-measure) every card.
 // CardDetail hides the card it is showing and flies back onto it (data-card-id).
-function CardGrid({ shown, cards, onOpen }: { shown: Card[]; cards: Card[]; onOpen: (id: string) => void }) {
-  // Layout animations only need a fresh measurement when the set of cards (or their height) changes.
-  const layoutKey = shown.map((c) => `${c.id}:${c.notes.length > 0}`).join();
+function CardGrid({ shown, cards, filter, onOpen }: { shown: Card[]; cards: Card[]; filter: string; onOpen: (id: string, el: HTMLElement) => void }) {
+  // A new filter fades the grid in place. Cards used to slide to their new spots, but the page got shorter and the
+  // scroll position moved with it, so they seemed to fly in from odd places.
   return (
-    <motion.ul layout layoutDependency={layoutKey} className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-      {/* No entrance pop on first open: the zukan is already sliding in, and two dozen JS-driven springs at once drop frames. */}
-      <AnimatePresence mode="popLayout" initial={false}>
-        {shown.map((c, i) => (
-          <motion.li
-            key={c.id}
-            layout
-            layoutDependency={layoutKey}
-            initial={{ opacity: 0, y: 24, scale: 0.92 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 28, delay: Math.min(i, 12) * 0.035 }}
-          >
-            <motion.button data-card-id={c.id} onClick={() => onOpen(c.id)} whileTap={{ scale: 0.97 }} transition={spring} className="block w-full text-left">
-              <CardFace card={c} no={cards.length - cards.indexOf(c)} />
-            </motion.button>
-            {c.notes.length > 0 && (
-              <p className="mt-2 flex items-center gap-1 px-1 text-[12px] font-bold text-ink-3">
-                <Icon name="explore" size={14} fill /> {c.notes.length}テーマ深掘り
-              </p>
-            )}
-          </motion.li>
-        ))}
-      </AnimatePresence>
+    <motion.ul
+      key={filter}
+      id="zukan-grid"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15 }}
+      className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+    >
+      {shown.map((c) => (
+        <li key={c.id}>
+          <motion.button data-card-id={c.id} onClick={(e) => onOpen(c.id, e.currentTarget)} whileTap={{ scale: 0.97 }} transition={spring} className="block w-full text-left">
+            <CardFace card={c} no={cards.length - cards.indexOf(c)} />
+          </motion.button>
+          {c.notes.length > 0 && (
+            <p className="mt-2 flex items-center gap-1 px-1 text-[12px] font-bold text-ink-3">
+              <Icon name="explore" size={14} fill /> {c.notes.length}テーマ深掘り
+            </p>
+          )}
+        </li>
+      ))}
     </motion.ul>
   );
 }
