@@ -42,9 +42,6 @@ export function Zukan() {
               <IconButton icon="arrow_back" label="カメラにもどる" onClick={toCamera} />
               <span className="hidden sm:block"><Logo /></span>
             </div>
-            <Button icon="photo_camera" onClick={toCamera} className="h-11">
-              さがしに行く
-            </Button>
           </div>
         </header>
 
@@ -94,6 +91,23 @@ export function Zukan() {
           {cards.length > 0 && shown.length === 0 && <p className="mt-10 text-center text-ink-3">見つかりませんでした</p>}
         </main>
       </div>
+      {/* カメラへ戻る道は左上の矢印と、ここだけ。0枚のときは空の案内の中の「カメラをひらく」が代わりになる */}
+      <AnimatePresence>
+        {cards.length > 0 && !params.cardId && (
+          <motion.div
+            key="go"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={spring}
+            className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-[max(env(safe-area-inset-bottom),16px)]"
+          >
+            <Button icon="photo_camera" onClick={toCamera} className="pointer-events-auto h-13 px-7 shadow-[var(--shadow-float)]">
+              さがしに行く
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>{params.cardId && cards.some((c) => c.id === params.cardId) && <CardDetail key={params.cardId} cardId={params.cardId} />}</AnimatePresence>
     </>
   );
