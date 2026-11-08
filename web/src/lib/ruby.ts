@@ -1,3 +1,9 @@
+import { createContext } from 'react';
+import type { Stage } from './level';
+
+// Lets a screen use a stage that isn't saved yet (the consent step right after the age is entered).
+export const ReadingStage = createContext<Stage | null | undefined>(undefined);
+
 // Explanations for younger stages mark readings as 漢字《かんじ》 (the Aozora Bunko convention).
 const RUBY = /([\p{Script=Han}々〆ヶ]+)《([^《》\n]{1,20})》/gu;
 

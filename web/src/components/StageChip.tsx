@@ -6,26 +6,25 @@ import { haptic, onBack } from '../lib/native';
 import { toast } from '../lib/toast';
 import { stripRuby } from '../lib/ruby';
 import { RubyText } from './RubyText';
-import { StagePicker } from './StagePicker';
+import { AgePicker } from './AgePicker';
 import { Icon, IconButton } from './ui';
-import { spring } from './theme';
+import { press, sheetMotion, ui } from './theme';
 
 const tones = {
   glass: 'glass border border-white/15 bg-black/35 text-white backdrop-blur-xl',
   paper: 'bg-paper-2 text-ink hover:bg-paper-3',
 };
 
-// "いま：高学年むけ ▼" — shows the current stage and switches it in a small sheet.
+// "いま：高学年むけ ▼" — shows the current stage and changes it from the age, in a small sheet.
 export function StageChip({ tone = 'paper', onChange, className = '' }: { tone?: keyof typeof tones; onChange?: (s: Stage) => void; className?: string }) {
   const { stage } = useStage();
   const [open, setOpen] = useState(false);
-  const label = stage ? `${stageInfo(stage).ruby}むけ` : '学年《がくねん》をえらぶ';
+  const label = stage ? `${stageInfo(stage).ruby}むけ` : 'ふつうの せつめい';
   return (
     <>
       <motion.button
         type="button"
-        whileTap={{ scale: 0.94 }}
-        transition={spring}
+        {...press}
         onClick={() => {
           haptic('tap');
           setOpen(true);
@@ -75,22 +74,21 @@ function StageSheet({ stage, onClose, onChange }: { stage: Stage | null; onClose
 
   return (
     <motion.div className="fixed inset-0 z-[60] flex items-end justify-center text-ink lg:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.button aria-label="とじる" tabIndex={-1} className="absolute inset-0 bg-black/45" onClick={onClose} />
+      <motion.button aria-label="とじる" tabIndex={-1} className={ui.scrim} onClick={onClose} />
       <motion.section
         role="dialog"
         aria-modal
         aria-labelledby="stage-chip-title"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-        className="relative max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-[32px] bg-paper px-6 pt-3 pb-[max(env(safe-area-inset-bottom),20px)] shadow-[var(--shadow-float)] paper-grain no-scrollbar lg:max-w-[440px] lg:rounded-[32px]"
+        {...sheetMotion}
+        className={`${ui.sheet} max-h-[94dvh] lg:max-h-[min(860px,92dvh)] lg:max-w-[440px]`}
       >
-        <div className="relative flex h-10 justify-center">
-          <span className="mt-1 h-1.5 w-10 rounded-full bg-ink/15 lg:hidden" />
-          <IconButton icon="close" label="とじる" onClick={onClose} className="absolute -right-3 -top-1" />
+        <div className={ui.sheetHeader}>
+          <span className={ui.handle} />
+          <IconButton icon="close" label="とじる" onClick={onClose} className={ui.sheetClose} />
         </div>
-        <StagePicker initial={stage} saving={saving} onSave={(s) => void save(s)} titleId="stage-chip-title" compact saveLabel="これに する" />
+        <div className={ui.sheetBody}>
+          <AgePicker initial={stage} saving={saving} onSave={(s) => void save(s)} titleId="stage-chip-title" compact saveLabel="これに する" />
+        </div>
       </motion.section>
     </motion.div>
   );
