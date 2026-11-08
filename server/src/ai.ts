@@ -1,7 +1,7 @@
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 import { execSync } from 'node:child_process';
-import { LOCAL, PROJECT, PRICES, SAFETY, type Level } from './config.ts';
+import { GROUNDING_USD_PER_QUERY, LOCAL, PROJECT, PRICES, SAFETY, type Level } from './config.ts';
 import { addSpent } from './store.ts';
 
 function makeClient() {
@@ -19,7 +19,9 @@ function makeClient() {
   return new GoogleGenAI({ ...base, googleAuthOptions: { authClient: authClient as any } });
 }
 
-const client = makeClient();
+// Created on first use, so importing the app (tests, scripts) needs no Google credentials.
+let clientInstance: GoogleGenAI | null = null;
+const client = () => (clientInstance ??= makeClient());
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const busy = (e: any) => e?.status === 429 || e?.status === 503 || /RESOURCE_EXHAUSTED|UNAVAILABLE/.test(String(e?.message));
@@ -38,8 +40,8 @@ async function retry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
 
 export const ai = {
   models: {
-    generateContent: (p: Parameters<typeof client.models.generateContent>[0]) => retry(() => client.models.generateContent(p)),
-    generateContentStream: (p: Parameters<typeof client.models.generateContentStream>[0]) => retry(() => client.models.generateContentStream(p)),
+    generateContent: (p: Parameters<GoogleGenAI['models']['generateContent']>[0]) => retry(() => client().models.generateContent(p)),
+    generateContentStream: (p: Parameters<GoogleGenAI['models']['generateContentStream']>[0]) => retry(() => client().models.generateContentStream(p)),
   },
 };
 
@@ -60,8 +62,9 @@ export function costOf(model: string, usage: Usage, images = 0) {
   return ((inTok * p.in + (p.perImage ? 0 : outTok * p.out)) / 1e6 + images * (p.perImage ?? 0)) * SAFETY;
 }
 
-export async function track(model: string, usage: Usage, kind: string, images = 0) {
-  await addSpent(costOf(model, usage, images), kind);
+// searchQueries: how many Google Search queries a grounded call ran (billed per query on top of tokens).
+export async function track(model: string, usage: Usage, kind: string, images = 0, searchQueries = 0) {
+  await addSpent(costOf(model, usage, images) + searchQueries * GROUNDING_USD_PER_QUERY * SAFETY, kind);
 }
 
 export function grounding(res: GenerateContentResponse | undefined) {
@@ -102,13 +105,16 @@ const AUDIENCE: Record<Exclude<Level, 'std'>, { who: string; style: string; summ
     who: '小学校1〜3年生',
     style: `- 漢字は小学2年生までに習うもの（例: 木・水・山・川・花・犬・空・家・時間・天気）だけを使い、それ以外はひらがなにする
 - 1文を短く（30字くらいまで）。むずかしい言葉は使わず、身近なものにたとえる
-- 数字は大きすぎない、イメージしやすいものにする（例: 「プール1ぱいぶん」）`,
+- 数字は大きすぎない、イメージしやすいものにする（例: 「プール1ぱいぶん」）
+- 漢字を使うときは、毎回その直後に《》で読みがなを付ける（例: 水《みず》、時間《じかん》、天気《てんき》）。ひらがな・カタカナ・数字には付けない
+- name・reading・en・keywords・問いの title と、mermaid の図の中には《》を付けない`,
     summary: '80字前後のやさしいせつめい',
     deep: '全体で 400 字前後。見出しは 3 個まで。mermaid の図は入れない',
   },
   upper: {
     who: '小学校4〜6年生',
-    style: `- 漢字は小学校で習うものまで。中学校以上で習う漢字や言葉はひらがなにするか（かっこ）で読み・言いかえを添える
+    style: `- 漢字は小学校で習うものまで。中学校以上で習う漢字はひらがなにするか、直後に《》で読みがなを付ける（例: 循環《じゅんかん》）。むずかしい言葉には（かっこ）で言いかえを添える
+- name・reading・en・keywords・問いの title と、mermaid の図の中には《》を付けない
 - 理科や社会の授業とつながる言葉（例: 原料、気体、しくみ）は使ってよい。1文は40字くらいまで`,
     summary: '120字前後のやさしい説明',
     deep: '全体で 600 字前後。むずかしい言葉には（かっこ）で言いかえを添える',
@@ -128,6 +134,20 @@ const AUDIENCE: Record<Exclude<Level, 'std'>, { who: string; style: string; summ
     deep: '全体で 1200 字前後。原理・メカニズムを中心に、関連する法則や式があれば示す',
   },
 };
+
+// Stages whose text carries 《》 reading marks (furigana); their caches use a new key so older plain text isn't mixed in.
+export const RUBY_LEVELS: ReadonlySet<Level> = new Set(['lower', 'upper']);
+
+export function unitsPrompt(name: string, en: string, summary: string, list: string) {
+  return `「${name}」（${en}）について、日本の小学校・中学校・高校の授業で、このモノが教材や例として出てくる単元を選んでください。
+モノの説明: ${summary.slice(0, 300)}
+
+単元の一覧（id|学年|教科|単元|例のモノ）:
+${list}
+
+- 一覧の id からだけ選ぶ。関係が強い順に最大3つ。こじつけになるなら選ばない（0個でもよい）
+- why: その単元でこのモノがどう出てくるかを、小学生にも分かる言葉で25字以内（例: 「水にとける量を調べる実験で使う」）`;
+}
 
 export function explorePrompt(label: string, level: Level = 'std') {
   if (level !== 'std') {

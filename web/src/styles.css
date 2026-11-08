@@ -209,6 +209,35 @@ body {
   text-underline-offset: 3px;
 }
 
+/* Furigana: small readings that sit in the line's leading, so lines with and without ruby keep the same spacing. */
+ruby {
+  ruby-position: over;
+  ruby-align: center;
+}
+rt {
+  font-size: 0.5em;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  color: color-mix(in oklab, currentColor 72%, transparent);
+  font-feature-settings: normal;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.prose-mono ruby {
+  line-height: 1;
+}
+/* Readers who get furigana also get a little more room between lines for it. */
+:root:is([data-stage='lower'], [data-stage='upper']) .prose-mono {
+  line-height: 2.1;
+}
+
+/* The youngest readers get the explanation one size larger. */
+:root[data-stage='lower'] .prose-mono,
+:root[data-stage='lower'] [data-speak]:not([class*='text-[']) {
+  font-size: 1.12em;
+}
+
 /* Read-aloud: the block being spoken gets a soft marker; the spread shadow pads it without shifting layout. */
 .prose-mono :is(h3, h4, p, li),
 [data-speak] {

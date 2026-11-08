@@ -16,10 +16,20 @@ service cloud.firestore {
       return !(k in d) || (d[k] is string && d[k].size() <= max);
     }
 
+    // Curriculum unit ids (web/src/data/curriculum.json): at most 5 short strings. Rules can't loop, so each slot is checked.
+    function unitIds(l) {
+      return l is list && l.size() <= 5
+        && (l.size() < 1 || (l[0] is string && l[0].size() <= 20))
+        && (l.size() < 2 || (l[1] is string && l[1].size() <= 20))
+        && (l.size() < 3 || (l[2] is string && l[2].size() <= 20))
+        && (l.size() < 4 || (l[3] is string && l[3].size() <= 20))
+        && (l.size() < 5 || (l[4] is string && l[4].size() <= 20));
+    }
+
     function validCard(cardId) {
       let d = request.resource.data;
       return d.keys().hasOnly(['id', 'name', 'reading', 'en', 'category', 'icon', 'oneLiner', 'summary', 'funFact',
-                               'topics', 'notes', 'illustration', 'createdAt', 'updatedAt'])
+                               'topics', 'notes', 'illustration', 'units', 'createdAt', 'updatedAt'])
         && d.keys().hasAll(['id', 'name', 'notes', 'createdAt', 'updatedAt'])
         && d.id == cardId
         && d.name is string && d.name.size() > 0 && d.name.size() <= 40
@@ -32,6 +42,7 @@ service cloud.firestore {
         && optString(d, 'funFact', 2000)
         && (!('topics' in d) || (d.topics is list && d.topics.size() <= 12))
         && d.notes is list && d.notes.size() <= 12
+        && (!('units' in d) || (d.units is list && d.units.size() <= 5 && unitIds(d.units)))
         && (!('illustration' in d) || d.illustration == null
             || (d.illustration is string && d.illustration.matches('^/media/[A-Za-z0-9/_.-]{1,200}$')))
         && d.createdAt is int && d.updatedAt is int
