@@ -48,6 +48,9 @@ export const api = {
   illustrate: (name: string, en: string) => post<{ url: string }>('/api/illustrate', { name, en }),
   diagram: (b: { name: string; en: string; topic: string; outline: string }) => post<{ url: string }>('/api/diagram', { ...b, level: currentLevel() }),
   tts: (text: string, ref?: TtsRef) => post<{ url: string }>('/api/tts', { text, ref: ref && { ...ref, level: currentLevel() } }),
+  // Sign-up and password emails sent by the API with the app's look (falls back to Firebase's standard email on failure).
+  mailVerify: () => post<{ ok: true }>('/api/mail/verify', {}),
+  mailReset: (email: string) => post<{ ok: true }>('/api/mail/reset', { email }),
   units: (name: string) => post<{ units: UnitLink[] }>('/api/units', { name, level: currentLevel() }),
   // Fire-and-forget: counting must never get in the way of learning.
   events: (events: { name: LearnEvent; n?: number }[]) =>
