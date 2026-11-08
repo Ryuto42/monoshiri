@@ -10,6 +10,9 @@ import { Button, Icon } from './ui';
 import { haptic, onBack } from '../lib/native';
 import { api } from '../lib/api';
 import { fillCard, useUnitLinks } from '../lib/units';
+import { useFlip } from '../lib/flip';
+
+const FLIP = { type: 'spring', stiffness: 120, damping: 16 } as const;
 
 export function CardMaker({ ex, notes, onClose, flyTo }: {
   ex: Explore; notes: DeepNote[]; onClose: () => void; flyTo: () => DOMRect | null;
@@ -18,6 +21,7 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
   const cards = useCards();
   const [illustration, setIllustration] = useState<string | null>(existing?.illustration ?? illustFor(ex.id));
   const [flipped, setFlipped] = useState(!!existing);
+  const flip = useFlip(flipped, FLIP);
   const busy = usePendingIllust().has(ex.id) && !illustration;
   const box = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0), y = useMotionValue(0), scale = useMotionValue(1), opacity = useMotionValue(1);
@@ -83,16 +87,17 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
         <motion.div ref={box} style={{ x, y, scale, opacity }} className="relative w-[min(78vw,300px)] [perspective:1200px]">
           <motion.div
             className="relative [transform-style:preserve-3d]"
-            initial={{ rotateY: 0, y: 60, scale: 0.6 }}
-            animate={{ rotateY: flipped ? 180 : 0, y: 0, scale: 1 }}
-            transition={{ rotateY: { type: 'spring', stiffness: 120, damping: 16 }, default: { type: 'spring', stiffness: 220, damping: 20 } }}
+            style={{ rotateY: flip.rotateY }}
+            initial={{ y: 60, scale: 0.6 }}
+            animate={{ y: 0, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 220, damping: 20 }}
           >
-            <div className="[backface-visibility:hidden]">
+            <motion.div className="[backface-visibility:hidden]" style={{ opacity: flip.front }}>
               <CardBack size="lg" />
-            </div>
-            <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+            </motion.div>
+            <motion.div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={{ opacity: flip.back }}>
               <CardFace card={{ ...ex, illustration, units }} no={no} size="lg" loadingArt={busy} />
-            </div>
+            </motion.div>
           </motion.div>
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.9 } }} className="mt-7 flex gap-2">
