@@ -106,7 +106,7 @@ export function StagePicker({ initial, saving, onSave, onSkip, titleId = 'accoun
         transition={spring}
         disabled={!stage || saving}
         onClick={() => stage && onSave(stage)}
-        className="mt-4 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink shadow-[0_8px_22px_-8px_color-mix(in_oklab,var(--accent)_75%,transparent)] disabled:opacity-50"
+        className="mt-4 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink disabled:opacity-50"
       >
         {saving ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <Icon name="check" size={22} />}
         {saveLabel ?? 'これで はじめる'}
