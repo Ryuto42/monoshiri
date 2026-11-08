@@ -50,7 +50,7 @@ export function GuestView() {
           {cards.length
             ? `いまの ${cards.length} 枚はそのまま引きつがれます。スマホでもパソコンでも、ログインすれば同じ図鑑が開けます。`
             : 'ログインすると、スマホでもパソコンでも同じ図鑑が開けます。'}
-          <span className="mt-1 block text-[12px] text-ink-3">新しいモノを調べられるのは、ゲストは約20円ぶん、登録すると約300円ぶんまで。</span>
+          <span className="mt-1 block text-[12px] text-ink-3">ゲストは新しく調べられる数に限りがあります。登録すると、もっとたくさん調べられます。</span>
         </p>
       )}
 
