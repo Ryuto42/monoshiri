@@ -54,7 +54,7 @@ function PrivacyBody() {
       </h2>
       <p className="mt-1 text-center text-[12px] text-ink-3">モノシリ・{ENACTED} 制定</p>
 
-      <section aria-labelledby="privacy-easy" className={`mt-6 ${ui.panel}`}>
+      <section aria-labelledby="privacy-easy" className={`phrase-wrap mt-6 ${ui.panel}`}>
         <h3 id="privacy-easy" className="flex items-center gap-2 text-[17px] font-black">
           <Icon name="lightbulb" size={22} fill className="text-sun" />
           かんたんに いうと
@@ -133,8 +133,8 @@ function PrivacyBody() {
         <Part title="8. お問い合わせ">
           <p>
             ご質問やご意見は、
-            <a href={ISSUES} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-bold text-leaf underline underline-offset-4">
-              GitHub の Issues
+            <a href={ISSUES} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-bold text-leaf">
+              <span className="underline underline-offset-4">GitHub の Issues</span>
               <Icon name="open_in_new" size={15} />
             </a>
             までお寄せください。
