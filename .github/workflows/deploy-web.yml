@@ -21,6 +21,7 @@ permissions:
 
 env:
   PROJECT: monoshiri-df26
+  SITE: monoshiri
   VITE_API_BASE: https://monoshiri-api-557874444860.asia-northeast1.run.app
 
 jobs:
