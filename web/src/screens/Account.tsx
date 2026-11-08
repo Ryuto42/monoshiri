@@ -33,10 +33,13 @@ export function Account() {
   return (
     <motion.div className="fixed inset-0 z-[50] flex items-end justify-center lg:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.button aria-label="とじる" tabIndex={-1} className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={close} />
+      {/* Slides up only as far as the focused field needs to clear the keyboard (--kb-lift, set in lib/native.ts). */}
+      <div data-kb-lift className="flex w-full justify-center transition-transform duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] [transform:translate3d(0,calc(var(--kb-lift,0px)*-1),0)]">
       <motion.section
         role="dialog"
         aria-modal
         aria-labelledby="account-title"
+        data-kb-sheet
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -47,10 +50,11 @@ export function Account() {
           <span className="h-1.5 w-10 rounded-full bg-ink/15 lg:hidden" />
           <IconButton icon="close" label="とじる" onClick={close} className="absolute right-3 top-2" />
         </div>
-        <div className="overflow-y-auto overscroll-contain px-6 pb-[max(env(safe-area-inset-bottom),24px)] no-scrollbar">
+        <div data-kb-scroll className="overflow-y-auto overscroll-contain px-6 pb-[calc(max(env(safe-area-inset-bottom),24px)+var(--kb-pad,0px))] no-scrollbar">
           {!me ? <Spinner big /> : me.guest ? <GuestView /> : <MemberView me={me} onDone={close} />}
         </div>
       </motion.section>
+      </div>
     </motion.div>
   );
 }
@@ -200,8 +204,8 @@ function Tabs({ mode, onChange }: { mode: 'login' | 'signup'; onChange: (m: 'log
       <div role="tablist" className="mt-5 grid grid-cols-2 rounded-full bg-paper-2 p-1">
         {(['signup', 'login'] as const).map((m) => (
           <button key={m} role="tab" aria-selected={mode === m} onClick={() => onChange(m)} className="relative h-10 rounded-full text-[14px] font-bold">
-            {mode === m && <motion.span layoutId="account-tab" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-card)]" transition={spring} />}
-            <span className={`relative ${mode === m ? 'text-ink' : 'text-ink-3'}`}>{m === 'signup' ? 'はじめて登録' : 'ログイン'}</span>
+            {mode === m && <motion.span layoutId="account-tab" className="absolute inset-0 rounded-full bg-paper shadow-[0_0_0_1px_rgb(60_40_20/0.06),0_1px_6px_rgb(0_0_0/0.18)]" transition={spring} />}
+            <span className={`relative ${mode === m ? 'text-ink' : 'text-ink-3'}`}>{m === 'signup' ? '新規登録' : 'ログイン'}</span>
           </button>
         ))}
       </div>
@@ -264,7 +268,17 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
         </button>
       </Field>
 
-      {signup && <Strength pw={pw} email={email.trim()} />}
+      {/* 登録とログインで同じ高さの枠を使い、切り替えてもシートの高さが変わらないようにする */}
+      <div className="mt-2.5 flex min-h-[30px] items-center">
+        {signup ? (
+          <Strength pw={pw} email={email.trim()} />
+        ) : (
+          <button type="button" onClick={onForgot} className="ml-auto flex items-center gap-1 px-1 text-[13px] font-bold text-ink-2">
+            <Icon name="help" size={16} className="translate-y-px text-ink-3" />
+            <span className="underline decoration-ink/20 underline-offset-4">パスワードを忘れてしまった</span>
+          </button>
+        )}
+      </div>
 
       <AnimatePresence mode="wait">
         {(local || error) && (
@@ -284,6 +298,7 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
       </AnimatePresence>
 
       <motion.button
+        data-kb-bottom
         type="submit"
         disabled={disabled}
         whileTap={{ scale: 0.97 }}
@@ -291,13 +306,8 @@ function EmailForm({ mode, busy, disabled, error, onSubmit, onForgot }: {
         className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-accent text-[16px] font-black text-accent-ink shadow-[0_8px_22px_-8px_color-mix(in_oklab,var(--accent)_75%,transparent)] disabled:opacity-60"
       >
         {busy ? <Spinner light /> : <Icon name={signup ? 'person_add' : 'login'} size={22} />}
-        {signup ? '登録して図鑑を守る' : 'ログイン'}
+        {signup ? '登録する' : 'ログイン'}
       </motion.button>
-      {!signup && (
-        <button type="button" onClick={onForgot} className="mx-auto mt-3 block text-[13px] font-bold text-ink-2 underline decoration-ink/20 underline-offset-4">
-          パスワードを忘れたとき
-        </button>
-      )}
     </form>
   );
 }
@@ -309,14 +319,15 @@ function Strength({ pw, email }: { pw: string; email: string }) {
     { ok: pw.length > 0 && !passwordProblem(pw, email), label: '推測されにくい' },
   ];
   return (
-    <ul className="mt-2.5 flex flex-wrap gap-1.5 px-1">
+    <ul className="flex w-full flex-wrap justify-between gap-1">
       {rules.map((r) => (
         <motion.li
           key={r.label}
+          initial={false}
           animate={{ backgroundColor: r.ok ? 'var(--leaf-soft)' : 'var(--paper-2)', color: r.ok ? 'var(--leaf)' : 'var(--ink-3)' }}
-          className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold"
+          className="flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[12px] font-bold"
         >
-          <Icon name={r.ok ? 'check_circle' : 'radio_button_unchecked'} size={15} fill={r.ok} />
+          <Icon name={r.ok ? 'check_circle' : 'radio_button_unchecked'} size={14} fill={r.ok} />
           {r.label}
         </motion.li>
       ))}
@@ -358,14 +369,14 @@ function ResetForm({ onBack }: { onBack: () => void }) {
             <input type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-ink-3" />
           </Field>
           {error && <p role="alert" className="mt-3 text-[13px] font-bold text-[#c2410c]">{error}</p>}
-          <button type="submit" disabled={state === 'busy'} className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-ink text-[15px] font-black text-paper disabled:opacity-60">
+          <button data-kb-bottom type="submit" disabled={state === 'busy'} className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-ink text-[15px] font-black text-paper disabled:opacity-60">
             {state === 'busy' ? <Spinner light /> : <Icon name="send" size={20} />}
             再設定のメールを送る
           </button>
         </form>
       )}
       <button onClick={onBack} className="mx-auto mt-4 flex items-center gap-1 text-[13px] font-bold text-ink-2">
-        <Icon name="arrow_back" size={18} /> ログインにもどる
+        <Icon name="arrow_back" size={18} /> ログイン画面に戻る
       </button>
     </div>
   );
@@ -569,7 +580,7 @@ function Field({ icon, label, className = '', children }: { icon: string; label:
   return (
     <label className={`block ${className}`}>
       <span className="mb-1 block px-1 text-[12px] font-bold text-ink-2">{label}</span>
-      <span className="flex h-13 items-center gap-2 rounded-2xl border border-line bg-paper px-3.5 transition-shadow [&_input]:outline-none focus-within:border-accent/60 focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]">
+      <span className="field flex h-13 items-center gap-2 rounded-2xl border border-line bg-paper px-3.5 transition-shadow focus-within:border-accent/60 focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]">
         <Icon name={icon} size={20} className="shrink-0 text-ink-3" />
         {children}
       </span>
