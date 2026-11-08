@@ -6,6 +6,7 @@ import fs from 'node:fs';
 
 const local = process.argv.includes('--local');
 const P = process.env.PROJECT ?? 'monoshiri-df26';
+const SITE = process.env.SITE ?? (P === 'monoshiri-df26' ? 'monoshiri' : P);
 const API_BASE = process.env.VITE_API_BASE ?? (local ? 'http://localhost:8080' : undefined);
 if (!API_BASE) throw new Error('VITE_API_BASE is required');
 const token = execSync('gcloud auth print-access-token').toString().trim();
@@ -23,7 +24,8 @@ const plist = iosApp
 const plistValue = (key) => plist.match(new RegExp(`<key>${key}</key>\\s*<string>([^<]+)</string>`))?.[1] ?? '';
 const iosClient = plistValue('CLIENT_ID');
 const env = {
-  VITE_FB_API_KEY: c.apiKey, VITE_FB_AUTH_DOMAIN: c.authDomain, VITE_FB_PROJECT_ID: c.projectId, VITE_FB_APP_ID: c.appId,
+  VITE_FB_API_KEY: c.apiKey, // Sign-in popups and email links run on the app's own domain instead of <project>.firebaseapp.com.
+  VITE_FB_AUTH_DOMAIN: process.env.AUTH_DOMAIN ?? `${SITE}.web.app`, VITE_FB_PROJECT_ID: c.projectId, VITE_FB_APP_ID: c.appId,
   VITE_FB_STORAGE_BUCKET: c.storageBucket, VITE_FB_SENDER_ID: c.messagingSenderId, VITE_API_BASE: API_BASE,
   VITE_GOOGLE_WEB_CLIENT_ID: google.enabled ? google.clientId : '', VITE_GOOGLE_IOS_CLIENT_ID: google.enabled ? iosClient : '',
 };

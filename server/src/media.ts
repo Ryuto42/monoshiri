@@ -6,7 +6,7 @@ import path from 'node:path';
 import { BUCKET, LOCAL, YT_KEY } from './config.ts';
 import { getCached, setCached } from './store.ts';
 
-const UA = 'Monoshiri/1.0 (educational hackathon app; https://monoshiri-df26.web.app)';
+const UA = 'Monoshiri/1.0 (educational hackathon app; https://monoshiri.web.app)';
 
 export const keyOf = (...parts: string[]) =>
   createHash('sha1').update(parts.map((p) => p.normalize('NFKC').trim().toLowerCase()).join('|')).digest('hex').slice(0, 24);

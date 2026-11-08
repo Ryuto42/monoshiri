@@ -1,4 +1,6 @@
 export const PROJECT = process.env.GOOGLE_CLOUD_PROJECT ?? 'monoshiri-df26';
+// The public Hosting site (https://monoshiri.web.app); other projects default to their own project-named site.
+export const SITE = process.env.HOSTING_SITE ?? (PROJECT === 'monoshiri-df26' ? 'monoshiri' : PROJECT);
 export const LOCAL = process.env.LOCAL_DEV === '1';
 export const PORT = Number(process.env.PORT ?? 8080);
 export const BUCKET = process.env.MEDIA_BUCKET ?? `${PROJECT}-media`;
@@ -6,7 +8,8 @@ export const YT_KEY = process.env.YOUTUBE_API_KEY ?? '';
 
 // capacitor://localhost and https://localhost are the iOS and Android app shells; the Vite dev server is allowed only in local dev.
 export const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ??
-  [`https://${PROJECT}.web.app`, `https://${PROJECT}.firebaseapp.com`, 'capacitor://localhost', 'https://localhost',
+  [`https://${SITE}.web.app`, `https://${SITE}.firebaseapp.com`, `https://${PROJECT}.web.app`, `https://${PROJECT}.firebaseapp.com`,
+    'capacitor://localhost', 'https://localhost',
     ...(LOCAL ? ['http://localhost:5173', 'http://127.0.0.1:5173'] : [])].join(','))
   .split(',');
 

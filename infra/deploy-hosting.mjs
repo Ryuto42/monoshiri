@@ -6,7 +6,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 const P = process.env.PROJECT ?? 'monoshiri-df26';
-const SITE = process.env.SITE ?? P;
+const SITE = process.env.SITE ?? (P === 'monoshiri-df26' ? 'monoshiri' : P);
 // CHANNEL=<id> deploys to a temporary preview channel (expires in 7 days) instead of the live site.
 const CHANNEL = process.env.CHANNEL;
 const root = new URL('..', import.meta.url).pathname;
