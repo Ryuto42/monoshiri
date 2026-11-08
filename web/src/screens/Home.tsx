@@ -23,7 +23,7 @@ import { haptic, onBack } from '../lib/native';
 import { GlassChrome, nativeChrome, pickNativePhoto } from '../lib/glass';
 import { useMe } from '../lib/firebase';
 import { Avatar } from './account/parts';
-import { onSampleRequest, showWelcome, useWelcome, welcomeShowing } from '../lib/welcome';
+import { onSampleRequest, showWelcome, welcomeShowing } from '../lib/welcome';
 import { StageChip } from '../components/StageChip';
 import { LeaveConfirm } from '../components/LeaveConfirm';
 import { unlockAudio } from '../components/Speak';
@@ -47,7 +47,6 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const [flash, setFlash] = useState(false);
   const [dragging, setDragging] = useState(false);
   const live = flow.stage === 'camera';
-  const touring = useWelcome() === 'tour';
   // Closing a result that isn't a card yet asks first (the photo isn't kept, so it would be gone).
   const [asking, setAsking] = useState(false);
   const leave = useCallback(() => {
@@ -215,9 +214,6 @@ export function Home({ paused = false }: { paused?: boolean }) {
     });
     return () => void sub.then((x) => x.remove());
   }, []);
-  useEffect(() => {
-    if (nativeChrome) void GlassChrome.setCameraControls({ visible: live && !paused, count: cards.length });
-  }, [live, paused, cards.length]);
   const showClose = !live && !paused && !topic && !making && !asking && !(expanded && !desktop);
   useEffect(() => {
     if (nativeChrome) void GlassChrome.setCloseButton({ visible: showClose });
@@ -308,19 +304,10 @@ export function Home({ paused = false }: { paused?: boolean }) {
             className="absolute inset-x-0 bottom-0 z-20 pb-[max(env(safe-area-inset-bottom),24px)]"
           >
             <p className="mb-5 text-center text-[15px] font-bold text-white/85 drop-shadow">気になるモノを撮ってみよう</p>
-            {/* The tour lights these buttons one by one, so it uses the web ones: native buttons would float above its dark layer. */}
-            {nativeChrome && !touring ? (
-              <div className="h-[98px]" aria-hidden />
-            ) : (
-            <div
-              className={
-                // On iOS the tour's web buttons take the native bar's exact place, so nothing jumps when the tour hands over.
-                nativeChrome
-                  ? 'mx-auto flex h-[98px] w-[min(320px,calc(100%-64px))] items-center justify-between pb-3'
-                  : 'mx-auto flex max-w-sm items-center justify-between px-8'
-              }
-            >
-              <IconButton data-tour="gallery" icon="photo_library" label="写真をえらぶ" tone="glass" size={56} onClick={() => file.current?.click()} />
+            {/* iOS uses these web buttons too (not native Liquid Glass ones), so the camera screen looks the same everywhere
+                and matches what the tour lights up. Picking a photo still opens the native photo picker on iOS. */}
+            <div className="mx-auto flex max-w-sm items-center justify-between px-8">
+              <IconButton data-tour="gallery" icon="photo_library" label="写真をえらぶ" tone="glass" size={56} onClick={() => void pickPhoto()} />
               <div data-tour="shutter">
                 <Shutter onClick={capture} />
               </div>
@@ -333,7 +320,6 @@ export function Home({ paused = false }: { paused?: boolean }) {
                 </div>
               )}
             </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -345,15 +331,6 @@ export function Home({ paused = false }: { paused?: boolean }) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {nativeChrome && live && !paused && (
-        <div
-          className="pointer-events-none absolute z-20 h-[58px] w-[58px]"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 26px)', right: 'calc(50% - min(160px, 50vw - 32px))' }}
-        >
-          <ReadyBubble placement="above" radius={29} tail={23} />
-        </div>
-      )}
 
       <input ref={file} type="file" accept="image/*" hidden onChange={(e) => fromFile(e.target.files?.[0])} />
 
