@@ -165,6 +165,8 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
     cancelAnimationFrame(anim);
     const base = session?.wrap === wrap ? session.base : sc.scrollTop;
     session = { wrap, sheet, sc, base, kb };
+    // Pin the sheet's height so the scroll room below (--kb-pad) neither grows it now nor shrinks it later.
+    if (!sheet.style.height) sheet.style.height = `${sheet.offsetHeight}px`;
     root.style.setProperty('--kb-pad', `${kb}px`);
     // Positions with no lift and no scrolling of ours, measured from what is on screen now.
     const lifted = liftNow(wrap);
@@ -179,12 +181,15 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
   };
   const close = () => {
     if (!session) return;
-    const { sc, base } = session;
+    const { sc, sheet, base } = session;
     session = null;
     root.style.setProperty('--kb-lift', '0px');
     scrollTo(sc, base);
     clearTimeout(padTimer);
-    padTimer = setTimeout(() => root.style.setProperty('--kb-pad', '0px'), KB_MS + 50);
+    padTimer = setTimeout(() => {
+      root.style.setProperty('--kb-pad', '0px');
+      sheet.style.height = '';
+    }, KB_MS + 50);
   };
   const typing = () => {
     const el = document.activeElement;
