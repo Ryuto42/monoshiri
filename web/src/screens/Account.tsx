@@ -371,7 +371,7 @@ function ResetForm({ onBack }: { onBack: () => void }) {
         </form>
       )}
       <button onClick={onBack} className="mx-auto mt-4 flex items-center gap-1 text-[13px] font-bold text-ink-2">
-        <Icon name="arrow_back" size={18} /> ログインにもどる
+        <Icon name="arrow_back" size={18} /> ログイン画面に戻る
       </button>
     </div>
   );
