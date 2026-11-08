@@ -21,6 +21,8 @@ import { TopicPanel } from './TopicPanel';
 import { Logo } from '../components/Logo';
 import { goBack, haptic, onBack } from '../lib/native';
 import { GlassChrome, nativeChrome, pickNativePhoto } from '../lib/glass';
+import { useMe } from '../lib/firebase';
+import { Avatar } from './Account';
 
 export function Home({ paused = false }: { paused?: boolean }) {
   const flow = useFlow();
@@ -223,10 +225,13 @@ export function Home({ paused = false }: { paused?: boolean }) {
           )}
         </AnimatePresence>
         {(live || desktop) && (
-          <div className="relative hidden lg:block">
-            <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
-            {!paused && <ReadyBubble placement="below" radius={999} tail={60} />}
-          </div>
+          <motion.div key="right" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2.5">
+            <div className="relative hidden lg:block">
+              <ZukanButton ref={zukanBtn} count={cards.length} cards={cards.slice(0, 3)} onClick={() => navigate({ to: '/zukan' })} />
+              {!paused && <ReadyBubble placement="below" radius={999} tail={60} />}
+            </div>
+            <AccountButton hasCards={cards.length > 0} onClick={() => navigate({ to: '/account' })} />
+          </motion.div>
         )}
       </header>
 
@@ -325,6 +330,47 @@ export function Home({ paused = false }: { paused?: boolean }) {
         </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+function AccountButton({ hasCards, onClick }: { hasCards: boolean; onClick: () => void }) {
+  const me = useMe();
+  const member = me && !me.guest;
+  const dot = !me ? null : me.guest ? (hasCards ? 'bg-accent' : null) : me.provider === 'password' && !me.verified ? 'bg-sun' : null;
+  const label = !member ? 'ログイン・登録' : me.provider === 'password' && !me.verified ? 'アカウント（メールの確認が必要です）' : 'アカウント';
+  return (
+    <motion.button
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      whileTap={{ scale: 0.88 }}
+      whileHover={{ scale: 1.05 }}
+      transition={spring}
+      className="glass relative grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-black/35 text-white backdrop-blur-xl"
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        {member ? (
+          <motion.span key={me.uid} initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={spring}>
+            <Avatar me={me} size={36} />
+          </motion.span>
+        ) : (
+          <motion.span key="guest" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={spring} className="grid">
+            <Icon name="person" size={24} fill />
+          </motion.span>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {dot && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            transition={{ type: 'spring', stiffness: 600, damping: 15 }}
+            className={`absolute right-0 top-0 h-3 w-3 rounded-full ring-2 ring-black/40 ${dot}`}
+          />
+        )}
+      </AnimatePresence>
+    </motion.button>
   );
 }
 

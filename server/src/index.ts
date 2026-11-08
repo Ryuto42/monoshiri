@@ -62,8 +62,9 @@ app.use('/api/*', async (c, next) => {
   let entry = tokenCache.get(token);
   if (!entry || entry.exp < Date.now()) {
     try {
-      const d = await auth.verifyIdToken(token);
-      entry = { uid: d.uid, exp: d.exp * 1000 };
+      // checkRevoked rejects tokens of deleted/disabled accounts or after a password change; re-checked at least every 5 minutes.
+      const d = await auth.verifyIdToken(token, !LOCAL);
+      entry = { uid: d.uid, exp: Math.min(d.exp * 1000, Date.now() + 5 * 60_000) };
       tokenCache.set(token, entry);
     } catch {
       return c.json({ error: 'unauthenticated' }, 401);

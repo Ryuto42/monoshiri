@@ -1,0 +1,21 @@
+name: Branch flow
+
+# Features go into dev; only dev is merged into main (main is what gets deployed).
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  from-dev:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 2
+    steps:
+      - name: Only dev may be merged into main
+        if: github.head_ref != 'dev' || github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::main には dev からのプルリクエストだけをマージできます。機能ブランチは dev に向けてください。"
+          exit 1
+      - name: OK
+        run: echo "dev -> main"
