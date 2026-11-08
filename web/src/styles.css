@@ -124,6 +124,15 @@ body {
   border-radius: 12px;
 }
 
+/* iOS zooms the whole page into a text field whose text is under 16px, and stays zoomed after leaving it. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* Text fields show focus on their own frame (.field), so the inner ring would double it. */
 .field input:focus-visible {
   outline: none;

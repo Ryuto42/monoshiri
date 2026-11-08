@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
 import { useNavigate, useParams } from '@tanstack/react-router';
@@ -80,11 +80,22 @@ export function Zukan() {
   }, [ready]);
 
   const open = (id: string) => navigate({ to: '/zukan/$cardId', params: { cardId: id } });
+  // The filter bar sticks right under the header. Its height depends on the safe area, so it is measured: a guessed
+  // offset left a sliver between the two where cards showed through while scrolling. Both are opaque for the same reason.
+  const head = useRef<HTMLElement>(null);
+  const [headHeight, setHeadHeight] = useState(0);
+  useLayoutEffect(() => {
+    const el = head.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeadHeight(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <>
       <div className="fixed inset-0 overflow-y-auto overscroll-contain bg-paper paper-grain" id="zukan-scroll">
-        <header className="sticky top-0 z-20 bg-paper/85 backdrop-blur-xl">
+        <header ref={head} className="sticky top-0 z-20 bg-paper">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 pb-3 pt-[max(env(safe-area-inset-top),14px)] sm:px-6">
             <div className="flex items-center gap-2">
               <IconButton icon="arrow_back" label="カメラにもどる" onClick={toCamera} />
@@ -105,7 +116,7 @@ export function Zukan() {
           </motion.section>
 
           {(cards.length > 0 || UNITS.length > 0) && (
-            <div className="sticky top-[calc(max(env(safe-area-inset-top),14px)+60px)] z-10 -mx-4 mt-5 bg-paper/85 px-4 py-2 backdrop-blur-xl sm:-mx-6 sm:px-6">
+            <div className="sticky z-10 -mx-4 mt-5 bg-paper px-4 py-2 shadow-[0_10px_14px_-12px_rgb(0_0_0/0.45)] sm:-mx-6 sm:px-6" style={{ top: headHeight }}>
               <div className="flex items-center gap-2">
                 {UNITS.length > 0 && (
                   <div className="flex shrink-0 rounded-full bg-paper-2 p-1" role="tablist" aria-label="図鑑の見かた">
@@ -134,9 +145,9 @@ export function Zukan() {
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
-                      placeholder={mode === 'units' ? '単元やモノをさがす' : 'カードをさがす'}
+                      placeholder="さがす"
                       aria-label={mode === 'units' ? '単元やモノをさがす' : 'カードをさがす'}
-                      className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
+                      className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-ink-3"
                     />
                   </label>
                 )}
