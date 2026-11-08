@@ -104,7 +104,7 @@
 │  │  │  ├─ native.ts        Capacitor 連携、戻る操作のスタック
 │  │  │  ├─ glass.ts         iOS ネイティブボタン（GlassChrome プラグイン）とのやりとり
 │  │  └─ styles.css          Tailwind とデザイントークン
-│  ├─ public/                フォント（アイコンのサブセット）、サンプル写真、PWA マニフェスト
+│  ├─ public/                サンプル写真、アイコン画像、PWA マニフェスト
 │  ├─ ios/                   Xcode プロジェクト（App/App/GlassChrome.swift がネイティブボタン）
 │  ├─ android/               Android Studio プロジェクト
 │  └─ capacitor.config.ts
@@ -358,6 +358,8 @@ cd server && gcloud run deploy monoshiri-api --source=. --region=asia-northeast1
 `--allow-unauthenticated` は Cloud Run の入口を開けるだけで、各 API はアプリ側で Firebase の ID トークンを検証します。独自ドメインで Web を配信するときは `ALLOWED_ORIGINS` にそのオリジンを足してください。
 
 ### 3. Web（Firebase Hosting）と Firestore ルール
+
+HTML と画面のパスは `no-cache`（毎回サーバーに確認）、ファイル名にハッシュが付く `/assets/*`（JS・CSS・アイコンフォント）は1年キャッシュです。`infra/deploy-hosting.mjs` は、直前の版の index.html から参照されているファイルを1世代残すので、デプロイ直前に開いた画面も壊れません。`CHANNEL=<名前> node infra/deploy-hosting.mjs` で、7日で消えるプレビュー URL に出せます。
 
 ```bash
 PROJECT=<project> VITE_API_BASE=<Cloud Run の URL> node infra/write-web-env.mjs   # web/.env.production.local を作る
