@@ -7,8 +7,10 @@ const zukanRoute = createRoute({ getParentRoute: () => rootRoute, path: '/zukan'
 const cardRoute = createRoute({ getParentRoute: () => rootRoute, path: '/zukan/$cardId', component: () => null });
 const accountRoute = createRoute({ getParentRoute: () => rootRoute, path: '/account', component: () => null });
 const privacyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/privacy', component: () => null });
+// Opened from the links in Firebase's emails (verify the address, reset the password).
+const authActionRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auth/action', component: () => null });
 
-export const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, zukanRoute, cardRoute, accountRoute, privacyRoute]) });
+export const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, zukanRoute, cardRoute, accountRoute, privacyRoute, authActionRoute]) });
 
 declare module '@tanstack/react-router' {
   interface Register {
