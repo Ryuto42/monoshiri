@@ -121,15 +121,23 @@ export function CardFace({ card, no, size = 'md', loadingArt, tilt = true }: {
             </div>
           )}
         </div>
-        <div className={`flex flex-1 flex-col justify-center bg-[#fffdf8]/92 px-[7%] ${small ? 'py-[5%]' : 'py-[6%]'}`}>
+        <div className={`flex flex-1 flex-col justify-center bg-[#fffdf8]/92 px-[7%] [container-type:inline-size] ${small ? 'py-[5%]' : 'py-[6%]'}`}>
           {card.reading && !small && <div className="text-[11px] font-bold tracking-wider text-[#9a8a7a]">{card.reading}</div>}
-          <div className={`font-black leading-tight ${big ? 'text-[28px]' : small ? 'text-[13px] truncate' : 'text-[20px]'}`}>{card.name}</div>
-          {card.oneLiner && !small && <div className={`mt-1 text-[#66574a] leading-snug ${big ? 'text-[14px]' : 'text-[12px] line-clamp-2'}`}><RubyText text={card.oneLiner} /></div>}
+          {/* Always one line, shrunk to fit: a name that wrapped to two lines made its card's picture smaller than the rest. */}
+          <div className="truncate font-black" style={nameStyle(card.name, big ? 28 : small ? 13 : 20)}>{card.name}</div>
+          {/* Grid cards keep room for two lines, so every card's picture is the same size. */}
+          {card.oneLiner && !small && <div className={`mt-1 text-[#66574a] leading-snug ${big ? 'text-[14px]' : 'text-[12px] line-clamp-2 min-h-[2.75em]'}`}><RubyText text={card.oneLiner} /></div>}
         </div>
       </div>
       {tilts && <motion.div aria-hidden className="pointer-events-none absolute inset-0 rounded-[22px] mix-blend-soft-light" style={{ background: glare }} />}
     </motion.div>
   );
+}
+
+// Japanese characters are about 1em wide, so the size that fits the name is the width over the character count.
+// The line keeps the full size's height, so a shrunk name doesn't change the card's layout.
+function nameStyle(name: string, max: number) {
+  return { fontSize: `max(11px, min(${max}px, calc(100cqw / ${Math.max(1, [...name].length)})))`, lineHeight: `${Math.round(max * 1.25)}px` };
 }
 
 export function CardBack({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {

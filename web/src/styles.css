@@ -45,6 +45,8 @@
   --sky: #5d9bd6;
   --sun: #f2b53c;
   --shadow-card: 0 1px 2px rgb(60 40 20 / 0.06), 0 8px 24px -8px rgb(60 40 20 / 0.18);
+  /* The selected pill of a segmented control: even above and below, so it never looks pushed down. */
+  --shadow-tab: 0 0 0 1px rgb(60 40 20 / 0.06), 0 1px 6px rgb(0 0 0 / 0.18);
   --shadow-float: 0 2px 6px rgb(30 20 10 / 0.12), 0 18px 48px -12px rgb(30 20 10 / 0.35);
   color-scheme: light;
 }
@@ -64,6 +66,7 @@
     --leaf: #6cc3a6;
     --leaf-soft: #17342b;
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -8px rgb(0 0 0 / 0.6);
+    --shadow-tab: 0 0 0 1px rgb(0 0 0 / 0.3), 0 1px 6px rgb(0 0 0 / 0.4);
     --shadow-float: 0 2px 6px rgb(0 0 0 / 0.4), 0 18px 48px -12px rgb(0 0 0 / 0.7);
     color-scheme: dark;
   }
@@ -124,9 +127,26 @@ body {
   border-radius: 12px;
 }
 
-/* Text fields show focus on their own frame (.field), so the inner ring would double it. */
-.field input:focus-visible {
+/* iOS zooms the whole page into a text field whose text is under 16px, and stays zoomed after leaving it. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Text fields show focus on the frame around them, never as a second ring inside it. */
+input:not([type='checkbox'], [type='radio'], [type='file']):focus-visible,
+textarea:focus-visible {
   outline: none;
+}
+
+/* The rounded search and name fields (the frame is the field's direct parent) light up like .field does. */
+:not(.field):has(> :is(input:not([type='checkbox'], [type='radio'], [type='file']), textarea):focus-visible) {
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--accent) 60%, transparent),
+    0 0 0 6px color-mix(in oklab, var(--accent) 18%, transparent);
 }
 
 /* In a layer so Tailwind utilities (hidden, sm:inline, text sizes) can override it. */
@@ -207,6 +227,15 @@ body {
   color: var(--leaf);
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* Wrap only between phrases, so a line never ends in the middle of a word ("のこさ / ないよ", "撮 / ります").
+   The break points are the spaces in children's copy (分かち書き), the <wbr> marks that <Phrases> puts into
+   authored copy, and punctuation. A phrase too long for the line still breaks. */
+.phrase-wrap {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 /* Furigana: small readings that sit in the line's leading, so lines with and without ruby keep the same spacing. */
