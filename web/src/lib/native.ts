@@ -135,9 +135,11 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
   const reveal = () => {
     const el = document.activeElement;
     if (!kb || !(el instanceof HTMLElement) || !el.closest('[data-kb-lift]')) return;
-    const r = el.getBoundingClientRect();
+    // Reveal the whole field (its label carries scroll-margin), not just the caret line.
+    const target = el.closest('label') ?? el;
+    const r = target.getBoundingClientRect();
     // Scroll only when the field is actually hidden, and only as far as needed.
-    if (r.top < 72 || r.bottom > window.innerHeight - kb - 16) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (r.top < 72 || r.bottom > window.innerHeight - kb - 16) target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
   Keyboard.addListener('keyboardWillShow', (info) => {
     clearTimeout(hideTimer);
@@ -147,7 +149,9 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => setKb(0), 120);
   });
-  Keyboard.addListener('keyboardDidShow', reveal);
+  // Wait for the sheet to finish moving (Account.tsx animates for 280ms) before measuring.
+  Keyboard.addListener('keyboardDidShow', () => setTimeout(reveal, 300));
+  document.addEventListener('focusin', () => kb && setTimeout(reveal, 50));
 
   const status = await Network.getStatus();
   onOffline(!status.connected);

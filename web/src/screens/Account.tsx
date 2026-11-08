@@ -573,9 +573,9 @@ export function Avatar({ me, size = 72 }: { me: Me; size?: number }) {
 
 function Field({ icon, label, className = '', children }: { icon: string; label: string; className?: string; children: ReactNode }) {
   return (
-    <label className={`block ${className}`}>
+    <label className={`block scroll-mb-14 scroll-mt-4 ${className}`}>
       <span className="mb-1 block px-1 text-[12px] font-bold text-ink-2">{label}</span>
-      <span className="flex h-13 items-center gap-2 rounded-2xl border border-line bg-paper px-3.5 transition-shadow [&_input]:outline-none focus-within:border-accent/60 focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]">
+      <span className="field flex h-13 items-center gap-2 rounded-2xl border border-line bg-paper px-3.5 transition-shadow focus-within:border-accent/60 focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]">
         <Icon name={icon} size={20} className="shrink-0 text-ink-3" />
         {children}
       </span>

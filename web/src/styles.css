@@ -124,6 +124,11 @@ body {
   border-radius: 12px;
 }
 
+/* Text fields show focus on their own frame (.field), so the inner ring would double it. */
+.field input:focus-visible {
+  outline: none;
+}
+
 /* In a layer so Tailwind utilities (hidden, sm:inline, text sizes) can override it. */
 @layer components {
   .ms {
