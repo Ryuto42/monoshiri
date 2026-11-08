@@ -6,7 +6,7 @@
   font-style: normal;
   font-weight: 300 700;
   font-display: block;
-  src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
+  src: url('./assets/fonts/material-symbols-rounded.woff2') format('woff2');
 }
 
 @theme {
