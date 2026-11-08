@@ -1,14 +1,12 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useEffect, useRef } from 'react';
 import { skipTutorial, startTour, useWelcome } from '../lib/welcome';
 import { TOUR_PAGES } from '../lib/tour';
-import { saveStage, useStage, type Stage } from '../lib/level';
 import { haptic, onBack } from '../lib/native';
-import { toast } from '../lib/toast';
-import { StagePicker } from './StagePicker';
+import { PrivacyLink } from '../screens/account/parts';
 import { HelpHint, Tour } from './Tour';
-import { spring } from './theme';
+import { dialogMotion, ui } from './theme';
+import { Button } from './ui';
 
 const SAMPLE = '/samples/desk.webp';
 
@@ -42,122 +40,71 @@ export function Welcome() {
 // The welcome card is the tutorial's first page: "つぎへ" moves on to the pages that light up each camera button.
 function Panel() {
   const start = useRef<HTMLButtonElement>(null);
-  const navigate = useNavigate();
-  const { stage } = useStage();
-  // Before the camera buttons, people who have no school year yet are asked for it once.
-  const [asking, setAsking] = useState(false);
-  const [saving, setSaving] = useState(false);
   useEffect(() => {
     haptic('select');
     start.current?.focus({ preventScroll: true });
     return onBack(skipTutorial, { history: false });
   }, []);
 
-  const next = () => (stage ? startTour() : setAsking(true));
-
-  async function save(s: Stage) {
-    setSaving(true);
-    try {
-      await saveStage(s);
-      haptic('success');
-    } catch {
-      toast('ほぞんできませんでした。アカウントの画面から あとで えらべるよ', 'error');
-    } finally {
-      setSaving(false);
-    }
-    startTour();
-  }
-
   return (
     <motion.div
-      className="fixed inset-0 z-[55] flex items-center justify-center p-3 pt-[max(env(safe-area-inset-top),12px)] pb-[max(env(safe-area-inset-bottom),12px)]"
+      className={`${ui.overlay} z-[55] items-center`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <motion.button aria-label="スキップ" tabIndex={-1} className="absolute inset-0 bg-black/45" onClick={skipTutorial} />
+      <motion.button aria-label="スキップ" tabIndex={-1} className={ui.scrim} onClick={skipTutorial} />
       <motion.section
         role="dialog"
         aria-modal
         aria-labelledby="welcome-title"
-        initial={{ y: 24, scale: 0.94, opacity: 0 }}
-        animate={{ y: 0, scale: 1, opacity: 1 }}
-        exit={{ y: 16, scale: 0.96, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-        className="relative max-h-[calc(100dvh-24px)] w-full max-w-[420px] overflow-y-auto rounded-[32px] bg-paper p-3 pb-4 text-ink shadow-[var(--shadow-float)] paper-grain"
+        {...dialogMotion}
+        className={`${ui.dialog} max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain p-3 pb-4 no-scrollbar`}
       >
-        <AnimatePresence mode="wait" initial={false}>
-          {asking ? (
-            <motion.div key="stage" className="px-3 pt-2" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={spring}>
-              <StagePicker
-                initial={null}
-                saving={saving}
-                titleId="welcome-title"
-                onSave={(s) => void save(s)}
-                onSkip={startTour}
-                saveLabel="これで つぎへ"
-              />
-            </motion.div>
-          ) : (
-            <motion.div key="intro" exit={{ opacity: 0, x: -40 }} transition={spring}>
-              <Photo />
-              <div className="px-3">
-                {/* The first page of the tutorial: the same dots and "スキップ" as the pages that light up each button. */}
-                <div className="mt-3 flex h-6 items-center justify-between">
-                  <ol aria-label={`${TOUR_PAGES}つ中 1つめ`} className="flex gap-1.5">
-                    {Array.from({ length: TOUR_PAGES }, (_, i) => (
-                      <li key={i} className={`h-1.5 rounded-full ${i === 0 ? 'w-5 bg-accent' : 'w-1.5 bg-ink/20'}`} />
-                    ))}
-                  </ol>
-                  <button
-                    onClick={skipTutorial}
-                    className="-mr-2 flex h-11 items-center rounded-full px-2 text-[13px] font-bold text-ink-3 hover:bg-ink/5 focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    スキップ
-                  </button>
-                </div>
-                <h2 id="welcome-title" className="mt-2 text-[24px] font-black leading-snug">
-                  撮るだけで、
-                  <br />
-                  モノシリになれる
-                </h2>
-                <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
-                  身の回りのモノを撮ると、写っているモノを見つけて、その「なぜ？」を教えてくれます。
+        <Photo />
+        <div className="px-3">
+          {/* The first page of the tutorial: the same dots and "スキップ" as the pages that light up each button. */}
+          <div className="mt-3 flex h-6 items-center justify-between">
+            <ol aria-label={`${TOUR_PAGES}つ中 1つめ`} className="flex gap-1.5">
+              {Array.from({ length: TOUR_PAGES }, (_, i) => (
+                <li key={i} className={`h-1.5 rounded-full ${i === 0 ? 'w-5 bg-accent' : 'w-1.5 bg-ink/20'}`} />
+              ))}
+            </ol>
+            <button
+              onClick={skipTutorial}
+              className="-mr-2 flex h-11 items-center rounded-full px-2 text-[13px] font-bold text-ink-3 hover:bg-ink/5 focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              スキップ
+            </button>
+          </div>
+          <h2 id="welcome-title" className={`mt-2 ${ui.title}`}>
+            撮るだけで、
+            <br />
+            モノシリになれる
+          </h2>
+          <p className={ui.lead}>
+            身の回りのモノを撮ると、写っているモノを見つけて、その「なぜ？」を教えてくれます。
+          </p>
+          <ol className="mt-4 flex flex-col gap-2">
+            {STEPS.map((s, i) => (
+              <li key={s.title} className="flex gap-3">
+                <span aria-hidden className="w-5 shrink-0 text-right text-[20px] font-black leading-7 text-accent">
+                  {i + 1}
+                </span>
+                <p className="text-[14px] leading-7 text-ink-2">
+                  <span className="mr-2 text-[15px] font-black text-ink">{s.title}</span>
+                  {s.body}
                 </p>
-                <ol className="mt-4 flex flex-col gap-2">
-                  {STEPS.map((s, i) => (
-                    <li key={s.title} className="flex gap-3">
-                      <span aria-hidden className="w-5 shrink-0 text-right text-[20px] font-black leading-7 text-accent">
-                        {i + 1}
-                      </span>
-                      <p className="text-[14px] leading-7 text-ink-2">
-                        <span className="mr-2 text-[15px] font-black text-ink">{s.title}</span>
-                        {s.body}
-                      </p>
-                    </li>
-                  ))}
-                </ol>
-                <div className="mt-4 flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => navigate({ to: '/privacy' })}
-                    className="-ml-1 flex h-11 items-center px-1 text-[12px] font-bold text-ink-3 underline decoration-ink/20 underline-offset-4"
-                  >
-                    プライバシーポリシー
-                  </button>
-                  <motion.button
-                    ref={start}
-                    whileTap={{ scale: 0.97 }}
-                    transition={spring}
-                    onClick={next}
-                    className="flex h-11 items-center rounded-full bg-accent px-5 text-[15px] font-black text-accent-ink outline-offset-4 focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    つぎへ
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-4 flex items-center justify-between gap-2">
+            <PrivacyLink className="-ml-1 flex h-11 items-center px-1 text-[12px] text-ink-3" />
+            <Button ref={start} onClick={startTour} className="outline-offset-4">
+              つぎへ
+            </Button>
+          </div>
+        </div>
       </motion.section>
     </motion.div>
   );
@@ -167,7 +114,7 @@ function Panel() {
 function Photo() {
   const still = useReducedMotion();
   return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-[24px] bg-[#120e0b]">
+    <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] bg-[#120e0b]">
       <img src={SAMPLE} alt="机の上のペットボトル、りんご、えんぴつ、消しゴムの写真" className="h-full w-full object-cover" draggable={false} />
       {MARKS.map((m, i) => (
         <motion.span

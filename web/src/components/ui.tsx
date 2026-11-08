@@ -1,7 +1,6 @@
 import { motion, type HTMLMotionProps } from 'motion/react';
 import type { CSSProperties, ReactNode } from 'react';
-import { spring } from './theme';
-
+import { buttonClass, buttonIcon, popIn, press, pressIcon, tones, ui, type ButtonSize, type Tone } from './theme';
 
 export function Icon({ name, fill = false, size = 24, weight, className = '', style }: {
   name: string; fill?: boolean; size?: number; weight?: number; className?: string; style?: CSSProperties;
@@ -17,42 +16,25 @@ export function Icon({ name, fill = false, size = 24, weight, className = '', st
   );
 }
 
-type Tone = 'accent' | 'ink' | 'ghost' | 'paper' | 'glass';
-
-const tones: Record<Tone, string> = {
-  accent: 'bg-accent text-accent-ink',
-  ink: 'bg-ink text-paper',
-  ghost: 'bg-transparent text-ink hover:bg-ink/6',
-  paper: 'bg-paper text-ink shadow-[var(--shadow-card)] hover:bg-paper-2',
-  glass: 'glass bg-black/35 text-white backdrop-blur-xl border border-white/15 hover:bg-black/45',
-};
-
-export function Button({ tone = 'accent', icon, children, className = '', iconFill, ...rest }: HTMLMotionProps<'button'> & {
-  tone?: Tone; icon?: string; iconFill?: boolean; children?: ReactNode;
+export function Button({ tone = 'accent', size = 'md', icon, children, className = '', iconFill, ...rest }: HTMLMotionProps<'button'> & {
+  tone?: Tone; size?: ButtonSize; icon?: string; iconFill?: boolean; children?: ReactNode;
 }) {
   return (
-    <motion.button
-      whileTap={{ scale: 0.94 }}
-      whileHover={{ y: -1 }}
-      transition={spring}
-      className={`group inline-flex items-center justify-center gap-2 rounded-full px-5 h-12 font-bold text-[15px] select-none transition-colors disabled:opacity-50 disabled:pointer-events-none ${tones[tone]} ${className}`}
-      {...rest}
-    >
-      {icon && <Icon name={icon} size={22} fill={iconFill} className="group-active:[--fill:1]" />}
+    <motion.button {...press} whileHover={{ y: -1 }} className={`${buttonClass(tone, size)} ${className}`} {...rest}>
+      {icon && <Icon name={icon} size={buttonIcon[size]} fill={iconFill} className="group-active:[--fill:1]" />}
       {children}
     </motion.button>
   );
 }
 
-export function IconButton({ icon, label, tone = 'ghost', size = 48, fill, className = '', ...rest }: HTMLMotionProps<'button'> & {
+export function IconButton({ icon, label, tone = 'ghost', size = 44, fill, className = '', ...rest }: HTMLMotionProps<'button'> & {
   icon: string; label: string; tone?: Tone; size?: number; fill?: boolean;
 }) {
   return (
     <motion.button
       aria-label={label}
       title={label}
-      whileTap={{ scale: 0.88 }}
-      transition={spring}
+      {...pressIcon}
       className={`group grid place-items-center rounded-full shrink-0 transition-colors ${tones[tone]} ${className}`}
       style={{ width: size, height: size }}
       {...rest}
@@ -62,6 +44,14 @@ export function IconButton({ icon, label, tone = 'ghost', size = 48, fill, class
   );
 }
 
+// The round badge above a sheet's or dialog's title.
+export function HeroIcon({ icon, tone = 'accent', pop = true }: { icon: string; tone?: 'accent' | 'leaf'; pop?: boolean }) {
+  return (
+    <motion.div {...(pop ? popIn : {})} className={`${ui.heroIcon} ${tone === 'leaf' ? 'bg-leaf-soft text-leaf' : 'bg-accent-soft text-accent'}`}>
+      <Icon name={icon} size={36} fill />
+    </motion.div>
+  );
+}
 
 export function Chip({ children, icon, color, className = '' }: { children: ReactNode; icon?: string; color?: { bg: string; ink: string }; className?: string }) {
   return (

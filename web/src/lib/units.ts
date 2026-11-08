@@ -1,8 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from './api';
-import { getCard, saveCard, useCards } from './cards';
-import { useMe } from './firebase';
-import { useStage, type Stage } from './level';
+import { getCard, saveCard } from './cards';
+import type { Stage } from './level';
 import { stripRuby } from './ruby';
 import type { Card, CurriculumUnit, UnitLink } from './types';
 import curriculum from '../data/curriculum.json';
@@ -39,8 +38,6 @@ export const UNITS: Unit[] = (curriculum as CurriculumUnit[])
   .sort((a, b) => a.from - b.from || a.to - b.to || subjectRank(a.subject) - subjectRank(b.subject) || a.subject.localeCompare(b.subject, 'ja'));
 
 export const unitById = new Map(UNITS.map((u) => [u.id, u]));
-
-export const unitLabel = (u: CurriculumUnit) => `${u.grade} ${u.subject}『${u.unit}』`;
 
 export type Group = { key: string; grade: string; subject: string; band: Stage; units: Unit[] };
 
@@ -208,129 +205,6 @@ export async function fillCard(id: string, name: string) {
   const latest = getCard(id);
   if (!latest || latest.units) return;
   await saveCard({ ...latest, units: links.map((l) => l.id), updatedAt: Date.now() });
-}
-
-// --- Daily mission: one unit (of this person's school years) that has no card yet, picked from the date and uid.
-
-export type Mission = { day: string; unit: Unit; done: boolean };
-type MissionRecord = { day: string; id: string; stage?: string; started?: boolean; done?: boolean };
-
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-const missionKey = (uid: string) => `monoshiri.mission.${uid}`;
-
-function readMission(uid: string): MissionRecord | null {
-  try {
-    const r = JSON.parse(localStorage.getItem(missionKey(uid)) ?? 'null');
-    return r && typeof r.day === 'string' && typeof r.id === 'string' ? r : null;
-  } catch {
-    return null;
-  }
-}
-function writeMission(uid: string, r: MissionRecord) {
-  try {
-    localStorage.setItem(missionKey(uid), JSON.stringify(r));
-  } catch {
-    /* without storage the mission is still the same all day: it is picked from the date */
-  }
-}
-
-function hash(s: string) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
-  return h >>> 0;
-}
-
-function pick(uid: string, day: string, stage: Stage | null, cards: Card[]): Unit | null {
-  const have = cardsByUnit(cards);
-  // Without a stage the explanations are written for 小4〜中3, so the mission is too.
-  const [lo, hi] = stage ? STAGE_YEARS[stage] : [4, 9];
-  const open = UNITS.filter((u) => !have.has(u.id) && u.examples.length > 0);
-  const fit = open.filter((u) => u.to >= lo && u.from <= hi);
-  const list = fit.length ? fit : open;
-  return list.length ? list[hash(`${day}:${uid}`) % list.length] : null;
-}
-
-let mission: (Mission & { uid: string }) | null = null;
-const missionListeners = new Set<() => void>();
-const emitMission = () => missionListeners.forEach((l) => l());
-
-function ensureMission(uid: string, stage: Stage | null, cards: Card[]) {
-  const day = today();
-  let rec = readMission(uid);
-  // A mission nobody has seen yet is picked again if it turns out to be collected already (cards were still loading).
-  if (rec && rec.day === day && (!unitById.has(rec.id) || (!rec.started && !rec.done && cardsByUnit(cards).has(rec.id)))) rec = null;
-  // Choosing (or changing) the school year picks a mission from the new years, unless today's is already done.
-  if (rec && rec.day === day && !rec.done && (rec.stage ?? 'none') !== (stage ?? 'none')) rec = null;
-  if (!rec || rec.day !== day) {
-    const u = pick(uid, day, stage, cards);
-    if (!u) {
-      if (mission) {
-        mission = null;
-        emitMission();
-      }
-      return;
-    }
-    rec = { day, id: u.id, stage: stage ?? 'none' };
-    writeMission(uid, rec);
-  }
-  const unit = unitById.get(rec.id)!;
-  const done = !!rec.done;
-  if (mission?.uid === uid && mission.day === day && mission.unit.id === unit.id && mission.done === done) return;
-  mission = { uid, day, unit, done };
-  emitMission();
-}
-
-/** Marks today's mission done when one of these units is the mission's. Returns the mission when this call completed it. */
-export function completeMission(ids: string[]): Mission | null {
-  if (!mission || mission.done || !ids.includes(mission.unit.id)) return null;
-  // Only a mission the person has seen can be completed; a surprise "done" for a mission they never saw would confuse.
-  const rec = readMission(mission.uid);
-  if (!rec?.started || rec.day !== mission.day) return null;
-  writeMission(mission.uid, { ...rec, done: true });
-  mission = { ...mission, done: true };
-  emitMission();
-  void api.events([{ name: 'mission_done' }]);
-  return mission;
-}
-
-/** Called when the mission is put on screen; reported once a day. */
-export function missionShown() {
-  if (!mission) return;
-  const rec = readMission(mission.uid);
-  if (!rec || rec.day !== mission.day || rec.started) return;
-  writeMission(mission.uid, { ...rec, started: true });
-  void api.events([{ name: 'mission_start' }]);
-}
-
-export const getMission = (): Mission | null => mission;
-
-// A unit the zukan should open on its next mount (e.g. tapping the mission on the camera screen).
-let requested: string | null = null;
-export const requestUnit = (id: string) => void (requested = id);
-export const requestedUnit = () => (requested && unitById.has(requested) ? requested : null);
-export const clearRequestedUnit = () => void (requested = null);
-
-export function useMission(): Mission | null {
-  const me = useMe();
-  const st = useStage();
-  const cards = useCards();
-  const uid = me?.uid ?? null;
-  const ready = st.loaded && st.uid === uid;
-  const stage = st.stage;
-  const m = useSyncExternalStore(
-    (l) => {
-      missionListeners.add(l);
-      return () => missionListeners.delete(l);
-    },
-    () => mission,
-  );
-  useEffect(() => {
-    if (uid && ready && UNITS.length) ensureMission(uid, stage, cards);
-  }, [uid, stage, ready, cards]);
-  return m && m.uid === uid ? m : null;
 }
 
 /** The unit closest to this person's school years (for a single badge): one they learn now, then the nearest. */

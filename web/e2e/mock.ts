@@ -132,11 +132,36 @@ export const test = base.extend<{ api: Api }>({
 
 export { expect };
 
-// Welcome -> school year -> sample photo -> markers visible.
-export async function startWithSample(page: Page, grade = '小2') {
+export const STAGE_OF_AGE = { 7: 'lower', 10: 'upper', 13: 'junior', 30: 'senior' } as const;
+
+// First-run screens: age -> consent. Under 13 also needs the guardian's checkbox.
+export async function passOnboarding(page: Page, age = 7) {
+  const dialog = page.getByRole('dialog', { name: 'なんさい？' });
+  await expect(dialog).toBeVisible();
+  for (const d of String(age)) await dialog.getByRole('button', { name: d, exact: true }).click();
+  await dialog.getByRole('button', { name: 'つぎへ' }).click();
+  const consent = page.getByRole('dialog', { name: /はじめる まえに/ });
+  await consent.getByRole('checkbox', { name: /プライバシーポリシー/ }).check();
+  if (age < 13) await consent.getByRole('checkbox', { name: /おうちの 人/ }).check();
+  await consent.getByRole('button', { name: '同意して はじめる' }).click();
+  await expect(consent).toBeHidden();
+}
+
+// Skips the first-run screens by pre-seeding consent and a stage (and optionally the welcome).
+export async function seedConsent(page: Page, stage: 'lower' | 'upper' | 'junior' | 'senior' = 'lower', welcomed = true) {
+  await page.addInitScript(([st, w]) => {
+    if (sessionStorage.getItem('e2e-seeded')) return;
+    sessionStorage.setItem('e2e-seeded', '1');
+    localStorage.setItem('monoshiri.consent', JSON.stringify({ v: 1, at: Date.now() }));
+    localStorage.setItem('monoshiri.stage.device', st as string);
+    if (w) localStorage.setItem('monoshiri.welcome', '1');
+  }, [stage, welcomed] as const);
+}
+
+// Consent already given; the camera is unavailable in headless Chrome, so the sample photo buttons show.
+export async function startWithSample(page: Page, stage: 'lower' | 'upper' | 'junior' | 'senior' = 'lower') {
+  await seedConsent(page, stage);
   await page.goto('/');
-  await page.getByRole('button', { name: 'この写真でためしてみる' }).click();
-  await page.getByRole('button', { name: grade, exact: true }).click();
-  await page.getByRole('button', { name: 'これで ためしてみる' }).click();
+  await page.getByRole('button', { name: 'つくえの上' }).click();
   await expect(page.getByRole('button', { name: 'ペットボトルをしらべる' })).toBeVisible();
 }

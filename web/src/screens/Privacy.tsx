@@ -3,7 +3,8 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
 import { RubyText } from '../components/RubyText';
-import { Icon, IconButton } from '../components/ui';
+import { HeroIcon, Icon, IconButton } from '../components/ui';
+import { sheetMotion, ui } from '../components/theme';
 
 const ISSUES = 'https://github.com/Ryuto42/monoshiri/issues';
 const ENACTED = '2026年11月9日';
@@ -24,22 +25,19 @@ export function PrivacySheet({ onClose }: { onClose: () => void }) {
 
   return (
     <motion.div className="fixed inset-0 z-[58] flex items-end justify-center text-ink lg:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.button aria-label="とじる" tabIndex={-1} className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} />
+      <motion.button aria-label="とじる" tabIndex={-1} className={ui.scrim} onClick={onClose} />
       <motion.section
         role="dialog"
         aria-modal
         aria-labelledby="privacy-title"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 300, damping: 34 }}
-        className="relative flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[32px] bg-paper shadow-[var(--shadow-float)] paper-grain lg:max-h-[min(860px,92dvh)] lg:max-w-[560px] lg:rounded-[32px]"
+        {...sheetMotion}
+        className={`${ui.sheet} max-h-[94dvh] lg:max-h-[min(860px,92dvh)] lg:max-w-[560px]`}
       >
-        <div className="relative flex h-14 shrink-0 items-start justify-center pt-3">
-          <span className="h-1.5 w-10 rounded-full bg-ink/15 lg:hidden" />
-          <IconButton icon="close" label="とじる" onClick={onClose} className="absolute right-3 top-2" />
+        <div className={ui.sheetHeader}>
+          <span className={ui.handle} />
+          <IconButton icon="close" label="とじる" onClick={onClose} className={ui.sheetClose} />
         </div>
-        <div className="overflow-y-auto overscroll-contain px-6 pb-[max(env(safe-area-inset-bottom),28px)] no-scrollbar">
+        <div className={ui.sheetBody}>
           <PrivacyBody />
         </div>
       </motion.section>
@@ -50,15 +48,13 @@ export function PrivacySheet({ onClose }: { onClose: () => void }) {
 function PrivacyBody() {
   return (
     <article className="pb-4">
-      <div className="mx-auto grid h-16 w-16 place-items-center rounded-[22px] bg-leaf-soft text-leaf">
-        <Icon name="shield_lock" size={36} fill />
-      </div>
-      <h2 id="privacy-title" className="mt-4 text-center text-[24px] font-black leading-snug">
+      <HeroIcon icon="shield_lock" tone="leaf" pop={false} />
+      <h2 id="privacy-title" className={`mt-4 text-center ${ui.title}`}>
         プライバシーポリシー
       </h2>
       <p className="mt-1 text-center text-[12px] text-ink-3">モノシリ・{ENACTED} 制定</p>
 
-      <section aria-labelledby="privacy-easy" className="mt-6 rounded-3xl bg-paper-2 px-5 py-4">
+      <section aria-labelledby="privacy-easy" className={`mt-6 ${ui.panel}`}>
         <h3 id="privacy-easy" className="flex items-center gap-2 text-[17px] font-black">
           <Icon name="lightbulb" size={22} fill className="text-sun" />
           かんたんに いうと
@@ -68,13 +64,13 @@ function PrivacyBody() {
             <RubyText text="とった 写真《しゃしん》は、なにが うつっているかを しらべる ためだけに つかって、どこにも のこさないよ。" />
           </Easy>
           <Easy icon="school">
-            <RubyText text="年《とし》や 学年《がくねん》は おぼえないよ。「低学年《ていがくねん》むけ」のような せつめいの むずかしさだけ おぼえるよ。" />
+            <RubyText text="はじめに 年齢《ねんれい》を きくけど、年齢《ねんれい》は おぼえないよ。「低学年《ていがくねん》むけ」のような せつめいの むずかしさだけ おぼえるよ。" />
           </Easy>
           <Easy icon="style">
             <RubyText text="あつめた カードは、きみの 図鑑《ずかん》に しまっておくよ。ほかの 人には 見えないよ。" />
           </Easy>
           <Easy icon="person">
-            <RubyText text="13さい 未満《みまん》の 人が 登録《とうろく》する ときは、おうちの 人と いっしょに してね。" />
+            <RubyText text="13さい 未満《みまん》の 人は、おうちの 人と いっしょに これを 読《よ》んで、同意《どうい》を もらってから つかってね。" />
           </Easy>
           <Easy icon="delete">
             <RubyText text="アカウントは いつでも けせるよ。けすと、カードも いっしょに きえるよ。" />
@@ -94,9 +90,10 @@ function PrivacyBody() {
             <li>Firebase Authentication が発行する利用者ID（uid）。ゲストで使う場合も、匿名のIDが作られます</li>
             <li>アカウント登録をした場合：メールアドレス、Google でログインした場合は Google アカウントの表示名とプロフィール画像のURL</li>
             <li>図鑑に保存したカード（モノの名前・解説・ノートなど）</li>
-            <li>選んだ「学びの段階」（低学年・高学年・中学生・高校生以上のいずれか）</li>
+            <li>年齢から決めた「学びの段階」（低学年・高学年・中学生・高校生以上のいずれか）</li>
+            <li>このポリシーに同意したこと（同意した日時と、ポリシーの版。その端末の中にだけ記録します）</li>
           </ul>
-          <p className="mt-2">年齢と学年は保存も送信もしません。段階を選ぶときに学年を聞きますが、その場で段階に置きかえて、学年そのものは捨てています。</p>
+          <p className="mt-2">年齢は保存も送信もしません。はじめて使うときと段階を変えるときに年齢をたずねますが、その場で段階に置きかえて、年齢そのものは捨てています。</p>
         </Part>
 
         <Part title="3. 写真の扱い">
@@ -120,8 +117,11 @@ function PrivacyBody() {
           <p className="mt-2">これら以外の第三者に、個人を特定できる情報を渡すことはありません。広告は表示しません。</p>
         </Part>
 
-        <Part title="6. 13歳未満の方へ">
-          <p>13歳未満の方がアカウントを登録するときは、保護者の方の同意を得たうえで、いっしょに登録してください。ゲストのままでも使えます。</p>
+        <Part title="6. 同意と13歳未満の方へ">
+          <p>
+            はじめて使うときに年齢をたずね、このポリシーへの同意をいただいてから使いはじめます（ゲストで使う場合も同じです）。13歳未満の方は、保護者の方がいっしょにこのポリシーを読み、同意したうえで使ってください。その画面で、保護者の方の同意も確認します。
+          </p>
+          <p className="mt-2">アカウントを登録するときは、このとき同意したポリシーの内容で登録します。13歳未満の方は、保護者の方といっしょに登録してください。</p>
         </Part>
 
         <Part title="7. 削除の方法">
@@ -142,7 +142,7 @@ function PrivacyBody() {
         </Part>
 
         <Part title="9. 改定">
-          <p>内容を変えるときは、本アプリ内でお知らせします。</p>
+          <p>内容を変えるときは、本アプリ内でお知らせし、必要に応じて改めて同意をいただきます。</p>
           <p className="mt-2 text-ink-3">{ENACTED} 制定</p>
         </Part>
       </div>
