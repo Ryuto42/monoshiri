@@ -9,7 +9,7 @@ import { toast } from '../lib/toast';
 import { Button, Icon } from './ui';
 import { haptic, onBack } from '../lib/native';
 import { api } from '../lib/api';
-import { completeMission, fillCard, useUnitLinks } from '../lib/units';
+import { fillCard, useUnitLinks } from '../lib/units';
 
 export function CardMaker({ ex, notes, onClose, flyTo }: {
   ex: Explore; notes: DeepNote[]; onClose: () => void; flyTo: () => DOMRect | null;
@@ -54,8 +54,7 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
     void saveCard(card);
     void api.events([{ name: 'card_save' }]);
     // Units still on their way are added to the card when they arrive.
-    if (units) completeMission(units);
-    else void fillCard(ex.id, ex.name).then(() => completeMission(getCard(ex.id)?.units ?? []), () => {});
+    if (!units) void fillCard(ex.id, ex.name).catch(() => {});
     if (!illustration) notifyWhenReady(ex.id);
     haptic('success');
     const target = flyTo();

@@ -8,7 +8,7 @@ import { haptic } from '../../lib/native';
 import { toast } from '../../lib/toast';
 import { saveStage, stageInfo, useStage, type Stage } from '../../lib/level';
 import { stripRuby } from '../../lib/ruby';
-import { StagePicker } from '../../components/StagePicker';
+import { AgePicker } from '../../components/AgePicker';
 import { Icon, IconButton } from '../../components/ui';
 import { Avatar, Field, GoogleMark, PrivacyLink, Spinner } from './parts';
 import { StageRow } from './StageSetting';
@@ -35,11 +35,11 @@ export function MemberView({ me, onDone }: { me: Me; onDone: () => void }) {
     if (!needsVerify) api.usage().then(setUsage).catch(() => {});
   }, [needsVerify]);
 
-  // Right after registering (or the first login on an account without one), ask for the learning stage.
+  // The first login on an account without a stage (e.g. on a device that never set one) asks for the age.
   const asking = !needsVerify && st.loaded && st.uid === me.uid && (editing || (!st.stage && !skip));
   if (asking) {
     return (
-      <StagePicker
+      <AgePicker
         initial={st.stage}
         saving={busy === 'stage'}
         saveLabel={editing ? 'これに する' : undefined}
@@ -121,7 +121,7 @@ export function MemberView({ me, onDone }: { me: Me; onDone: () => void }) {
         <div className="mt-3 rounded-3xl bg-paper-2 px-4 py-3.5">
           <div className="flex items-baseline justify-between text-[13px] font-bold">
             <span>新しく調べられる残り</span>
-            <span className="tabular-nums">約 {Math.max(0, Math.round(usage.myCapJpy - usage.mySpentJpy))} 円ぶん</span>
+            <span className="tabular-nums">{Math.max(0, Math.min(100, Math.round(100 - (usage.mySpentJpy / usage.myCapJpy) * 100)))}%</span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper-3">
             <motion.div

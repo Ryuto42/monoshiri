@@ -1,6 +1,7 @@
-import { expect, test } from './mock';
+import { expect, seedConsent, test } from './mock';
 
 test('/privacy が開ける', async ({ page }) => {
+  await seedConsent(page);
   await page.goto('/privacy');
   const dialog = page.getByRole('dialog', { name: /プライバシー/ });
   await expect(dialog).toBeVisible();
@@ -8,16 +9,13 @@ test('/privacy が開ける', async ({ page }) => {
   await expect(page).toHaveURL(/\/$/);
 });
 
-test('新規登録は同意のチェックがないと押せない', async ({ page }) => {
+test('新規登録に同意の一文とリンクがあり、チェックボックスは無い', async ({ page }) => {
+  await seedConsent(page);
   await page.goto('/account');
   await page.getByRole('tab', { name: '新規登録' }).click();
-
-  const submit = page.getByRole('button', { name: '登録する' });
-  await expect(submit).toBeDisabled();
-
-  const agree = page.getByRole('checkbox', { name: /13さい以上です/ });
-  await agree.check();
-  await expect(submit).toBeEnabled();
-  await agree.uncheck();
-  await expect(submit).toBeDisabled();
+  await expect(page.getByText(/の内容で登録します/)).toBeVisible();
+  await expect(page.getByText(/はじめに同意した/)).toBeVisible();
+  await expect(page.getByRole('link', { name: /プライバシー/ }).or(page.getByRole('button', { name: /プライバシー/ })).first()).toBeVisible();
+  await expect(page.getByRole('checkbox')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '登録する' })).toBeVisible();
 });

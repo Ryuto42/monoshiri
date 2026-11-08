@@ -6,7 +6,6 @@ import { mediaUrl } from '../../lib/api';
 import { haptic } from '../../lib/native';
 import { toast } from '../../lib/toast';
 import type { Card } from '../../lib/types';
-import { RubyText } from '../../components/RubyText';
 import { Icon } from '../../components/ui';
 import { catStyle, spring } from '../../components/theme';
 import { EmailForm, ResetForm } from './EmailForm';
@@ -17,9 +16,6 @@ export function GuestView() {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>(cards.length ? 'signup' : 'login');
   const [busy, setBusy] = useState<'google' | 'form' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Registering (not logging in) waits for the age / guardian check.
-  const [agreed, setAgreed] = useState(false);
-  const held = mode === 'signup' && !agreed;
 
   async function run(kind: 'google' | 'form', f: () => Promise<void>, done?: string) {
     setBusy(kind);
@@ -50,7 +46,7 @@ export function GuestView() {
           {cards.length
             ? `いまの ${cards.length} 枚はそのまま引きつがれます。スマホでもパソコンでも、ログインすれば同じ図鑑が開けます。`
             : 'ログインすると、スマホでもパソコンでも同じ図鑑が開けます。'}
-          <span className="mt-1 block text-[12px] text-ink-3">新しいモノを調べられるのは、ゲストは約20円ぶん、登録すると約300円ぶんまで。</span>
+          <span className="mt-1 block text-[12px] text-ink-3">ゲストは新しく調べられる数に限りがあります。登録すると、もっとたくさん調べられます。</span>
         </p>
       )}
 
@@ -59,14 +55,14 @@ export function GuestView() {
       ) : (
         <>
           <Tabs mode={mode} onChange={(m) => { setMode(m); setError(null); }} />
-          {mode === 'signup' && <Consent agreed={agreed} onChange={setAgreed} />}
+          {mode === 'signup' && <Agreed />}
           {googleAvailable && (
             <>
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.97 }}
                 transition={spring}
-                disabled={!!busy || held}
+                disabled={!!busy}
                 onClick={() => run('google', signInGoogle, 'Google でログインしました')}
                 className="mt-5 flex h-13 w-full items-center justify-center gap-3 rounded-full border border-line bg-white text-[15px] font-bold text-[#1f1f1f] shadow-[var(--shadow-card)] disabled:opacity-60"
               >
@@ -84,7 +80,7 @@ export function GuestView() {
             key={mode}
             mode={mode}
             busy={busy === 'form'}
-            disabled={!!busy || held}
+            disabled={!!busy}
             error={error}
             onSubmit={(email, pw) =>
               run('form', () => (mode === 'signup' ? signUpEmail(email, pw) : signInEmail(email, pw)), mode === 'signup' ? '登録しました。確認メールを見てください' : 'ログインしました')
@@ -105,32 +101,17 @@ export function GuestView() {
   );
 }
 
-function Consent({ agreed, onChange }: { agreed: boolean; onChange: (v: boolean) => void }) {
+// Everyone agreed to the policy (with a guardian, under 13) on the first-run screen, so sign-up only points back to it.
+function Agreed() {
   return (
-    <div className="mt-5 rounded-3xl border border-sun/40 bg-[color-mix(in_oklab,var(--sun)_14%,var(--paper))] px-4 py-3.5">
-      <p className="flex items-start gap-2 text-[14px] font-bold leading-relaxed text-ink">
-        <Icon name="person" size={20} fill className="mt-0.5 shrink-0 text-sun" />
-        <span>
-          <RubyText text="13さい未満《みまん》の人は、おうちの人といっしょに登録《とうろく》してね" />
-        </span>
-      </p>
-      <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-3">
-        <input
-          type="checkbox"
-          checked={agreed}
-          onChange={(e) => {
-            haptic('select');
-            onChange(e.target.checked);
-          }}
-          className="h-6 w-6 shrink-0 cursor-pointer accent-[var(--accent)]"
-        />
-        <span className="text-[14px] font-bold leading-snug text-ink">13さい以上です／おうちの人の同意をもらいました</span>
-      </label>
-      <p className="mt-1 pl-9 text-[12px] text-ink-2">
-        <PrivacyLink className="inline-flex min-h-11 items-center text-leaf" />
-        を読んで、登録してください
-      </p>
-    </div>
+    <p className="mt-5 flex items-start gap-2 rounded-2xl bg-paper-2 px-4 py-3 text-[13px] leading-relaxed text-ink-2">
+      <Icon name="verified_user" size={18} fill className="mt-0.5 shrink-0 text-leaf" />
+      <span>
+        はじめに同意した
+        <PrivacyLink className="text-leaf" />
+        の内容で登録します。
+      </span>
+    </p>
   );
 }
 

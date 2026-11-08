@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react';
 
-// First-run welcome. "pending" holds the camera back until we know whether this person is new,
+// First run. "onboard" asks for the age and the consent to the privacy policy, before anything else.
+// "pending" holds the camera back until we know whether this person is new,
 // so the camera permission prompt never appears on top of (or before) the welcome.
-type State = 'pending' | 'open' | 'closed';
+// "tour" walks through the camera screen's buttons; the camera (and its permission prompt) waits until it ends.
+type State = 'onboard' | 'pending' | 'open' | 'tour' | 'closed';
 
 const KEY = 'monoshiri.welcome';
 
@@ -22,18 +24,52 @@ function remember() {
   }
 }
 
-let state: State = seen() ? 'closed' : 'pending';
+const CONSENT_KEY = 'monoshiri.consent';
+// Bump when the privacy policy changes in a way everyone has to agree to again.
+const CONSENT_VERSION = 1;
+
+function consented() {
+  try {
+    const v = JSON.parse(localStorage.getItem(CONSENT_KEY) ?? 'null') as { v?: unknown } | null;
+    return v?.v === CONSENT_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+function rememberConsent() {
+  try {
+    localStorage.setItem(CONSENT_KEY, JSON.stringify({ v: CONSENT_VERSION, at: Date.now() }));
+  } catch {
+    /* without storage the age and consent screens simply show again next time */
+  }
+}
+
+// People who saw the welcome before consent was asked for still get the age and consent screens, and only those.
+let state: State = consented() ? (seen() ? 'closed' : 'pending') : 'onboard';
+let hasCards: boolean | null = null;
 const listeners = new Set<() => void>();
 const set = (s: State) => {
   state = s;
   listeners.forEach((l) => l());
 };
 
-/** Called once the zukan has loaded: people who already have cards skip the welcome. */
-export function settleWelcome(hasCards: boolean) {
-  if (state !== 'pending') return;
+function afterConsent() {
+  if (seen()) return set('closed');
+  if (hasCards === null) return set('pending');
   remember();
   set(hasCards ? 'closed' : 'open');
+}
+
+/** Called once the zukan has loaded: people who already have cards skip the welcome. */
+export function settleWelcome(cards: boolean) {
+  hasCards = cards;
+  if (state === 'pending') afterConsent();
+}
+
+export function finishOnboarding() {
+  rememberConsent();
+  afterConsent();
 }
 
 export function showWelcome() {
@@ -43,6 +79,37 @@ export function showWelcome() {
 
 export function closeWelcome() {
   set('closed');
+}
+
+export function startTour() {
+  set('tour');
+}
+
+/** True while the first-run screens, the welcome or its tour are showing (read outside React, e.g. in native tap handlers). */
+export const welcomeShowing = () => state === 'onboard' || state === 'open' || state === 'tour';
+
+export type TourTarget = 'gallery' | 'zukan' | 'shutter' | 'account' | 'help';
+
+// After skipping the tour, a small bubble under "?" points out where it can be opened again.
+let helpHint = false;
+export function setHelpHint(v: boolean) {
+  helpHint = v;
+  listeners.forEach((l) => l());
+}
+// Skipping misses the step that points at "?", so point at it once on the way out.
+export function skipTutorial() {
+  closeWelcome();
+  setHelpHint(true);
+}
+
+export function useHelpHint() {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => helpHint,
+  );
 }
 
 export function useWelcome() {

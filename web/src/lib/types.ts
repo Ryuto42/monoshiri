@@ -63,4 +63,4 @@ export type UnitLink = { id: string; why: string };
 /** Text the read-aloud may voice: it must come from this thing's explanation (and topic, if given). */
 export type TtsRef = { name: string; topic?: string };
 /** Learning events the app reports (counted per day on the server, never per person). */
-export type LearnEvent = 'quiz_answer' | 'quiz_correct' | 'card_save' | 'unit_view' | 'mission_start' | 'mission_done' | 'stage_set' | 'zukan_units';
+export type LearnEvent = 'quiz_answer' | 'quiz_correct' | 'card_save' | 'unit_view' | 'stage_set' | 'zukan_units';

@@ -15,25 +15,15 @@ export const STAGES: { id: Stage; label: string; short: string; ruby: string; hi
 
 export const stageInfo = (s: Stage) => STAGES.find((x) => x.id === s)!;
 
-// Only the stage leaves the picker; the school year itself is never stored or sent anywhere.
-export type Grade = { id: string; label: string; stage: Stage };
-export const GRADES: { group: string; grades: Grade[] }[] = [
-  {
-    group: '小学校《しょうがっこう》',
-    grades: [1, 2, 3, 4, 5, 6].map((n) => ({ id: `e${n}`, label: `小${n}`, stage: n <= 3 ? 'lower' : 'upper' })),
-  },
-  {
-    group: '中学校《ちゅうがっこう》',
-    grades: [1, 2, 3].map((n) => ({ id: `j${n}`, label: `中${n}`, stage: 'junior' })),
-  },
-  {
-    group: 'それより上《うえ》',
-    grades: [
-      { id: 'h', label: '高校生', stage: 'senior' },
-      { id: 'a', label: 'おとな', stage: 'senior' },
-    ],
-  },
-];
+// Only the stage leaves the age picker; the age itself is never stored or sent anywhere.
+export const AGE_MIN = 3;
+export const AGE_MAX = 120;
+export function stageForAge(age: number): Stage {
+  if (age <= 8) return 'lower';
+  if (age <= 11) return 'upper';
+  if (age <= 14) return 'junior';
+  return 'senior';
+}
 
 type State = { uid: string | null; stage: Stage | null; loaded: boolean };
 let state: State = { uid: null, stage: null, loaded: false };
@@ -48,21 +38,26 @@ const set = (s: State) => {
 const isStage = (v: unknown): v is Stage => STAGES.some((s) => s.id === v);
 
 const localKey = (uid: string) => `monoshiri.stage.${uid}`;
-const readLocal = (uid: string): Stage | null => {
+// The answer from the first-run age screen, which can come before the guest account exists (or while offline).
+// It shares the "monoshiri.stage." prefix, so logging out clears it with the rest.
+const DEVICE_KEY = 'monoshiri.stage.device';
+const read = (key: string): Stage | null => {
   try {
-    const v = localStorage.getItem(localKey(uid));
+    const v = localStorage.getItem(key);
     return isStage(v) ? v : null;
   } catch {
     return null;
   }
 };
-const writeLocal = (uid: string, stage: Stage) => {
+const write = (key: string, stage: Stage) => {
   try {
-    localStorage.setItem(localKey(uid), stage);
+    localStorage.setItem(key, stage);
   } catch {
     /* storage unavailable */
   }
 };
+const readLocal = (uid: string): Stage | null => read(localKey(uid)) ?? read(DEVICE_KEY);
+const writeLocal = (uid: string, stage: Stage) => write(localKey(uid), stage);
 
 async function writeRemote(uid: string, stage: Stage) {
   const { fs, doc, setDoc } = await firestore();
@@ -101,10 +96,17 @@ onIdTokenChanged(auth, (u) => {
   void load(u);
 });
 
+// Takes effect on this device right away (before the first await), even if signing in or the account copy fails.
 export async function saveStage(stage: Stage) {
+  write(DEVICE_KEY, stage);
+  const now = auth.currentUser;
+  if (now) writeLocal(now.uid, stage);
+  set({ uid: now?.uid ?? null, stage, loaded: true });
   const user = await currentUser();
-  writeLocal(user.uid, stage);
-  set({ uid: user.uid, stage, loaded: true });
+  if (user.uid !== now?.uid) {
+    writeLocal(user.uid, stage);
+    set({ uid: user.uid, stage, loaded: true });
+  }
   void api.events([{ name: 'stage_set' }]);
   if (!user.isAnonymous && canSync(user)) await writeRemote(user.uid, stage);
 }
