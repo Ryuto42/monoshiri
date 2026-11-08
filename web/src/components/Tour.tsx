@@ -171,9 +171,13 @@ export function HelpHint() {
     if (!on) return;
     const el = [...document.querySelectorAll<HTMLElement>('[data-tour="help"]')].find((e) => e.getBoundingClientRect().width > 0);
     if (!el) return setHelpHint(false);
-    setAt(el.getBoundingClientRect());
+    // Measured on the next frame: the "?" button is laid out by then, and state isn't set synchronously in the effect.
+    const raf = requestAnimationFrame(() => setAt(el.getBoundingClientRect()));
     const t = setTimeout(() => setHelpHint(false), 5000);
-    return () => clearTimeout(t);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
   }, [on]);
   // The bubble sizes itself to its text and hangs from the right edge, under "?" (which sits near the top-right corner).
   const right = 12;
