@@ -372,7 +372,6 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
                   </motion.button>
                 ))}
               </div>
-              <p className="mt-2 text-[10px] text-white/40">サンプル写真はAIで生成した画像です</p>
             </div>
           </motion.div>
         )}
