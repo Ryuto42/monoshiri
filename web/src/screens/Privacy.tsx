@@ -133,8 +133,8 @@ function PrivacyBody() {
         <Part title="8. お問い合わせ">
           <p>
             ご質問やご意見は、
-            <a href={ISSUES} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-bold text-leaf underline underline-offset-4">
-              GitHub の Issues
+            <a href={ISSUES} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-bold text-leaf">
+              <span className="underline underline-offset-4">GitHub の Issues</span>
               <Icon name="open_in_new" size={15} />
             </a>
             までお寄せください。
