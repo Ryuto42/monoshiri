@@ -4,7 +4,8 @@ import { useSyncExternalStore } from 'react';
 // "pending" holds the camera back until we know whether this person is new,
 // so the camera permission prompt never appears on top of (or before) the welcome.
 // "tour" walks through the camera screen's buttons; the camera (and its permission prompt) waits until it ends.
-type State = 'onboard' | 'pending' | 'open' | 'tour' | 'closed';
+// "signin" is someone with an account logging in from the first screen instead of answering the age.
+type State = 'onboard' | 'signin' | 'pending' | 'open' | 'tour' | 'closed';
 
 const KEY = 'monoshiri.welcome';
 
@@ -85,6 +86,23 @@ export function finishOnboarding() {
   afterConsent();
 }
 
+/** From the age screen: someone who already has an account logs in instead (the account sheet opens over the camera). */
+export function startSignIn() {
+  set('signin');
+}
+
+/**
+ * The login from the first screen is over. Signed in with a stage kept in the account: they agreed to the policy when
+ * they registered, so the age, consent and welcome are all skipped. Otherwise (closed, or no stage saved) back to the age.
+ */
+export function endSignIn(signedIn: boolean, hasStage: boolean) {
+  if (state !== 'signin') return;
+  if (!signedIn || !hasStage) return set('onboard');
+  rememberConsent();
+  remember();
+  set('closed');
+}
+
 export function showWelcome() {
   remember();
   set('open');
@@ -99,7 +117,7 @@ export function startTour() {
 }
 
 /** True while the first-run screens, the welcome or its tour are showing (read outside React, e.g. in native tap handlers). */
-export const welcomeShowing = () => state === 'onboard' || state === 'open' || state === 'tour';
+export const welcomeShowing = () => state === 'onboard' || state === 'signin' || state === 'open' || state === 'tour';
 
 export type TourTarget = 'gallery' | 'zukan' | 'shutter' | 'account' | 'help';
 
