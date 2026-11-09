@@ -106,7 +106,7 @@ export function Zukan() {
     <>
       <div className="fixed inset-0 overflow-y-auto overflow-x-hidden overscroll-contain bg-paper paper-grain" id="zukan-scroll">
         <header ref={head} className="sticky top-0 z-20 bg-paper">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 pb-3 pt-[max(env(safe-area-inset-top),14px)] sm:px-6">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 pb-1.5 pt-[max(env(safe-area-inset-top),6px)] sm:px-6">
             <div className="flex items-center gap-2">
               <IconButton icon="arrow_back" label="カメラにもどる" onClick={toCamera} />
               <span className="hidden sm:block"><Logo /></span>
