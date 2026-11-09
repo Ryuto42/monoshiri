@@ -14,6 +14,8 @@ export const SMTP = {
   password: process.env.SMTP_PASSWORD ?? '',
   fromName: process.env.MAIL_FROM_NAME ?? 'モノシリ',
 };
+// Where people can write to us; the emails say so instead of "do not reply".
+export const CONTACT_EMAIL = 'monoshiri.app@gmail.com';
 export const PORT = Number(process.env.PORT ?? 8080);
 export const BUCKET = process.env.MEDIA_BUCKET ?? `${PROJECT}-media`;
 export const YT_KEY = process.env.YOUTUBE_API_KEY ?? '';

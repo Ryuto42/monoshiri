@@ -6,6 +6,7 @@ import { keyOf, kindQuery, saveMedia, toWebp, videoQuery, youtubeVideos, type Vi
 import { topicPhotos } from '../photos.ts';
 import { track as count } from '../stats.ts';
 import { BudgetError, ensureBudget, getCached, setCached, UserLimitError, AttestError } from '../store.ts';
+import { errorText, report } from '../report.ts';
 
 export const media = new Hono<Env>();
 
@@ -32,7 +33,7 @@ media.get('/api/media', async (c) => {
   if (hit) return c.json({ images: hit.images, videos: await videos, query });
   const images = await topicPhotos(name, en || name, topic).catch((e) => {
     if (e instanceof BudgetError || e instanceof UserLimitError || e instanceof AttestError) throw e;
-    console.error('photos failed', e);
+    report('failed', 'photos_failed', { name, topic, detail: errorText(e) });
     return [];
   });
   if (images.length) await setCached('cache_media', key, { images });

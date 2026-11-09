@@ -6,6 +6,7 @@ import { atLevel, clean, deepText, exploreDoc, exploredTopic, levelOf, S, str, s
 import { keyOf } from '../media.ts';
 import { track as count } from '../stats.ts';
 import { ensureBudget, getCached, holdRequest, setCached } from '../store.ts';
+import { errorText, report } from '../report.ts';
 
 // A grounded call: tokens plus a few Google Search queries ($14 / 1,000), with the meter's safety margin.
 export const GROUNDED_EST_USD = 0.06;
@@ -80,7 +81,7 @@ deep.post('/api/deep', async (c) => {
         }
       }
     } catch (e: any) {
-      console.error(e);
+      report('failed', 'deep_failed', { name: n, topic: t, detail: errorText(e) });
       await stream.writeSSE({ event: 'error', data: JSON.stringify(LOCAL ? String(e?.message ?? e).slice(0, 200) : 'generation_failed') });
       return;
     }
@@ -153,7 +154,7 @@ deep.post('/api/quiz', async (c) => {
   } catch {}
   const out = validQuiz(parsed);
   if (!out) {
-    console.error('quiz rejected', String(res.text ?? '').slice(0, 300));
+    report('failed', 'quiz_failed', { name: n, topic: t, detail: String(res.text ?? '').slice(0, 300) });
     return c.json({ error: 'quiz_failed' }, 502);
   }
   await setCached('cache_quiz', key, out);

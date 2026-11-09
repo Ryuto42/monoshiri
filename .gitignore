@@ -20,6 +20,7 @@ keystore.properties
 
 # Local dev data
 .local-media/
+mail-preview/
 .firebase/
 *.tmp.*
 

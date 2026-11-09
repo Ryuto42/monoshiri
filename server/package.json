@@ -7,7 +7,8 @@
     "dev": "LOCAL_DEV=1 node --env-file-if-exists=.env --watch src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "LOCAL_DEV=1 node --test --test-concurrency=1 'test/**/*.test.ts'",
-    "mail:preview": "node src/mail/preview.ts"
+    "mail:preview": "node src/mail/preview.ts",
+    "notify:policy": "node src/tools/notify-policy.ts"
   },
   "type": "module",
   "dependencies": {
