@@ -18,7 +18,7 @@
 - `web/`（Web / iOS / Android アプリ）
 - `firestore.rules`、`firebase.json`、`infra/`、`.github/workflows/`
 
-本番環境（`monoshiri.web.app` と Cloud Run）に対する負荷試験・大量リクエスト・課金を発生させる自動化はしないでください。検証は自分の Google Cloud プロジェクトで行ってください（手順は README の「自分の環境で動かす」）。
+本番環境（`monoshiri.web.app` と Cloud Run）に対する負荷試験・大量リクエスト・課金を発生させる自動化はしないでください。検証は自分の Google Cloud プロジェクトで行ってください（手順は [docs/development.md](docs/development.md)）。
 
 ## 設計上の前提
 
