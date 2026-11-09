@@ -2,7 +2,7 @@
 
 ## 脆弱性の報告
 
-脆弱性を見つけたら、公開の Issue には書かず、GitHub の **Security → Report a vulnerability**（Private vulnerability reporting）から非公開で報告してください。
+脆弱性を見つけたら、公開の Issue には書かず、GitHub の **Security → Report a vulnerability**（Private vulnerability reporting）から非公開で報告してください。GitHub を使えないときは、`monoshiri.app@gmail.com` にメールでも受け付けます。
 
 報告には次を含めてもらえると助かります。
 
