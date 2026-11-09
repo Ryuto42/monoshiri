@@ -8,6 +8,7 @@ import { HeroIcon, Icon, IconButton } from '../components/ui';
 import { sheetMotion, ui } from '../components/theme';
 
 const ISSUES = 'https://github.com/Ryuto42/monoshiri/issues';
+const CONTACT = 'monoshiri.app@gmail.com';
 const ENACTED = '2026年11月9日';
 
 // The /privacy route: closing steps back to wherever it was opened from.
@@ -144,13 +145,18 @@ function PrivacyBody() {
 
         <Part title="8. お問い合わせ">
           <p>
-            ご質問やご意見は、
+            ご質問やご意見は、メール（
+            <a href={`mailto:${CONTACT}`} className="inline-flex min-h-11 items-center font-bold text-leaf">
+              <span className="underline underline-offset-4">{CONTACT}</span>
+            </a>
+            ）か、
             <a href={ISSUES} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-0.5 font-bold text-leaf">
               <span className="underline underline-offset-4">GitHub の Issues</span>
               <Icon name="open_in_new" size={15} />
             </a>
             までお寄せください。
           </p>
+          <p className="mt-2">データの削除のお願いなど、個人の情報にかかわるご相談は、公開される Issues ではなくメールでお送りください。</p>
         </Part>
 
         <Part title="9. 改定">

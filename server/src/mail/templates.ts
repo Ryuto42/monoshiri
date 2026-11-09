@@ -1,4 +1,4 @@
-import { APP_URL as SITE } from '../config.ts';
+import { APP_URL as SITE, CONTACT_EMAIL } from '../config.ts';
 import { escapeHtml, layout } from './layout.ts';
 
 export type Mail = { subject: string; html: string; text: string };
@@ -6,7 +6,7 @@ export type Mail = { subject: string; html: string; text: string };
 const strong = (email: string) => `<strong style="color:#2a2017;word-break:break-all;">${escapeHtml(email)}</strong>`;
 
 // The plain-text part carries the whole message (not just the link): mail with a thin text part looks like spam.
-const textOf = (lines: string[]) => [...lines, '', '――', 'モノシリ（撮るだけで、身の回りが教科書になる学習アプリ）', SITE, 'このメールは送信専用です。返信はとどきません。'].join('\n');
+const textOf = (lines: string[]) => [...lines, '', '――', 'モノシリ（撮るだけで、身の回りが教科書になる学習アプリ）', SITE, `ご質問は ${CONTACT_EMAIL} までお寄せください。`].join('\n');
 
 export function verifyMail(email: string, link: string): Mail {
   return {
