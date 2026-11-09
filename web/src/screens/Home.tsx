@@ -7,7 +7,7 @@ import { KidText } from '../components/RubyText';
 import { saveCard, getCard, useCards } from '../lib/cards';
 import { getFlow, resetFlow, setFlow, useFlow } from '../lib/flow';
 import { cropBox, shotFromBlob, shotFromVideo, type Shot } from '../lib/image';
-import type { Card, DeepNote } from '../lib/types';
+import type { Card, DeepNote, Explore } from '../lib/types';
 import { CardMaker } from '../components/CardMaker';
 import { ReadyBubble } from '../components/ReadyBubble';
 import { Sheet } from '../components/Sheet';
@@ -65,7 +65,8 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const [asking, setAsking] = useState(false);
   const leave = useCallback(() => {
     const f = getFlow();
-    if (f.stage === 'explore' && f.explore && !getCard(f.explore.id)) setAsking(true);
+    // While only the first half is shown there is nothing to keep yet, as while loading.
+    if (f.stage === 'explore' && f.explore && !f.explore.partial && !getCard(f.explore.id)) setAsking(true);
     else resetFlow();
   }, []);
   useEffect(() => (live || asking ? undefined : onBack(leave)), [live, asking, leave]);
@@ -100,16 +101,24 @@ export function Home({ paused = false }: { paused?: boolean }) {
     const seq = ++exploreSeq.current;
     setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null, errorCode: null, known: null, label });
     void api.known(label).then(({ known }) => getFlow().stage === 'exploring' && setFlow({ known })).catch(() => {});
-    try {
-      const ex = await api.explore(label, cropB64, from);
-      if (seq !== exploreSeq.current || getFlow().stage !== 'exploring') return;
-      // A correction renames the marker only once the new name worked, so "もう一度" after a failure retries the original.
-      if (from) setFlow((s) => ({ objects: s.objects.map((x, i) => (i === s.selected ? { ...x, label, alts: [] } : x)) }));
+    // Something new shows its first half while the rest is checked with search; the flow stays on it until then.
+    const current = () => {
+      const s = getFlow();
+      return seq === exploreSeq.current && (s.stage === 'exploring' || (s.stage === 'explore' && !!s.explore?.partial));
+    };
+    const show = (ex: Explore) => {
       const saved = getCard(ex.id);
       const notes = Object.fromEntries((saved?.notes ?? []).map((n) => [n.topicId, n]));
       setFlow({ stage: 'explore', explore: ex, notes });
+    };
+    try {
+      const ex = await api.exploreStream(label, (q) => current() && show(q), cropB64, from);
+      if (!current()) return;
+      // A correction renames the marker only once the new name worked, so "もう一度" after a failure retries the original.
+      if (from) setFlow((s) => ({ objects: s.objects.map((x, i) => (i === s.selected ? { ...x, label, alts: [] } : x)) }));
+      show(ex);
     } catch (e) {
-      if (seq === exploreSeq.current) setFlow({ stage: 'error', error: errorMessage(e), errorCode: errorCode(e) });
+      if (current()) setFlow({ stage: 'error', error: errorMessage(e), errorCode: errorCode(e) });
     }
   }
 
@@ -358,9 +367,10 @@ export function Home({ paused = false }: { paused?: boolean }) {
 
       <div className="text-ink">
         <Sheet open={!live} expanded={expanded} onExpandedChange={setExpanded} peek={peek} fit={flow.stage === 'error'}>
-          {/* Not while it is still loading: changing the stage there would start the explanation over. */}
+          {/* Not while it is still loading (nor while the rest is being searched): changing the stage there would start the
+              explanation over. */}
           {flow.stage === 'explore' && (
-            <div className="flex justify-end px-4 pb-1">
+            <div className={`flex justify-end px-4 pb-1 transition-opacity ${flow.explore?.partial ? 'opacity-40' : ''}`} inert={!!flow.explore?.partial}>
               <StageChip onChange={restage} />
             </div>
           )}

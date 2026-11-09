@@ -1,10 +1,9 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { bodyLimit } from 'hono/body-limit';
-import { ALLOWED_ORIGINS, LOCAL, USER_CAP_JPY } from './config.ts';
-import { AttestError, BudgetError, BusyError, UserLimitError } from './store.ts';
+import { ALLOWED_ORIGINS, LOCAL } from './config.ts';
 import { authMiddleware, defaultAuthDeps, type AuthDeps } from './auth.ts';
-import type { Env } from './http.ts';
+import { errorOf, type Env } from './http.ts';
 import { files } from './routes/files.ts';
 import { detect } from './routes/detect.ts';
 import { explore } from './routes/explore.ts';
@@ -29,14 +28,8 @@ export function createApp(deps: AuthDeps = defaultAuthDeps) {
   app.use('/api/*', authMiddleware(deps));
 
   app.onError((err, c) => {
-    if (err instanceof BudgetError) return c.json({ error: 'budget' }, 402);
-    if (err instanceof UserLimitError) return c.json({ error: 'user_limit', tier: err.tier, capJpy: USER_CAP_JPY[err.tier] }, 402);
-    if (err instanceof AttestError) return c.json({ error: 'attest_required' }, 403);
-    // Too many generations of this account running at once.
-    if (err instanceof BusyError) return c.json({ error: 'busy' }, 429);
-    // A request body that isn't JSON (c.req.json() throws SyntaxError; model output is parsed with http.ts json(), which doesn't).
-    if (err instanceof SyntaxError) return c.json({ error: 'bad_json' }, 400);
-    if ((err as any)?.status === 429) return c.json({ error: 'busy' }, 503);
+    const known = errorOf(err);
+    if (known) return c.json(known.body, known.status);
     console.error(err);
     return c.json({ error: 'internal', ...(LOCAL && { message: String(err?.message ?? err).slice(0, 200) }) }, 500);
   });
