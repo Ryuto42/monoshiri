@@ -3,6 +3,7 @@ import { AttestError, BudgetError, BusyError, getCached, UserLimitError } from '
 import { keyOf } from './media.ts';
 import { RUBY_LEVELS } from './ai.ts';
 import { asLevel, LEVELS, USER_CAP_JPY, type Level } from './config.ts';
+import { report } from './report.ts';
 
 export type Env = { Variables: { uid: string; tier: Tier; attested: boolean } };
 
@@ -84,7 +85,11 @@ export const unknown = { error: 'unknown_subject' } as const;
 
 /** The JSON error (and status) for errors the API expects; null for anything else. Streams send the same body as an `error` event. */
 export function errorOf(err: unknown): { status: 400 | 402 | 403 | 429 | 503; body: { error: string; tier?: Tier; capJpy?: number } } | null {
-  if (err instanceof BudgetError) return { status: 402, body: { error: 'budget' } };
+  if (err instanceof BudgetError) {
+    // The whole app has stopped generating: worth a mail every time.
+    report('rejected', 'budget');
+    return { status: 402, body: { error: 'budget' } };
+  }
   if (err instanceof UserLimitError) return { status: 402, body: { error: 'user_limit', tier: err.tier, capJpy: USER_CAP_JPY[err.tier] } };
   if (err instanceof AttestError) return { status: 403, body: { error: 'attest_required' } };
   // Too many generations of this account running at once.

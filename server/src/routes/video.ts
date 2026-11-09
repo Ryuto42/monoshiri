@@ -4,6 +4,7 @@ import { MODELS, PROJECT, VIDEO_LIMIT } from '../config.ts';
 import { clean, exploreDoc, exploredTopic, levelOf, outlineOf, unknown, type Env } from '../http.ts';
 import { keyOf, saveMedia } from '../media.ts';
 import { addSpent, ensureBudget, getCached, releaseCounter, reserveCounter, setCached } from '../store.ts';
+import { report } from '../report.ts';
 
 export const video = new Hono<Env>();
 
@@ -57,7 +58,7 @@ Picture-book 3D clay style, bright soft lighting, smooth camera move, clear visu
   }
   if (!started.ok || !started.data?.id) {
     // Nothing was made: the slot goes back and nothing is charged.
-    console.error('video start failed', JSON.stringify(started.data).slice(0, 500));
+    report('failed', 'video_failed', { step: 'start', detail: JSON.stringify(started.data).slice(0, 500) });
     await releaseCounter('video');
     return c.json({ error: 'video_failed' }, 502);
   }
@@ -75,13 +76,13 @@ video.get('/api/video/:id', async (c) => {
   if (job.url) return c.json({ status: 'completed', url: job.url });
   const { ok, data } = await interactions.get(id);
   if (!ok) {
-    console.error('video status failed', JSON.stringify(data).slice(0, 300));
+    report('failed', 'video_failed', { step: 'status', detail: JSON.stringify(data).slice(0, 300) });
     return c.json({ status: 'failed' });
   }
   if (data.status !== 'completed') return c.json({ status: data.status ?? 'in_progress' });
   const b64 = findVideoData(data);
   if (!b64) {
-    console.error('video payload missing', JSON.stringify(data).slice(0, 400));
+    report('failed', 'video_failed', { step: 'payload', detail: JSON.stringify(data).slice(0, 400) });
     return c.json({ status: 'failed' });
   }
   const url = await saveMedia(`video/${job.key}.mp4`, Buffer.from(b64, 'base64'), 'video/mp4');
