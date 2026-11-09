@@ -80,15 +80,16 @@ export function ZukanUnits({ cards, q, subject, stage, onOpenCard }: {
                   </p>
                 </div>
               </header>
-              {/* Each unit is centred with its cards under it: two to a row on a phone, a card's width each on wider screens,
-                  where the units also sit side by side. */}
-              <div className="flex flex-wrap justify-center sm:gap-x-10">
+              {/* Each unit starts at the left edge, in line with the subject header above, with its cards under it: two to a
+                  row on a phone, a card's width each on wider screens, where the units also sit side by side. (Centred, a
+                  unit with one card floated in the middle; Aya chose the left, 2026-11-09.) */}
+              <div className="flex flex-wrap sm:gap-x-10">
                 {g.units.map((u) => {
                   const list = have.get(u.id) ?? [];
                   const status = unitStatus(u, stage);
                   return (
-                    <section key={u.id} className="mt-5 flex w-full min-w-0 flex-col items-center sm:w-auto sm:max-w-full" aria-label={`『${u.unit}』`}>
-                      <div className="flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 px-1 text-center">
+                    <section key={u.id} className="mt-5 flex w-full min-w-0 flex-col items-start sm:w-auto sm:max-w-full" aria-label={`『${u.unit}』`}>
+                      <div className="flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 px-1">
                         <h4 className="text-[16px] font-black leading-snug">『{u.unit}』</h4>
                         {status && (
                           <span className="rounded-full px-2 text-[12px] font-black leading-6" style={{ background: s.bg, color: s.ink }}>
@@ -96,7 +97,7 @@ export function ZukanUnits({ cards, q, subject, stage, onOpenCard }: {
                           </span>
                         )}
                       </div>
-                      <ul className="mt-2 flex w-full flex-wrap justify-center gap-3 sm:gap-4">
+                      <ul className="mt-2 flex w-full flex-wrap gap-3 sm:gap-4">
                         {list.map((c) => (
                           <li key={c.id} className="w-[calc(50%-6px)] sm:w-[200px]">
                             <motion.button
