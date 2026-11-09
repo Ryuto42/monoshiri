@@ -82,3 +82,12 @@ test('confirmation emails also need App Check for unconfirmed accounts', async (
   assert.equal((await verify('ok')).status, 200);
   assert.equal(sent, 1);
 });
+
+test('the explore stream sends attest_required as an error event; cached explanations stay open', async () => {
+  const stream = async (label: string) =>
+    (await app.request('/api/explore/stream', { method: 'POST', headers: auth('g5:anonymous'), body: JSON.stringify({ label }) })).text();
+  const fresh = await stream('ホチキスの針');
+  assert.match(fresh, /event: error\ndata: \{"error":"attest_required"\}/);
+  assert.ok(!fresh.includes('event: quick'));
+  assert.match(await stream('りんご'), /event: done/);
+});

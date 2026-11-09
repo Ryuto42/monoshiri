@@ -70,8 +70,8 @@
 ```
 ブラウザ / iOS / Android ──(Firebase Auth の ID トークン + App Check)──▶ Cloud Run: monoshiri-api
    │                                          ├─ Vertex AI (global)
-   │                                          │   ├ gemini-3.1-flash-lite   物体検出 (box_2d)・クイズ・単元の選択
-   │                                          │   ├ gemini-3.8-flash        解説・深掘り + Grounding with Google Search
+   │                                          │   ├ gemini-3.1-flash-lite   物体検出 (box_2d)・解説の前半（検索なし）・クイズ・単元の選択
+   │                                          │   ├ gemini-3.8-flash        解説の後半（問い・豆知識と説明の確認）・深掘り + Grounding with Google Search
    │                                          │   ├ gemini-nano-banana-2.1  カードイラスト / 図解
    │                                          │   ├ gemini-3.8-flash-lite-tts 読み上げ
    │                                          │   └ gemini-omni-1.2-flash   AI 動画 (Interactions API)
@@ -88,8 +88,10 @@
 
 1. **撮影**: `Viewfinder` がカメラ映像を出し、撮った画像を `lib/image.ts` で縮小して JPEG（base64）にする
 2. **検出**: `POST /api/detect` で写っているモノと位置（0〜1000 の座標）を受け取り、`Stage` がマーカーを重ねる
-3. **解説**: 選んだモノの切り抜きとラベルを `POST /api/explore` に送る。サーバーは別名キャッシュと解説キャッシュを引き、なければ切り抜きでモノ名を確かめたうえで、名前だけから Gemini + Google 検索で生成して保存する（全員が見る本文に写真の内容が入らないように）
-4. **単元**: 解説を表示すると `POST /api/units` で学校の単元（最大3つ）を受け取り、チップで表示する（年代によらず共通のキャッシュ）
+3. **解説**: 選んだモノの切り抜きとラベルを `POST /api/explore/stream`（SSE）に送る。サーバーは別名キャッシュと解説キャッシュ（なければ別の段階からの言い換え）を引き、あれば `done` 1回で返す。なければ SafeSearch と切り抜きからのモノ名の確認を並べて行い、名前だけから2段階で作る（全員が見る本文に写真の内容が入らないように）
+   - **前半**: 軽いモデル（検索なし）が名前・読み・カテゴリ・ひとこと・説明を書き、数秒で `quick` として届く。画面はすぐ解説を出し、豆知識・単元・問いの場所に「Google 検索で確かめています」の骨組みを出す
+   - **後半**: Gemini + Google 検索が豆知識・6つの問い・キーワードを書き、前半の説明に事実の誤りがあれば直す。全体を共有キャッシュに保存して `done` で送り、画面は本物に差し替える（カードにする・読み上げはここから使える）
+4. **単元**: 解説がそろうと `POST /api/units` で学校の単元（最大3つ）を受け取り、チップで表示する（年代によらず共通のキャッシュ）
 5. **深掘り**: 問いを選ぶと `POST /api/deep` が SSE で本文を流す。写真・動画は `GET /api/media`、図解・動画・クイズは必要になったときにだけ生成する
 6. **カード化**: `POST /api/illustrate` を裏で走らせつつ、カードは単元と一緒にすぐ IndexedDB と Firestore に保存する（`lib/illust.ts`）。完成したらカードを更新して吹き出しで知らせる
 
@@ -303,7 +305,8 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 | `GET /api/usage` | 推定利用額（全体と自分）と上限、残りの動画本数 | — | なし |
 | `GET /api/known` | そのモノの解説がもう誰かに作られているか（キャッシュを読むだけ） | — | なし |
 | `POST /api/detect` | SafeSearch で確認してから、画像からモノと位置を検出（`{ image }`）。画像は保存しない | なし | 小 |
-| `POST /api/explore` | 解説と6つの問い（`{ label, image?, level? }`）。カードの ID は段階によらず同じ | `cache_explore`・`explore_alias` | 中 |
+| `POST /api/explore` | 解説と6つの問い（`{ label, image?, from?, level? }`）を一度に返す（図鑑のカードの補足と、旧版のアプリ向けに残している）。カードの ID は段階によらず同じ | `cache_explore`・`explore_alias` | 中 |
+| `POST /api/explore/stream` | 同じ解説を2段階で（SSE: `quick`＝名前から説明までの前半 / `done`＝完成版 / `error`＝JSON のエラーと同じ本文）。キャッシュ済み・言い換えは `done` 1回 | `cache_explore`・`explore_alias` | 中 |
 | `POST /api/deep` | 問いの深掘り（SSE: `delta` / `done` / `error`） | `cache_deep` | 中 |
 | `POST /api/quiz` | 3択クイズ（`{ name, topic, level }`。元の文はサーバーが深掘りの本文から取る。出力の形を検証） | `cache_quiz` | 小 |
 | `GET /api/media` | テーマに合う写真（Commons から Gemini が選び SafeSearch で確認）と YouTube 動画（セーフサーチ厳格） | `cache_media` | 小 |
