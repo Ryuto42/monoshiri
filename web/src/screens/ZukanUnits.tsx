@@ -1,14 +1,13 @@
 import { motion } from 'motion/react';
 import type { Card } from '../lib/types';
 import type { Stage } from '../lib/level';
-import { stripRuby } from '../lib/ruby';
+import { normalizeSearch as norm } from '../lib/search';
 import { BAND_LABEL, cardsByUnit, STATUS_LABEL, subjectStyle, unitGroups, unitStatus, type Unit } from '../lib/units';
 import { spring } from '../components/theme';
 import { CardFace } from '../components/CardFace';
 import { Icon } from '../components/ui';
 import { KidText } from '../components/RubyText';
 
-const norm = (s: string) => stripRuby(s).toLowerCase();
 
 // 教科でみる: only the units this person has cards for, by grade × subject, with each unit's cards laid out under it
 // (no second step to open a unit).
@@ -18,7 +17,7 @@ export function ZukanUnits({ cards, q, subject, stage, onOpenCard }: {
   const have = cardsByUnit(cards);
   const query = norm(q.trim());
   const matches = (u: Unit) =>
-    !query || [u.unit, u.subject, u.grade, ...(have.get(u.id) ?? []).flatMap((c) => [c.name, c.reading])].some((t) => norm(t).includes(query));
+    !query || [u.unit, u.subject, u.grade, ...(have.get(u.id) ?? []).flatMap((c) => [c.name, c.reading, c.en])].some((t) => norm(t).includes(query));
   const groups = unitGroups(stage)
     .filter((g) => subject === 'すべて' || g.subject === subject)
     .map((g) => ({ ...g, units: g.units.filter((u) => have.has(u.id) && matches(u)) }))

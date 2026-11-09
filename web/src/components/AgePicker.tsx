@@ -27,7 +27,8 @@ export function AgePicker({ initial, initialAge, saving = false, onSave, onSkip,
 
   const press = (d: number) => {
     const next = digits + d;
-    if ((!digits && d === 0) || Number(next) > AGE_MAX) return void haptic('error');
+    // Up to three digits; anything out of 3〜120 stays on screen with the range message instead of turning into another age.
+    if ((!digits && d === 0) || next.length > 3) return void haptic('error');
     haptic('select');
     setDigits(next);
   };
@@ -61,7 +62,7 @@ export function AgePicker({ initial, initialAge, saving = false, onSave, onSkip,
   }, []);
 
   return (
-    <div className="phrase-wrap pb-2">
+    <div className="age-picker phrase-wrap pb-2">
       {/* Short screens (a small phone in landscape-ish split view) drop the badge so the keypad still fits. */}
       {!compact && (
         <div className="[@media(max-height:760px)]:hidden">

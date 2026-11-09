@@ -29,6 +29,10 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
   const [text, setText] = useState(note?.text ?? '');
   const [meta, setMeta] = useState<DeepMeta | null>(note ? { sources: note.sources, queries: [], entryPoint: null } : null);
   const [err, setErr] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [mediaAttempt, setMediaAttempt] = useState(0);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const tabs = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<Tab>('photos');
   const [media, setMedia] = useState<{ images: CommonsImage[]; videos: Video[]; query?: string } | null>(null);
   const [diagram, setDiagram] = useState<string | null>(note?.diagram ?? null);
@@ -50,31 +54,52 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
 
   useEffect(() => {
     const ac = new AbortController();
-    api.media(ex.name, ex.en, topic.title).then(setMedia).catch(() => setMedia({ images: [], videos: [] }));
-    if (!note?.text) {
+    let live = true;
+    if (!note?.text || attempt > 0) {
       let acc = '';
       api
         .deep(ex.name, topic.title, (d) => {
+          if (!live) return;
           acc += d;
           setText(acc);
         }, ac.signal)
         .then((m) => {
+          if (!live) return;
           setMeta(m);
           noteRef.current = { topicId: topic.id, title: topic.title, icon: topic.icon, text: acc, sources: m.sources };
           onNote(noteRef.current);
         })
         .catch((e) => {
           const m = errorMessage(e);
-          if (m) setErr(m);
+          if (live && m) setErr(m);
         });
     }
     const off = onBack(onClose);
     return () => {
+      live = false;
       ac.abort();
       off();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topic.id]);
+  }, [topic.id, attempt]);
+
+  useEffect(() => {
+    let live = true;
+    api.media(ex.name, ex.en, topic.title).then(
+      (result) => { if (live) setMedia(result); },
+      (e) => { if (live) setMediaError(errorMessage(e)); },
+    );
+    return () => { live = false; };
+  }, [ex.name, ex.en, topic.title, mediaAttempt]);
+  useEffect(() => {
+    const selected = tabs.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (selected && tabs.current) {
+      const row = tabs.current;
+      if (selected.offsetLeft < row.scrollLeft) row.scrollLeft = selected.offsetLeft;
+      else if (selected.offsetLeft + selected.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = selected.offsetLeft + selected.offsetWidth - row.clientWidth;
+    }
+  }, [tab]);
+  const retry = () => { setErr(null); setText(''); setMeta(null); setAttempt((n) => n + 1); };
 
   return (
     <motion.div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center" initial={{ opacity: 1 }} exit={{ opacity: 1 }}>
@@ -107,11 +132,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
         <div ref={body} className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.2 } }} className="px-6 pb-16 pt-5">
             {err ? (
-              <div className="rounded-3xl bg-accent-soft p-5 text-center">
-                <p className="phrase-wrap font-bold">
-                  <KidText text={err} />
-                </p>
-              </div>
+              <Retry message={err} onRetry={retry} />
             ) : !text ? (
               <LoadingCard className="py-8" expected={7} icon={topic.icon} bg={color[0]} ink={color[1]} steps={['調べています', '事実を確かめています', '説明を書いています']} />
             ) : (
@@ -139,7 +160,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
               <h3 className="flex items-center gap-2 text-[18px] font-black">
                 <Icon name="visibility" size={22} fill className="text-accent" /> 見て・ためして わかる
               </h3>
-              <div className="mt-3 flex gap-1 overflow-x-auto rounded-full bg-paper-2 p-1 no-scrollbar" role="tablist">
+              <div ref={tabs} className="topic-tabs relative mt-3 flex gap-1 overflow-x-auto rounded-full bg-paper-2 px-1 py-0.5 no-scrollbar" role="tablist">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
@@ -149,9 +170,9 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
                       haptic('select');
                       setTab(t.id);
                     }}
-                    className="relative flex h-10 flex-1 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full px-3 text-[14px] font-bold"
+                    className="hit-44 relative flex h-10 flex-1 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full px-3 text-[14px] font-bold"
                   >
-                    {tab === t.id && <motion.span layoutId="tab-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-tab)]" transition={spring} />}
+                    {tab === t.id && <motion.span layoutId="tab-pill" className="hit-pill absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-tab)]" transition={spring} />}
                     <span className={`relative flex items-center gap-1 ${tab === t.id ? 'text-ink' : 'text-ink-3'}`}>
                       <Icon name={t.icon} size={18} fill={tab === t.id} />
                       {t.label}
@@ -161,8 +182,11 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
               </div>
               <AnimatePresence mode="wait">
                 <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }} className="mt-4">
+                  {(tab === 'photos' || tab === 'videos') && mediaError ? <Retry message={mediaError} onRetry={() => { setMedia(null); setMediaError(null); setMediaAttempt((n) => n + 1); }} /> : <>
                   {tab === 'photos' && <Photos items={media?.images} />}
                   {tab === 'videos' && <Videos items={media?.videos} query={media?.query ?? stripRuby(ex.name)} />}
+                  </>}
+                  {err && ['diagram', 'ai', 'quiz'].includes(tab) ? <Retry message={err} onRetry={retry} /> : <>
                   {tab === 'diagram' && (
                     <Diagram
                       url={diagram}
@@ -186,6 +210,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
                     />
                   )}
                   {tab === 'quiz' && <Quiz name={ex.name} topic={done ? topic.title : ''} />}
+                  </>}
                 </motion.div>
               </AnimatePresence>
             </section>
@@ -318,14 +343,14 @@ function Diagram({ url, ready, make }: { url: string | null; ready: boolean; mak
               try {
                 await make();
               } catch (e) {
-                const m = errorMessage(e);
+                const m = errorMessage(e, 'illustration');
                 if (m) toast(m);
               } finally {
                 setBusy(false);
               }
             }}
           >
-            {ready ? '図解イラストをつくる' : '説明が終わるのを待っています'}
+            {ready ? '図解イラストをつくる' : '説明を読みこみ中です'}
           </Button>
         </>
       )}
@@ -407,7 +432,7 @@ function AiVideo({ url, ready, start, onDone }: { url: string | null; ready: boo
           <p className="font-bold">このテーマを6秒のアニメーションにします</p>
           <p className="text-[13px] text-ink-3">のこり {left ?? '-'} 本</p>
           <Button className="mt-3" icon="movie" disabled={!ready || left === 0} onClick={() => setState('confirm')}>
-            {left === 0 ? 'もう作れません（アプリ全体で2本まで）' : ready ? 'AI動画をつくる' : '説明が終わるのを待っています'}
+            {left === 0 ? 'もう作れません（アプリ全体で2本まで）' : ready ? 'AI動画をつくる' : '説明を読みこみ中です'}
           </Button>
         </>
       )}
@@ -420,12 +445,15 @@ function Quiz({ name, topic }: { name: string; topic: string }) {
   const [quiz, setQuiz] = useState<QuizT | null>(null);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [err, setErr] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!topic) return;
-    api.quiz(name, topic).then(setQuiz).catch(() => setErr(true));
-  }, [name, topic]);
-  if (!topic) return <Empty icon="hourglass_top" text="説明を読み終えたらクイズが出るよ" />;
-  if (err) return <Empty icon="sentiment_dissatisfied" text="クイズを用意できませんでした" />;
+    let live = true;
+    api.quiz(name, topic).then((q) => live && setQuiz(q)).catch(() => live && setErr(true));
+    return () => { live = false; };
+  }, [name, topic, attempt]);
+  if (!topic) return <Empty icon="hourglass_top" text="説明を読みこむとクイズが出るよ" />;
+  if (err) return <Retry message="クイズを用意《ようい》できませんでした。" onRetry={() => { setErr(false); setAttempt((n) => n + 1); }} />;
   if (!quiz) return <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-20" />)}</div>;
   const score = quiz.questions.filter((q, i) => answers[i] === q.answer).length;
   const finished = Object.keys(answers).length === quiz.questions.length;
@@ -491,4 +519,11 @@ function Empty({ icon, text }: { icon: string; text: string }) {
       <p className="mt-1 text-[14px] font-bold">{text}</p>
     </div>
   );
+}
+
+function Retry({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return <div role="status" className="rounded-3xl bg-paper-2 p-5 text-center">
+    <p className="phrase-wrap text-[14px] font-bold"><KidText text={message} /></p>
+    <Button aria-label="もう一度" tone="paper" size="sm" icon="refresh" className="mt-3" onClick={onRetry}><KidText text="もう一度《いちど》" /></Button>
+  </div>;
 }

@@ -80,6 +80,7 @@ export function Sheet({ open, expanded, onExpandedChange, peek = 300, fit = fals
         transition={{ type: 'spring', stiffness: 300, damping: 34 }}
         className="fixed right-4 top-4 bottom-4 z-30 w-[min(480px,42vw)] overflow-hidden rounded-[32px] bg-paper shadow-[var(--shadow-float)]"
         aria-hidden={!open}
+        inert={!open}
       >
         <div className="h-full overflow-y-auto overscroll-contain pt-6 no-scrollbar">{children}</div>
       </motion.aside>
@@ -97,8 +98,12 @@ export function Sheet({ open, expanded, onExpandedChange, peek = 300, fit = fals
       className="fixed inset-x-0 bottom-0 z-30 flex flex-col rounded-t-[32px] bg-paper shadow-[0_-10px_40px_-10px_rgb(0_0_0/0.35)]"
       style={{ height, y, willChange: 'transform' }}
       aria-hidden={!open}
+      inert={!open}
     >
-      <motion.div
+      <motion.button
+        type="button"
+        aria-expanded={expanded}
+        aria-label={expanded ? '結果を小さくする' : '結果を広げる'}
         className="flex h-8 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
@@ -108,7 +113,7 @@ export function Sheet({ open, expanded, onExpandedChange, peek = 300, fit = fals
         onTap={() => onExpandedChange(!expanded)}
       >
         <span className="h-1.5 w-11 rounded-full bg-ink/20" />
-      </motion.div>
+      </motion.button>
       <div
         ref={scroller}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar"
