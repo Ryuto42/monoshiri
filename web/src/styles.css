@@ -35,11 +35,14 @@
   --paper-3: #eadfcb;
   --ink: #2a2017;
   --ink-2: #66574a;
-  --ink-3: #9a8a7a;
+  /* A touch darker than before so small secondary text reads better on paper (about 3.8:1). */
+  --ink-3: #8a7a6b;
   --line: rgb(42 32 23 / 0.1);
   --accent: #ef6a3a;
   --accent-ink: #ffffff;
   --accent-soft: #fde3d6;
+  /* Orange used as text (not as a fill) is darker, so small orange words stay readable on paper (about 4.5:1). */
+  --accent-text: #bf4d1d;
   --leaf: #3c8a73;
   --leaf-soft: #d9efe6;
   --sky: #5d9bd6;
@@ -63,6 +66,7 @@
     --accent: #ff8257;
     --accent-ink: #1b120c;
     --accent-soft: #4a2617;
+    --accent-text: var(--accent);
     --leaf: #6cc3a6;
     --leaf-soft: #17342b;
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -8px rgb(0 0 0 / 0.6);
@@ -83,6 +87,7 @@
   --accent: #ff8257;
   --accent-ink: #1b120c;
   --accent-soft: #4a2617;
+  --accent-text: var(--accent);
   --leaf: #6cc3a6;
   --leaf-soft: #17342b;
   color-scheme: dark;
@@ -379,4 +384,9 @@ rt {
   .age-picker > [aria-live] { margin-top: 4px; min-height: 44px; }
   .age-picker > [aria-live] p { padding-top: 8px; padding-bottom: 8px; }
   .age-picker > button { margin-top: 4px; }
+}
+
+/* Orange words use the darker text shade (see --accent-text); filled buttons and badges keep the brand orange. */
+.text-accent {
+  color: var(--accent-text);
 }
