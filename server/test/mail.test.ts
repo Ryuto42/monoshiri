@@ -92,7 +92,7 @@ test('mail is plain enough not to look like spam: no hidden preheader, no emoji,
   assert.ok(!/&#x1F|[\u{1F300}-\u{1FAFF}]/u.test(m.html + m.subject));
   assert.ok(!/[｜|【】!！]/.test(m.subject));
   assert.match(m.text, /どの端末でログインしても/);
-  assert.match(m.text, /送信専用/);
+  assert.match(m.text, /monoshiri\.app@gmail\.com/);
 });
 
 test('the per-address limit counts the mailbox, not the spelling', async () => {

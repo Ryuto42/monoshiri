@@ -8,6 +8,7 @@ import { HeroIcon, Icon, IconButton } from '../components/ui';
 import { sheetMotion, ui } from '../components/theme';
 
 const ISSUES = 'https://github.com/Ryuto42/monoshiri/issues';
+const CONTACT = 'monoshiri.app@gmail.com';
 const ENACTED = '2026年11月9日';
 
 // The /privacy route: closing steps back to wherever it was opened from.
@@ -122,7 +123,7 @@ function PrivacyBody() {
         <Part title="5. 外部への送信">
           <ul className="list-disc pl-5">
             <li>Google：Firebase（ログイン、データベース、ホスティング）、reCAPTCHA Enterprise（Firebase App Check。本アプリからの正しい通信かを確かめるため）、Vertex AI の Gemini と Cloud Vision（写真の解析・解説）</li>
-            <li>Gmail：メールアドレスの確認とパスワード再設定のメールは、モノシリ用の Gmail アカウントから送ります。送るために、登録したメールアドレスを使います</li>
+            <li>Gmail：メールアドレスの確認・パスワード再設定と、このポリシーの大事な変更のお知らせのメールは、モノシリ用の Gmail アカウント（monoshiri.app@gmail.com）から送ります。送るために、登録したメールアドレスを使います</li>
             <li>YouTube：関連する動画を、Cookie を使わない埋め込み（youtube-nocookie.com）で表示します。再生すると YouTube に通信が発生します</li>
             <li>Wikimedia Commons・Wikipedia：テーマに合う写真と、モノの要約を表示するために画像や文章を読み込みます</li>
           </ul>
@@ -144,17 +145,22 @@ function PrivacyBody() {
 
         <Part title="8. お問い合わせ">
           <p>
-            ご質問やご意見は、
+            ご質問やご意見は、メール（
+            <a href={`mailto:${CONTACT}`} className="inline-flex min-h-11 items-center font-bold text-leaf">
+              <span className="underline underline-offset-4">{CONTACT}</span>
+            </a>
+            ）か、
             <a href={ISSUES} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-0.5 font-bold text-leaf">
               <span className="underline underline-offset-4">GitHub の Issues</span>
               <Icon name="open_in_new" size={15} />
             </a>
             までお寄せください。
           </p>
+          <p className="mt-2">データの削除のお願いなど、個人の情報にかかわるご相談は、公開される Issues ではなくメールでお送りください。</p>
         </Part>
 
         <Part title="9. 改定">
-          <p>内容を変えるときは、このページを書き換えます。大事な変更のときは、次に本アプリを開いたときに同意の画面をもう一度出し、改めて同意をいただきます。</p>
+          <p>内容を変えるときは、このページを書き換えます。大事な変更のときは、次に本アプリを開いたときに同意の画面をもう一度出し、改めて同意をいただきます。メールアドレスを登録している方には、monoshiri.app@gmail.com からメールでもお知らせします。</p>
           <p className="mt-2 text-ink-3">{ENACTED} 制定</p>
         </Part>
       </div>

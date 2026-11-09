@@ -13,7 +13,7 @@ const C = {
   accent: '#ef6a3a',
 };
 const FONT = `'Hiragino Maru Gothic ProN','Hiragino Sans','Zen Maru Gothic','Meiryo',sans-serif`;
-import { APP_URL as SITE } from '../config.ts';
+import { APP_URL as SITE, CONTACT_EMAIL } from '../config.ts';
 
 // No hidden preheader text and no emoji in the heading: both are common in spam and count against delivery.
 export type MailParts = {
@@ -81,7 +81,7 @@ export function layout(m: MailParts) {
     </td></tr>
     <tr><td align="center" style="padding:22px 12px 0;font-family:${FONT};font-size:12px;line-height:1.8;color:${C.ink3};">
       ${m.ignore}<br>
-      このメールは送信専用です。<br>
+      ご質問は <a href="mailto:${CONTACT_EMAIL}" style="color:${C.ink3};">${CONTACT_EMAIL}</a> までお寄せください。<br>
       <a href="${SITE}" target="_blank" style="color:${C.ink3};">${SITE.replace(/^https?:\/\//, '')}</a> ・ 撮るだけで、身の回りが教科書になる。
     </td></tr>
   </table>
