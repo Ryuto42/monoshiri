@@ -85,17 +85,36 @@ function Panel() {
 
 function Grow({ children }: { children: ReactNode }) {
   const inner = useRef<HTMLDivElement>(null);
+  // A number only while the card eases to a new step's height; at rest it is 'auto', so nothing is ever clipped
+  // (Safari on an iPhone cut off the bottom button when the measured height came up short).
   const [height, setHeight] = useState<number | 'auto'>('auto');
+  const last = useRef(0);
   useLayoutEffect(() => {
     const el = inner.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setHeight(el.offsetHeight));
+    last.current = el.offsetHeight;
+    const ro = new ResizeObserver(() => {
+      const h = el.offsetHeight;
+      if (Math.abs(h - last.current) < 1) return;
+      setHeight(last.current);
+      last.current = h;
+      requestAnimationFrame(() => setHeight(h));
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
   return (
-    <motion.div initial={false} animate={{ height }} transition={{ type: 'spring', stiffness: 320, damping: 34 }} className="relative overflow-hidden">
-      <div ref={inner}>{children}</div>
+    <motion.div
+      initial={false}
+      animate={{ height }}
+      transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+      onAnimationComplete={() => setHeight('auto')}
+      className={height === 'auto' ? 'relative' : 'relative overflow-hidden'}
+    >
+      {/* flow-root keeps the first child's top margin inside, so it is part of the measured height. */}
+      <div ref={inner} className="flow-root">
+        {children}
+      </div>
     </motion.div>
   );
 }
@@ -116,7 +135,7 @@ function Consent({ child, onBack, onAgree }: { child: boolean; onBack: () => voi
   const ready = policy && (!child || guardian);
   return (
     <div className="pb-2">
-      <div className="[@media(max-height:700px)]:hidden">
+      <div className="[@media(max-height:760px)]:hidden">
         <HeroIcon icon="shield_lock" tone="leaf" />
       </div>
       <h2 id="onboard-title" className={`mt-4 text-center ${ui.title}`}>
