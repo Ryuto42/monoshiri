@@ -220,7 +220,7 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
 
       {ex.partial ? (
         <SearchingFact />
-      ) : (
+      ) : !ex.funFact ? null : (
         <motion.div variants={item} className="mx-6 mt-4 flex gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--sun)_22%,var(--paper))] p-4">
           <Icon name="lightbulb" size={26} fill className="mt-0.5 shrink-0 text-[#b7800b]" />
           <div data-speak>
