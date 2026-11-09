@@ -80,7 +80,7 @@ Google 検索で確かめた解説と「なぜ？」の問いで深掘りし、�
 
 <img src="docs/images/architecture.png" alt="モノシリのアーキテクチャ図。アプリから Firebase と Cloud Run の API を呼び、API が Vertex AI の Gemini、Firestore、Cloud Storage、Cloud Vision、外部データを使う">
 
-1回の「調べる」は、検出（`/api/detect`）→ 2段階の解説（`/api/explore/stream`、SSE）→ 単元（`/api/units`）→ 深掘り（`/api/deep`、SSE）→ カード（`/api/illustrate`）の順に進みます。生成した結果は Firestore に保存して全ユーザーで使い回し、2回目からは無料ですぐに表示します。
+1回の「調べる」は、検出（`/api/detect`）→ 2段階の解説（`/api/explore/stream`、SSE）→ 単元（`/api/units`）→ 深掘り（`/api/deep`、SSE）→ カード（`/api/illustrate`）の順に進みます。生成した結果は Firestore に保存して全ユーザーで使い回し、調べたことのあるモノは作り直さずにすぐ表示します。
 
 詳しくは [docs/architecture.md](docs/architecture.md)（流れ・ディレクトリ構成・データの保存先）と [docs/api.md](docs/api.md) にあります。
 

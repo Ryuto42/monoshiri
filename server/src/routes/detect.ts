@@ -15,7 +15,7 @@ detect.post('/api/detect', async (c) => {
   // The per-account and app-wide caps and the rate limit still apply.
   await ensureBudget(0.005, { attest: false });
   // SafeSearch first: an unsuitable photo is never sent on to Gemini. The photo itself is not stored anywhere.
-  const [ok] = await safeSearch([{ base64: image }]);
+  const [ok] = await safeSearch([{ base64: image }], 'detect');
   if (!ok) return c.json({ error: 'unsafe_image' }, 422);
   const res = await ai.models.generateContent({
     model: MODELS.detect,
