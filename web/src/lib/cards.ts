@@ -14,6 +14,7 @@ class DB extends Dexie {
 const db = new DB();
 let cards: Card[] = [];
 let loaded = false;
+let ready = false;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
@@ -40,6 +41,8 @@ export async function loadCards() {
   if (withPhoto.length) await db.cards.bulkPut(cards).catch(() => {});
   emit();
   await syncCloud();
+  ready = true;
+  emit();
   let last = Date.now();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible' || Date.now() - last < 30_000) return;
@@ -133,9 +136,9 @@ export async function cardsAtRisk(): Promise<number> {
 }
 
 export async function saveCard(card: Card) {
+  await db.cards.put(card);
   cards = sortCards([card, ...cards.filter((c) => c.id !== card.id)]);
   emit();
-  await db.cards.put(card).catch(() => {});
   try {
     const [{ fs, doc, setDoc }, user] = await Promise.all([firestore(), currentUser()]);
     if (!canSync(user)) return;
@@ -206,4 +209,8 @@ export function useCards() {
     },
     () => cards,
   );
+}
+
+export function useCardsLoaded() {
+  return useSyncExternalStore((l) => { listeners.add(l); return () => { listeners.delete(l); }; }, () => ready);
 }

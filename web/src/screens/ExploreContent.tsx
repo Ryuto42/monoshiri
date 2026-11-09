@@ -10,11 +10,11 @@ import { Speak } from '../components/Speak';
 import { MoreSearch } from '../components/MoreSearch';
 import { KidText, RubyText } from '../components/RubyText';
 import { useNavigate } from '@tanstack/react-router';
-import { haptic, isNative } from '../lib/native';
+import { haptic, isNative, onBack } from '../lib/native';
 import { UnitChips } from '../components/UnitChips';
 import { api } from '../lib/api';
 import { useStage } from '../lib/level';
-import { unitById, unitStatus, useUnitLinks } from '../lib/units';
+import { unitById, unitStatus, useUnitLookup } from '../lib/units';
 
 const list = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
 const item = { hidden: { opacity: 0, y: 18, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 380, damping: 30 } } } as const;
@@ -373,7 +373,7 @@ function SearchingTopics() {
 
 // "学校でならうよ": the curriculum units this thing comes up in. Nothing is shown when there are none.
 function SchoolUnits({ name }: { name: string }) {
-  const links = useUnitLinks(name);
+  const { links, error, retry } = useUnitLookup(name);
   const { stage } = useStage();
   // Units from school years already behind this person aren't shown; the rest are what's still ahead (or now).
   const shown = (links ?? []).filter((l) => {
@@ -385,6 +385,10 @@ function SchoolUnits({ name }: { name: string }) {
   }, [links]);
   return (
     <AnimatePresence initial={false}>
+      {error && <div className="mt-8 px-6" role="status">
+        <p className="text-[13px] text-ink-2"><KidText text="学校《がっこう》の単元《たんげん》を読《よ》みこめませんでした。" /></p>
+        <Button aria-label="もう一度" tone="subtle" size="sm" icon="refresh" onClick={retry}><KidText text="もう一度《いちど》" /></Button>
+      </div>}
       {shown.length > 0 && (
         <motion.section
           initial={{ height: 0, opacity: 0 }}
@@ -407,6 +411,9 @@ function SchoolUnits({ name }: { name: string }) {
 
 function Correction({ name, alts, onPick, onCancel }: { name: string; alts: string[]; onPick: (label: string) => void; onCancel: () => void }) {
   const [text, setText] = useState('');
+  const cancel = useRef(onCancel);
+  useEffect(() => { cancel.current = onCancel; });
+  useEffect(() => onBack(() => cancel.current()), []);
   return (
     <motion.section
       initial={{ height: 0, opacity: 0 }}
@@ -429,7 +436,7 @@ function Correction({ name, alts, onPick, onCancel }: { name: string; alts: stri
           </div>
         )}
         <form
-          className="mt-3 flex items-center gap-2 rounded-full bg-paper p-1.5 pl-5"
+          className="correction-form mt-3 flex items-center gap-2 rounded-full bg-paper p-1.5 pl-5"
           onSubmit={(e) => {
             e.preventDefault();
             if (text.trim()) onPick(text.trim());

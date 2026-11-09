@@ -141,7 +141,7 @@ export function Speak({ target, text, compact, ttsRef, autoStart }: {
       // A blocked autoplay just leaves the button for a tap; it is not worth a message.
       const blocked = auto && e instanceof DOMException && e.name === 'NotAllowedError';
       if (!stopped && !blocked) {
-        const m = errorMessage(e);
+        const m = errorMessage(e, 'speech');
         toast(m || '読み上げできませんでした');
       }
     } finally {

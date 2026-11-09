@@ -368,14 +368,15 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 grid place-items-center overflow-y-auto px-8 pb-56 pt-48 text-center text-white/90"
+            className="camera-fallback absolute inset-0 grid place-items-center overflow-y-auto px-8 pb-56 pt-48 text-center text-white/90"
           >
             <div className="max-w-sm">
               <motion.button
+                aria-label="写真をえらぶ"
                 onClick={onPick}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.96 }}
-                className="mx-auto mb-6 grid h-40 w-40 place-items-center rounded-[36px] border-2 border-dashed border-white/30 bg-white/5"
+                className="camera-pick mx-auto mb-6 grid h-40 w-40 place-items-center rounded-[36px] border-2 border-dashed border-white/30 bg-white/5"
               >
                 <Icon name="add_photo_alternate" size={56} />
               </motion.button>
@@ -385,7 +386,7 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
               <p className="phrase-wrap mt-2 text-[14px] text-white/60">
                 <KidText text="カメラが使《つか》えないときは、写真《しゃしん》をえらぶか、ここにドロップ・貼《は》り付《つ》けできます。" />
               </p>
-              <p className="mt-6 text-[13px] font-bold text-white/70">サンプルでためす</p>
+              <p className="camera-sample-title mt-6 text-[13px] font-bold text-white/70">サンプルでためす</p>
               <div className="mt-2 flex justify-center gap-3">
                 {SAMPLES.map((s, i) => (
                   <motion.button
@@ -396,7 +397,7 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
                     animate={{ opacity: 1, y: 0, transition: { delay: 0.2 + i * 0.07 } }}
                     whileHover={{ y: -4, rotate: i === 1 ? 0 : i === 0 ? -3 : 3 }}
                     whileTap={{ scale: 0.92 }}
-                    className="w-[96px] overflow-hidden whitespace-nowrap rounded-2xl border-2 border-white/20 bg-white/10 text-[11px] font-bold"
+                    className="camera-sample w-[96px] overflow-hidden whitespace-nowrap rounded-2xl border-2 border-white/20 bg-white/10 text-[11px] font-bold"
                   >
                     <img src={s.src} alt="" className="aspect-[4/3] w-full object-cover" loading="lazy" />
                     <span className="block py-1">
