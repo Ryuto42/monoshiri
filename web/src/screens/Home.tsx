@@ -82,15 +82,19 @@ export function Home({ paused = false }: { paused?: boolean }) {
 
   const crops = useMemo(() => (flow.shot ? flow.objects.map((o) => cropBox(flow.shot!, o.box, 320).dataUrl) : []), [flow.shot, flow.objects]);
 
+  const detectSeq = useRef(0);
   async function analyze(shot: Shot) {
+    const seq = ++detectSeq.current;
+    const current = () => seq === detectSeq.current && getFlow().shot === shot && getFlow().stage === 'detecting';
     setExpanded(false);
     setFlow({ stage: 'detecting', shot, objects: [], selected: null, explore: null, crop: null, notes: {}, error: null, errorCode: null, topicId: null });
     try {
       const { objects } = await api.detect(shot.base64);
-      if (getFlow().shot !== shot) return;
+      if (!current()) return;
       setFlow({ stage: 'picked', objects });
       if (objects.length === 1) pick(0);
     } catch (e) {
+      if (!current()) return;
       setFlow({ stage: 'error', error: errorMessage(e), errorCode: errorCode(e) });
     }
   }
@@ -100,7 +104,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
   async function explore(label: string, crop: string | null, cropB64?: string, from?: string) {
     const seq = ++exploreSeq.current;
     setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null, errorCode: null, known: null, label });
-    void api.known(label).then(({ known }) => getFlow().stage === 'exploring' && setFlow({ known })).catch(() => {});
+    void api.known(label).then(({ known }) => current() && setFlow({ known })).catch(() => {});
     // Something new shows its first half while the rest is checked with search; the flow stays on it until then.
     const current = () => {
       const s = getFlow();
@@ -183,7 +187,9 @@ export function Home({ paused = false }: { paused?: boolean }) {
   }
 
   async function fromFile(f: File | null | undefined) {
-    if (!f || !f.type.startsWith('image/') || offlineNow()) return;
+    if (!f) return;
+    if (!f.type.startsWith('image/')) return toast('写真《しゃしん》のファイルをえらんでね');
+    if (offlineNow()) return;
     try {
       analyze(await shotFromBlob(f));
     } catch {
@@ -191,15 +197,18 @@ export function Home({ paused = false }: { paused?: boolean }) {
     }
   }
 
+  const canReceivePhoto = () => live && !paused && !welcomeShowing() && !making && !asking && !flow.topicId &&
+    !(document.activeElement instanceof HTMLElement && document.activeElement.closest('input, textarea, [contenteditable="true"]'));
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
-      const f = [...(e.clipboardData?.files ?? [])].find((x) => x.type.startsWith('image/'));
-      if (f) fromFile(f);
+      if (!canReceivePhoto()) return;
+      const f = e.clipboardData?.files[0];
+      if (f) { e.preventDefault(); void fromFile(f); }
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
 
   function onNote(n: DeepNote) {
     setFlow((s) => ({ notes: { ...s.notes, [n.topicId]: n } }));
@@ -207,7 +216,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
     const card = ex && getCard(ex.id);
     if (card) {
       const others = card.notes.filter((x) => x.topicId !== n.topicId);
-      void saveCard({ ...card, notes: [...others, n], updatedAt: Date.now() });
+      void saveCard({ ...card, notes: [...others, n], updatedAt: Date.now() }).catch(() => toast('カードをしまえませんでした。もう一度《いちど》ためしてね'));
     }
   }
 
@@ -253,13 +262,13 @@ export function Home({ paused = false }: { paused?: boolean }) {
       className="fixed inset-0 overflow-hidden bg-[#120e0b] text-white"
       onDragOver={(e) => {
         e.preventDefault();
-        setDragging(true);
+        if (canReceivePhoto()) setDragging(true);
       }}
       onDragLeave={() => setDragging(false)}
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        fromFile(e.dataTransfer.files[0]);
+        if (canReceivePhoto()) void fromFile(e.dataTransfer.files[0]);
       }}
     >
       <Viewfinder
@@ -363,7 +372,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
         )}
       </AnimatePresence>
 
-      <input ref={file} type="file" accept="image/*" hidden onChange={(e) => fromFile(e.target.files?.[0])} />
+      <input ref={file} type="file" accept="image/*" hidden onChange={(e) => { const chosen = e.target.files?.[0]; e.target.value = ''; void fromFile(chosen); }} />
 
       <div className="text-ink">
         <Sheet open={!live} expanded={expanded} onExpandedChange={setExpanded} peek={peek} fit={flow.stage === 'error'}>
@@ -487,7 +496,7 @@ function Shutter({ onClick }: { onClick: () => void }) {
       transition={spring}
       className="relative grid h-[84px] w-[84px] place-items-center rounded-full border-[5px] border-white/95 shadow-[0_8px_30px_rgb(0_0_0/0.35)]"
     >
-      <motion.span className="h-[64px] w-[64px] rounded-full bg-white" whileTap={{ scale: 0.8 }} />
+      <motion.span tabIndex={-1} aria-hidden className="h-[64px] w-[64px] rounded-full bg-white" whileTap={{ scale: 0.8 }} />
       <span className="absolute grid h-[64px] w-[64px] place-items-center text-accent">
         <Icon name="travel_explore" size={30} fill />
       </span>
