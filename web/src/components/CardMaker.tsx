@@ -37,7 +37,7 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
       haptic('select');
     }, 650);
     let alive = true;
-    if (!illustration) void startIllust(ex.id, ex.name, ex.en).then((url) => alive && url && setIllustration(url));
+    if (!illustration) void startIllust(ex.id, ex.name).then((url) => alive && url && setIllustration(url));
     return () => {
       alive = false;
       clearTimeout(t);

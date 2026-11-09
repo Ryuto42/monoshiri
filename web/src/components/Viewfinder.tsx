@@ -2,6 +2,8 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { animate, AnimatePresence, motion, type AnimationPlaybackControls } from 'motion/react';
 import { Icon } from './ui';
 import { Phrases } from './Phrases';
+import { KidText } from './RubyText';
+import { stripRuby } from '../lib/ruby';
 import { spring } from './theme';
 import { haptic } from '../lib/native';
 import { BLANK_POSTER } from '../lib/media';
@@ -23,11 +25,11 @@ import {
 } from '../lib/camera';
 
 export type Rect = { sx: number; sy: number; sw: number; sh: number };
-export type ViewfinderHandle = { video: HTMLVideoElement | null; live: boolean; visibleRect: () => Rect | null };
+export type ViewfinderHandle = { video: HTMLVideoElement | null; live: boolean; blocked: boolean; visibleRect: () => Rect | null };
 
 const SAMPLES = [
-  { src: '/samples/desk.webp', label: 'つくえの上' },
-  { src: '/samples/park.webp', label: '秋の公園' },
+  { src: '/samples/desk.webp', label: 'つくえの上《うえ》' },
+  { src: '/samples/park.webp', label: '秋《あき》の公園《こうえん》' },
   { src: '/samples/kitchen.webp', label: 'キッチン' },
 ];
 
@@ -76,11 +78,11 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
     const sx = clamp(-dx / s, 0, v.videoWidth), sy = clamp(-dy / s, 0, v.videoHeight);
     return { sx, sy, sw: Math.min(v.videoWidth - sx, b.clientWidth / s), sh: Math.min(v.videoHeight - sy, b.clientHeight / s) };
   }, []);
-  useImperativeHandle(ref, () => ({ video: video.current, live: status === 'live', visibleRect }), [status, visibleRect]);
+  useImperativeHandle(ref, () => ({ video: video.current, live: status === 'live', blocked: status === 'blocked', visibleRect }), [status, visibleRect]);
 
   // Switching cameras: freeze the last frame (as the preview showed it), flip or blur it away, and bring the new camera in.
   const swap = useRef<{ kind: Swap; out: Promise<unknown> } | null>(null);
-  function freeze(kind: Swap) {
+  function freeze(kind: Swap | 'still') {
     const v = video.current, c = snap.current, b = box.current;
     if (!v?.videoWidth || !c || !b) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -97,6 +99,10 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
     ctx.restore();
     c.style.visibility = 'visible';
     if (wrap.current) wrap.current.style.opacity = '0';
+    if (kind === 'still') {
+      swap.current = { kind: 'fade', out: Promise.resolve() };
+      return;
+    }
     const anim =
       kind === 'flip'
         ? animate(c, { rotateY: [0, 180], scale: [1, 0.92, 1], filter: ['blur(0px)', 'blur(14px)'] }, { duration: 0.42, ease: [0.45, 0, 0.25, 1] })
@@ -124,9 +130,15 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
     c.style.filter = '';
   }
 
+  const freezeRef = useRef(freeze);
+  useEffect(() => {
+    freezeRef.current = freeze;
+  });
+
   useEffect(() => {
     if (!active) return;
     if (!('getUserMedia' in (navigator.mediaDevices ?? {}))) return;
+    const v = video.current;
     let stream: MediaStream | null = null;
     let cancelled = false;
     const start = (c: Choice): Promise<MediaStream> =>
@@ -171,7 +183,14 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
     return () => {
       cancelled = true;
       track.current = null;
+      // Paused (a sheet or the zukan on top): the last frame stays as a still until the camera is back, and the video lets
+      // go of the stream entirely, so no WebView keeps the camera (and its indicator) on.
+      if (!swap.current) freezeRef.current('still');
       stream?.getTracks().forEach((t) => t.stop());
+      if (v) {
+        v.pause();
+        v.srcObject = null;
+      }
     };
   }, [active, choice]);
 
@@ -360,9 +379,11 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
               >
                 <Icon name="add_photo_alternate" size={56} />
               </motion.button>
-              <p className="text-[20px] font-black">写真をえらんで、しらべよう</p>
+              <p className="phrase-wrap text-[20px] font-black">
+                <KidText text="写真《しゃしん》をえらんで、しらべよう" />
+              </p>
               <p className="phrase-wrap mt-2 text-[14px] text-white/60">
-                <Phrases text="カメラが使えないときは、写真をえらぶか、ここにドロップ・貼り付けできます。" />
+                <KidText text="カメラが使《つか》えないときは、写真《しゃしん》をえらぶか、ここにドロップ・貼《は》り付《つ》けできます。" />
               </p>
               <p className="mt-6 text-[13px] font-bold text-white/70">サンプルでためす</p>
               <div className="mt-2 flex justify-center gap-3">
@@ -370,6 +391,7 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
                   <motion.button
                     key={s.src}
                     onClick={() => onSample(s.src)}
+                    aria-label={stripRuby(s.label)}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0, transition: { delay: 0.2 + i * 0.07 } }}
                     whileHover={{ y: -4, rotate: i === 1 ? 0 : i === 0 ? -3 : 3 }}
@@ -377,7 +399,9 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
                     className="w-[96px] overflow-hidden whitespace-nowrap rounded-2xl border-2 border-white/20 bg-white/10 text-[11px] font-bold"
                   >
                     <img src={s.src} alt="" className="aspect-[4/3] w-full object-cover" loading="lazy" />
-                    <span className="block py-1">{s.label}</span>
+                    <span className="block py-1">
+                      <KidText text={s.label} />
+                    </span>
                   </motion.button>
                 ))}
               </div>
@@ -396,9 +420,11 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
             <span className="grid h-16 w-16 place-items-center rounded-[22px] bg-white/10">
               <Icon name="photo_camera" size={34} fill />
             </span>
-            <p className="mt-4 text-[20px] font-black">カメラを許可してね</p>
+            <p className="phrase-wrap mt-4 text-[20px] font-black">
+              <KidText text="カメラを許可《きょか》してね" />
+            </p>
             <p className="phrase-wrap mt-1.5 max-w-xs text-[14px] leading-relaxed text-white/70">
-              「許可」をおすと、カメラで しらべられるよ。
+              <KidText text="「許可《きょか》」をおすと、カメラで しらべられるよ。" />
             </p>
             {/* A PC may never answer the camera prompt (or have no camera); the other ways in are easy to miss there. */}
             <p className="phrase-wrap mt-4 hidden max-w-sm text-[13px] leading-relaxed text-white/55 lg:block">

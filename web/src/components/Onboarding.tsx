@@ -1,12 +1,12 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { finishOnboarding, useWelcome } from '../lib/welcome';
 import { saveStage, type Stage } from '../lib/level';
 import { haptic, onBack } from '../lib/native';
 import { PrivacyLink } from '../screens/account/parts';
 import { AgePicker } from './AgePicker';
 import { RubyText } from './RubyText';
-import { ReadingStage } from '../lib/ruby';
+import { ReadingStage, stripRuby } from '../lib/ruby';
 import { Button, HeroIcon, Icon } from './ui';
 import { dialogMotion, spring, ui } from './theme';
 
@@ -42,15 +42,20 @@ function Panel() {
       exit={{ opacity: 0 }}
     >
       <div aria-hidden className={ui.scrim} />
+      {/* max-h-full keeps it inside the overlay's safe-area padding, so on a short screen it scrolls instead of
+          running under the status bar or the home indicator. */}
       <motion.section
         role="dialog"
         aria-modal
         aria-labelledby="onboard-title"
         {...dialogMotion}
-        className={`${ui.dialog} phrase-wrap max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain px-6 pt-4 pb-4 no-scrollbar`}
+        className={`${ui.dialog} phrase-wrap max-h-full overflow-y-auto overscroll-contain px-6 pt-4 pb-4 no-scrollbar`}
       >
         <Dots at={step === 'age' ? 0 : 1} />
-        <AnimatePresence mode="wait" initial={false}>
+        {/* The two steps slide past each other (the old one leaves while the new one comes in) and the card eases to
+            the new height, so it never stands empty between them. */}
+        <Grow>
+          <AnimatePresence mode="popLayout" initial={false}>
           {step === 'age' ? (
             <motion.div key="age" initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={spring}>
               <AgePicker
@@ -71,8 +76,26 @@ function Panel() {
               </ReadingStage.Provider>
             </motion.div>
           )}
-        </AnimatePresence>
+          </AnimatePresence>
+        </Grow>
       </motion.section>
+    </motion.div>
+  );
+}
+
+function Grow({ children }: { children: ReactNode }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | 'auto'>('auto');
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeight(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <motion.div initial={false} animate={{ height }} transition={{ type: 'spring', stiffness: 320, damping: 34 }} className="relative overflow-hidden">
+      <div ref={inner}>{children}</div>
     </motion.div>
   );
 }
@@ -93,7 +116,9 @@ function Consent({ child, onBack, onAgree }: { child: boolean; onBack: () => voi
   const ready = policy && (!child || guardian);
   return (
     <div className="pb-2">
-      <HeroIcon icon="shield_lock" tone="leaf" />
+      <div className="[@media(max-height:700px)]:hidden">
+        <HeroIcon icon="shield_lock" tone="leaf" />
+      </div>
       <h2 id="onboard-title" className={`mt-4 text-center ${ui.title}`}>
         はじめる まえに
       </h2>
@@ -119,9 +144,7 @@ function Consent({ child, onBack, onAgree }: { child: boolean; onBack: () => voi
       </p>
 
       <div className="mt-1">
-        <Check checked={policy} onChange={setPolicy}>
-          <RubyText text="プライバシーポリシーを 読《よ》んで、同意《どうい》します" />
-        </Check>
+        <Check checked={policy} onChange={setPolicy} text="プライバシーポリシーを 読《よ》んで、同意《どうい》します" />
       </div>
       {child && (
         <div className="mt-2 rounded-3xl border border-sun/40 bg-[color-mix(in_oklab,var(--sun)_14%,var(--paper))] px-2 pt-2.5 pb-1">
@@ -131,9 +154,7 @@ function Consent({ child, onBack, onAgree }: { child: boolean; onBack: () => voi
               <RubyText text="13さい 未満《みまん》の 人は、おうちの 人と いっしょに 読《よ》んでね" />
             </span>
           </p>
-          <Check checked={guardian} onChange={setGuardian}>
-            <RubyText text="おうちの 人と いっしょに 読《よ》み、同意《どうい》を もらいました" />
-          </Check>
+          <Check checked={guardian} onChange={setGuardian} text="おうちの 人と いっしょに 読《よ》み、同意《どうい》を もらいました" />
         </div>
       )}
 
@@ -168,11 +189,16 @@ function Point({ icon, children }: { icon: string; children: ReactNode }) {
   );
 }
 
-function Check({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: ReactNode }) {
+// The box is tied to its sentence by id, and its name is the sentence without the readings, so a screen reader says
+// the sentence once (not "on", and not each kanji twice).
+function Check({ checked, onChange, text }: { checked: boolean; onChange: (v: boolean) => void; text: string }) {
+  const id = useId();
   return (
-    <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl px-2 py-1.5 hover:bg-ink/4">
+    <label htmlFor={id} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl px-2 py-1.5 hover:bg-ink/4">
       <input
+        id={id}
         type="checkbox"
+        aria-label={stripRuby(text)}
         checked={checked}
         onChange={(e) => {
           haptic('select');
@@ -180,7 +206,9 @@ function Check({ checked, onChange, children }: { checked: boolean; onChange: (v
         }}
         className="h-6 w-6 shrink-0 cursor-pointer accent-[var(--accent)]"
       />
-      <span className="text-[14px] font-bold leading-snug text-ink">{children}</span>
+      <span aria-hidden className="text-[14px] font-bold leading-snug text-ink">
+        <RubyText text={text} />
+      </span>
     </label>
   );
 }

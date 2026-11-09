@@ -10,7 +10,7 @@ import { clearReady, useIllustReady } from '../lib/illust';
 import { CardFace } from '../components/CardFace';
 import { EmptySlots } from '../components/LoadingCard';
 import { Button, Icon, IconButton } from '../components/ui';
-import { Phrases } from '../components/Phrases';
+import { KidText } from '../components/RubyText';
 import { CATEGORY_STYLE, spring } from '../components/theme';
 import { Logo } from '../components/Logo';
 import { api } from '../lib/api';
@@ -71,12 +71,19 @@ export function Zukan() {
   // Changing the filter while scrolled down brings the top of the new list up under the bar, instead of leaving the view
   // somewhere past its end.
   const bar = useRef<HTMLDivElement>(null);
-  const pickCat = (c: string) => {
-    setCat(c);
+  const toListTop = () => {
     const scroller = document.getElementById('zukan-scroll');
     const grid = document.getElementById('zukan-grid');
     const barBottom = bar.current?.getBoundingClientRect().bottom ?? 0;
     if (scroller && grid && grid.getBoundingClientRect().top < barBottom) scroller.scrollTop += grid.getBoundingClientRect().top - barBottom - 16;
+  };
+  const pickCat = (c: string) => {
+    setCat(c);
+    toListTop();
+  };
+  const pickSubject = (c: string) => {
+    setSubject(c);
+    toListTop();
   };
   const open = (id: string, el?: HTMLElement) => {
     document.querySelectorAll('[data-card-open]').forEach((e) => e.removeAttribute('data-card-open'));
@@ -109,7 +116,9 @@ export function Zukan() {
 
         <main className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
           <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="pt-2">
-            <h1 className="text-[clamp(28px,5vw,44px)] font-black leading-tight">モノシリ図鑑</h1>
+            <h1 className="text-[clamp(28px,5vw,44px)] font-black leading-tight">
+              <KidText text="モノシリ図鑑《ずかん》" />
+            </h1>
             {/* On a phone the counts sit in an even 2 × 2 grid; wider screens keep them in one row. */}
             <div className="mt-3 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
               <Stat icon="style" label="あつめたカード" value={cards.length} />
@@ -130,7 +139,7 @@ export function Zukan() {
               <div className="flex items-center gap-2">
                 {UNITS.length > 0 && (
                   <div className="flex shrink-0 rounded-full bg-paper-2 p-1" role="tablist" aria-label="図鑑の見かた">
-                    {([['genre', 'ジャンル', 'category'], ['units', '教科でみる', 'school']] as const).map(([m, label, icon]) => (
+                    {([['genre', 'ジャンル', 'category'], ['units', '教科', 'school']] as const).map(([m, label, icon]) => (
                       <motion.button
                         key={m}
                         role="tab"
@@ -175,7 +184,7 @@ export function Zukan() {
               {mode === 'units' && subjects.length > 1 && (
                 <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
                   {['すべて', ...subjects].map((c) => (
-                    <motion.button key={c} onClick={() => setSubject(c)} whileTap={{ scale: 0.97 }} transition={spring} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
+                    <motion.button key={c} onClick={() => pickSubject(c)} whileTap={{ scale: 0.97 }} transition={spring} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
                       {subj === c && <motion.span layoutId="subject-pill" className="absolute inset-0 rounded-full bg-ink" transition={spring} />}
                       <span className={`relative ${subj === c ? 'text-paper' : 'text-ink-2'}`}>{c}</span>
                     </motion.button>
@@ -185,8 +194,9 @@ export function Zukan() {
             </div>
           )}
 
-          {/* Both views come in the same way: a short fade in place. */}
-          <AnimatePresence mode="wait" initial={false}>
+          {/* Both views come in the same way: a short fade in place. Not initial={false}: it would also hold back the fade of
+              a new genre or subject inside the view the zukan opened on. */}
+          <AnimatePresence mode="wait">
             <motion.div key={mode} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
               {mode === 'units' ? (
                 <ZukanUnits cards={cards} q={q} subject={subj} stage={stage} onOpenCard={open} />
@@ -194,16 +204,22 @@ export function Zukan() {
                 <div className="mt-8 overflow-hidden rounded-[32px] bg-paper-2">
                   <EmptySlots />
                   <div className="px-6 pb-8 text-center">
-                    <p className="text-[20px] font-black">まだカードがありません</p>
+                    <p className="phrase-wrap text-[20px] font-black">
+                      <KidText text="まだカードがありません" />
+                    </p>
                     <p className="phrase-wrap mt-1 text-ink-2">
-                      <Phrases text="身の回りのモノを撮って、最初の1枚を手に入れよう！" />
+                      <KidText text="身《み》の回《まわ》りのモノを撮《と》って、最初《さいしょ》の1枚《まい》を手《て》に入《い》れよう！" />
                     </p>
                   </div>
                 </div>
               ) : (
                 <CardGrid shown={shown} cards={cards} filter={cat} onOpen={open} />
               )}
-              {mode === 'genre' && cards.length > 0 && shown.length === 0 && <p className="mt-10 text-center text-ink-3">見つかりませんでした</p>}
+              {mode === 'genre' && cards.length > 0 && shown.length === 0 && (
+                <p className="phrase-wrap mt-10 text-center text-ink-3">
+                  <KidText text="見《み》つかりませんでした" />
+                </p>
+              )}
             </motion.div>
           </AnimatePresence>
         </main>
@@ -220,7 +236,7 @@ export function Zukan() {
             className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-[max(env(safe-area-inset-bottom),16px)]"
           >
             <Button icon="photo_camera" onClick={toCamera} className="pointer-events-auto h-13 px-7 shadow-[var(--shadow-float)]">
-              さがしに行く
+              <KidText text="さがしに行《い》く" />
             </Button>
           </motion.div>
         )}
@@ -242,7 +258,8 @@ function CardGrid({ shown, cards, filter, onOpen }: { shown: Card[]; cards: Card
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.15 }}
-      className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+      // On a PC the cards keep a card's width and the row sits in the middle, so a short zukan doesn't hug the left edge.
+      className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fit,minmax(200px,236px))] lg:justify-center"
     >
       {shown.map((c) => (
         <li key={c.id}>

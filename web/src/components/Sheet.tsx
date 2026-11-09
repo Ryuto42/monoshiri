@@ -3,10 +3,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useDesktop } from '../lib/useDesktop';
 import { useSwipeDismiss } from '../lib/useSwipeDismiss';
 
+const HANDLE = 32;
+
 // Pulling the sheet down only lowers it to the peek; it never closes it. What it shows (a photo and its result) is
 // gone once closed, so closing is left to the explicit close button, which can ask first.
-export function Sheet({ open, expanded, onExpandedChange, peek = 300, children }: {
-  open: boolean; expanded: boolean; onExpandedChange: (v: boolean) => void; peek?: number; children: ReactNode;
+// With `fit`, the peek is as tall as the content (e.g. a short error), so its buttons always sit above the home indicator.
+export function Sheet({ open, expanded, onExpandedChange, peek = 300, fit = false, children }: {
+  open: boolean; expanded: boolean; onExpandedChange: (v: boolean) => void; peek?: number; fit?: boolean; children: ReactNode;
 }) {
   const desktop = useDesktop();
   const [vh, setVh] = useState(() => window.innerHeight);
@@ -16,10 +19,22 @@ export function Sheet({ open, expanded, onExpandedChange, peek = 300, children }
     return () => window.removeEventListener('resize', on);
   }, []);
 
-  const height = Math.round(vh * 0.92);
-  const target = !open ? height + 40 : expanded ? 0 : height - Math.min(peek, height * 0.6);
-  const y = useMotionValue(height + 40);
   const scroller = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const [fitted, setFitted] = useState<number | null>(null);
+  useEffect(() => {
+    const el = inner.current, box = scroller.current;
+    if (!fit || !el || !box) return setFitted(null);
+    const measure = () => setFitted(HANDLE + el.offsetHeight + (parseFloat(getComputedStyle(box).paddingBottom) || 0));
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fit]);
+
+  const height = Math.round(vh * 0.92);
+  const shown = fit && fitted ? Math.min(fitted, height) : Math.min(peek, height * 0.6);
+  const target = !open ? height + 40 : expanded ? 0 : height - shown;
+  const y = useMotionValue(height + 40);
   const settle = () => (expanded ? onExpandedChange(false) : void animate(y, target, { type: 'spring', stiffness: 420, damping: 38 }));
   useSwipeDismiss({ y, areas: [scroller], base: () => target, onDismiss: settle, enabled: open && !desktop });
 
@@ -100,7 +115,7 @@ export function Sheet({ open, expanded, onExpandedChange, peek = 300, children }
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onScroll={(e) => !expanded && e.currentTarget.scrollTop > 8 && onExpandedChange(true)}
       >
-        {children}
+        <div ref={inner}>{children}</div>
       </div>
     </motion.section>
   );

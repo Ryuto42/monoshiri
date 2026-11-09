@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The splash icon is drawn at 288dp inside a 192dp circle; a 42% wide logo (about 120dp, like iOS) keeps the rounded square inside it. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/splash_logo"
+    android:inset="29%" />

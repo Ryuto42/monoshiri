@@ -45,6 +45,9 @@ function rememberConsent() {
   }
 }
 
+/** True when the welcome card may still come up on this device (so its photo is worth loading early). */
+export const welcomeAhead = () => !seen();
+
 // People who saw the welcome before consent was asked for still get the age and consent screens, and only those.
 let state: State = consented() ? (seen() ? 'closed' : 'pending') : 'onboard';
 let hasCards: boolean | null = null;
@@ -65,6 +68,16 @@ function afterConsent() {
 export function settleWelcome(cards: boolean) {
   hasCards = cards;
   if (state === 'pending') afterConsent();
+}
+
+// Logging out or deleting the account hands the device to whoever uses it next: they are asked their age and consent again.
+export function forgetConsent() {
+  try {
+    localStorage.removeItem(CONSENT_KEY);
+  } catch {
+    /* without storage nothing was kept */
+  }
+  set('onboard');
 }
 
 export function finishOnboarding() {

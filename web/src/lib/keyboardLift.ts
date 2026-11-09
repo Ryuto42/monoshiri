@@ -67,13 +67,20 @@ export function keyboardShown(height: number) {
   // Positions with no lift and no scrolling of ours, measured from what is on screen now.
   const lifted = liftNow(wrap);
   const scrolled = sc.scrollTop - base;
-  const end = wrap.querySelector('[data-kb-bottom]') ?? el.closest('label') ?? el;
-  const bottom = end.getBoundingClientRect().bottom + lifted + scrolled;
+  const field = (el.closest('label') ?? el).getBoundingClientRect();
+  const end = wrap.querySelector('[data-kb-bottom]');
+  const bottom = (end ? end.getBoundingClientRect().bottom : field.bottom) + lifted + scrolled;
   const sheetTop = sheet.getBoundingClientRect().top + lifted;
-  const need = Math.max(0, Math.round(bottom + 20 - (layoutHeight() - kb)));
+  const visible = layoutHeight() - kb;
+  const need = Math.max(0, Math.round(bottom + 20 - visible));
   const lift = Math.min(need, Math.max(0, Math.floor(sheetTop - safeTop() - 8)));
+  // When the whole form does not fit above the keyboard, stop scrolling before the focused field's label
+  // goes under the top of the scroll area, but always keep the field itself above the keyboard.
+  const labelRoom = Math.floor(field.top + lifted + scrolled - (sc.getBoundingClientRect().top + lifted) - 12);
+  const fieldNeed = Math.ceil(field.bottom + lifted + scrolled + 20 - visible) - lift;
+  const extra = Math.max(0, Math.min(need - lift, labelRoom), fieldNeed);
   root.style.setProperty('--kb-lift', `${lift}px`);
-  scrollTo(sc, base + need - lift);
+  scrollTo(sc, base + extra);
 }
 
 /** The keyboard is going away: move everything back. */

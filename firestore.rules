@@ -26,10 +26,18 @@ service cloud.firestore {
         && (l.size() < 5 || (l[4] is string && l[4].size() <= 20));
     }
 
+    // Topics and notes are lists of maps. Rules can't loop, so the first few entries are checked.
+    function mapsAtStart(l) {
+      return (l.size() < 1 || l[0] is map)
+        && (l.size() < 2 || l[1] is map)
+        && (l.size() < 3 || l[2] is map)
+        && (l.size() < 4 || l[3] is map);
+    }
+
     function validCard(cardId) {
       let d = request.resource.data;
       return d.keys().hasOnly(['id', 'name', 'reading', 'en', 'category', 'icon', 'oneLiner', 'summary', 'funFact',
-                               'topics', 'notes', 'illustration', 'units', 'createdAt', 'updatedAt'])
+                               'topics', 'notes', 'illustration', 'units', 'firstFind', 'createdAt', 'updatedAt'])
         && d.keys().hasAll(['id', 'name', 'notes', 'createdAt', 'updatedAt'])
         && d.id == cardId
         && d.name is string && d.name.size() > 0 && d.name.size() <= 40
@@ -40,18 +48,22 @@ service cloud.firestore {
         && optString(d, 'oneLiner', 400)
         && optString(d, 'summary', 4000)
         && optString(d, 'funFact', 2000)
-        && (!('topics' in d) || (d.topics is list && d.topics.size() <= 12))
-        && d.notes is list && d.notes.size() <= 12
+        && (!('topics' in d) || (d.topics is list && d.topics.size() <= 12 && mapsAtStart(d.topics)))
+        && d.notes is list && d.notes.size() <= 12 && mapsAtStart(d.notes)
+        && (!('firstFind' in d) || d.firstFind is bool)
         && (!('units' in d) || (d.units is list && d.units.size() <= 5 && unitIds(d.units)))
         && (!('illustration' in d) || d.illustration == null
-            || (d.illustration is string && d.illustration.matches('^/media/[A-Za-z0-9/_.-]{1,200}$')))
+            || (d.illustration is string && d.illustration.matches('^/media/[A-Za-z0-9/_.-]{1,200}$')
+                && !d.illustration.matches('.*[.][.].*')))
         && d.createdAt is int && d.updatedAt is int
         // A far-future updatedAt would win every later sync, so it may run at most 5 minutes ahead of the server clock.
         && d.updatedAt <= request.time.toMillis() + 300000;
     }
 
     match /users/{uid}/cards/{cardId} {
-      allow read, delete: if isOwner(uid) && trusted();
+      allow read: if isOwner(uid) && trusted();
+      // Deleting needs no confirmed address, so an account that never confirmed it can still clear its cards when it is deleted.
+      allow delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && trusted()
         && cardId.matches('^[0-9a-f]{24}$')
         && validCard(cardId);
