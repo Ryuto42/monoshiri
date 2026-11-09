@@ -133,8 +133,8 @@ public final class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, @unchecked Se
     @MainActor private func buildBar() {
         guard let host else { return }
         let gallery = makeButton(id: "gallery", symbol: "photo.on.rectangle.angled", size: 58, label: "写真をえらぶ")
-        // 撮影ボタンはアプリのアイコンと同じマーク。Web版（白丸64にマーク30）と同じ割合にする
-        let shutter = makeButton(id: "shutter", symbol: "magnifyingglass", image: Self.brandMark(size: 35), size: 74, prominent: true, label: "撮影する")
+        // 撮影ボタンはアプリのアイコンと同じマーク。Web版（白丸64にマーク34）と同じ割合にする
+        let shutter = makeButton(id: "shutter", symbol: "magnifyingglass", image: Self.brandMark(size: 40), size: 74, prominent: true, label: "撮影する")
         // Web版と同じく、白い丸のまわりに白い輪を重ねて、カメラのシャッターらしい二重丸にする
         let ring = UIView()
         ring.isUserInteractionEnabled = false
