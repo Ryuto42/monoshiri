@@ -23,6 +23,8 @@ export type Explore = {
   cached?: boolean;
   /** True only in the response to the person whose request created this explanation. */
   firstFind?: boolean;
+  /** Only the front of the card so far (api.exploreStream): the rest is still being written with Google Search. */
+  partial?: boolean;
 };
 
 export type Source = { title: string; uri: string };

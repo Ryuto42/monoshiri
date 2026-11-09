@@ -293,3 +293,101 @@ test('a deep dive written for another stage is rewritten, not searched again', a
   assert.match(sse, /example\.com/, 'sources come from the stage it was rewritten from');
   assert.equal(calls.length, 1);
 });
+
+// Server-sent events in the order they came: [event, data].
+const events = (sse: string) =>
+  sse
+    .split('\n\n')
+    .filter(Boolean)
+    .map((b) => [/^event: (.*)$/m.exec(b)?.[1] ?? '', JSON.parse(/^data: (.*)$/m.exec(b)?.[1] ?? 'null')] as [string, any]);
+
+const QUICK = { name: 'ホチキスの針', reading: 'ほちきすのはり', en: 'staple', category: 'どうぐ', icon: 'construction', oneLiner: 'x', summary: '1900年にできた。', ok: true };
+const REST = {
+  summary: '1900年ごろに広まった。', funFact: 'f',
+  topics: Array.from({ length: 7 }, (_, i) => ({ title: `問い${i}《とい》？`, teaser: 't', kind: 'しくみ', icon: 'science' })), keywords: ['k'],
+};
+const twoStep = (quick: object = QUICK, rest: object | (() => never) = REST) => {
+  (ai.models as any).generateContent = async (p: Call & { config?: any }) => {
+    calls.push(p);
+    const grounded = !!p.config?.tools;
+    if (grounded && typeof rest === 'function') rest();
+    return { text: JSON.stringify(grounded ? rest : quick), usageMetadata: {} };
+  };
+};
+
+test('explore stream: quick first, then done with the whole card, which is cached for everyone', async () => {
+  await setCached('cache_media', keyOf('wiki', 'ホチキスの針'), { v: null });
+  twoStep();
+  const r = await post('/api/explore/stream', { label: 'ホッチキスのはり', level: 'lower' });
+  assert.equal(r.status, 200);
+  const ev = events(await r.text());
+  assert.deepEqual(ev.map(([e]) => e), ['quick', 'done']);
+  const [[, quick], [, done]] = ev;
+  assert.equal(quick.id, keyOf('explore', 'ホチキスの針'));
+  assert.equal(quick.summary, '1900年にできた。');
+  assert.equal(quick.topics, undefined);
+  assert.equal(done.id, quick.id);
+  assert.equal(done.summary, '1900年ごろに広まった。', 'the summary checked with search replaces the quick one');
+  assert.equal(done.topics.length, 6);
+  assert.deepEqual([done.topics[0].id, done.topics[0].title], ['t0', '問い0？']);
+  assert.equal(done.firstFind, true);
+  assert.equal(calls.length, 2);
+  assert.ok(!JSON.stringify(calls[0]).includes('googleSearch'), 'the quick step runs without search');
+  assert.match(text(calls[1].contents), /1900年にできた。/);
+  const saved = await getCached<any>('cache_explore', atLevel(quick.id, 'lower'));
+  assert.equal(saved.summary, done.summary);
+  assert.equal(saved.label, 'ホッチキスのはり');
+  assert.deepEqual(await getCached('explore_alias', keyOf('alias', 'ホッチキスのはり')), { target: quick.id, name: 'ホッチキスのはり' });
+  assert.deepEqual(inflightOf('u1'), { usd: 0, running: 0 });
+
+  const again = events(await (await post('/api/explore/stream', { label: 'ホッチキスのはり', level: 'lower' })).text());
+  assert.deepEqual(again.map(([e]) => e), ['done']);
+  assert.equal(again[0][1].cached, true);
+  assert.equal(calls.length, 2);
+});
+
+test('explore stream: a cached explanation is a single done, without generation', async () => {
+  await seedExplore('ペットボトル');
+  const ev = events(await (await post('/api/explore/stream', { label: 'ペットボトル' })).text());
+  assert.deepEqual(ev.map(([e]) => e), ['done']);
+  assert.equal(ev[0][1].id, keyOf('explore', 'ペットボトル'));
+  assert.equal(ev[0][1].cached, true);
+  assert.equal(calls.length, 0);
+});
+
+test('explore stream: a name that is already explained skips the search', async () => {
+  await seedExplore('ホチキスの針');
+  twoStep();
+  const ev = events(await (await post('/api/explore/stream', { label: 'ステープル' })).text());
+  assert.deepEqual(ev.map(([e]) => e), ['done']);
+  assert.equal(ev[0][1].id, keyOf('explore', 'ホチキスの針'));
+  assert.equal(calls.length, 1);
+  assert.equal((await getCached<any>('explore_alias', keyOf('alias', 'ステープル')))?.target, keyOf('explore', 'ホチキスの針'));
+});
+
+test('explore stream: unfit names, unsafe photos and failures come as error events and leave nothing cached', async () => {
+  twoStep({ ...QUICK, ok: false });
+  let ev = events(await (await post('/api/explore/stream', { label: 'だれかの名前' })).text());
+  assert.deepEqual(ev, [['error', { error: 'not_a_thing' }]]);
+  assert.equal(calls.length, 1);
+
+  vision.safeSearch = async (imgs) => imgs.map(() => false);
+  twoStep();
+  ev = events(await (await post('/api/explore/stream', { label: 'ボトル', image: 'AAAA' })).text());
+  assert.deepEqual(ev, [['error', { error: 'unsafe_image' }]]);
+
+  vision.safeSearch = async (imgs) => imgs.map(() => true);
+  twoStep(QUICK, () => {
+    throw new Error('search failed');
+  });
+  ev = events(await (await post('/api/explore/stream', { label: 'ホッチキスのはり' })).text());
+  assert.deepEqual(ev.map(([e, d]) => [e, d.error]), [['quick', undefined], ['error', 'internal']]);
+  assert.equal(await getCached('cache_explore', keyOf('explore', 'ホチキスの針')), null);
+  assert.deepEqual(inflightOf('u1'), { usd: 0, running: 0 });
+
+  await requester.run({ uid: 'l1', tier: 'guest', attested: true }, () => addSpent(1, 'test'));
+  ev = events(await (await post('/api/explore/stream', { label: 'ホッチキスのはり' }, 'l1:anonymous')).text());
+  assert.equal(ev[0][0], 'error');
+  assert.equal(ev[0][1].error, 'user_limit');
+  assert.equal(ev[0][1].tier, 'guest');
+});

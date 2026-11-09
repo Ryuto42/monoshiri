@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import type { DetectedObject, Explore } from '../lib/types';
 import type { Flow } from '../lib/flow';
@@ -127,7 +127,8 @@ function Picker({ objects, crops, onPick, onAsk, onReset }: {
 function Exploring({ label, crop, fresh }: { label: string; crop: string | null; fresh: boolean }) {
   return (
     <div className="px-6 pt-1 pb-6">
-      <LoadingCard img={crop} expected={14} steps={['写真をよく見ています', '調べています', '学べるテーマを集めています', 'カードにまとめています']}>
+      {/* Only until the first half of the card arrives (a few seconds); the rest is searched with the card already on screen. */}
+      <LoadingCard img={crop} expected={6} steps={['写真をよく見ています', '調べています', 'せつめいを書いています']}>
         <p className="text-[13px] font-bold text-accent">{fresh ? 'まだだれも調べていないモノかも！' : 'モノシリ中…'}</p>
         <h2 className="text-[26px] font-black leading-tight">{label}</h2>
         <p className="mt-1 text-[13px] text-ink-3">
@@ -168,7 +169,19 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
           <div className="flex items-center gap-1.5">
             <Chip color={c} icon={c.icon}>{ex.category}</Chip>
             <span className="ml-auto">
-              <Speak target={root} ttsRef={{ name: ex.name }} autoStart compact />
+              {/* Read-aloud (and the youngest readers' automatic one) waits for the whole card: the summary may still change. */}
+              {ex.partial ? (
+                <button
+                  type="button"
+                  disabled
+                  aria-label="読み上げる（調べおわったら使えます）"
+                  className="grid h-11 w-11 place-items-center rounded-full bg-paper opacity-50 shadow-[var(--shadow-card)]"
+                >
+                  <Icon name="volume_up" size={22} fill />
+                </button>
+              ) : (
+                <Speak target={root} ttsRef={{ name: ex.name }} autoStart compact />
+              )}
             </span>
           </div>
           <p className="mt-1 text-[12px] font-bold tracking-wider text-ink-3">{ex.reading}・{ex.en}</p>
@@ -200,30 +213,37 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
       <motion.p data-speak variants={item} className="mx-6 mt-4 text-[17px] font-bold leading-relaxed text-accent">
         <RubyText text={ex.oneLiner} />
       </motion.p>
-      <motion.p data-speak variants={item} className="mx-6 mt-2 text-ink-2">
+      {/* Keyed by the text: a summary corrected by the search fades in again instead of changing under the reader. */}
+      <motion.p key={ex.summary} data-speak variants={item} className="mx-6 mt-2 text-ink-2">
         <RubyText text={ex.summary} />
       </motion.p>
 
-      <motion.div variants={item} className="mx-6 mt-4 flex gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--sun)_22%,var(--paper))] p-4">
-        <Icon name="lightbulb" size={26} fill className="mt-0.5 shrink-0 text-[#b7800b]" />
-        <div data-speak>
-          <p className="text-[12px] font-black text-[#9a6b06]">知ってた？</p>
-          <p className="text-[15px] font-bold leading-relaxed"><RubyText text={ex.funFact} /></p>
-        </div>
-      </motion.div>
+      {ex.partial ? (
+        <SearchingFact />
+      ) : (
+        <motion.div variants={item} className="mx-6 mt-4 flex gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--sun)_22%,var(--paper))] p-4">
+          <Icon name="lightbulb" size={26} fill className="mt-0.5 shrink-0 text-[#b7800b]" />
+          <div data-speak>
+            <p className="text-[12px] font-black text-[#9a6b06]">知ってた？</p>
+            <p className="text-[15px] font-bold leading-relaxed"><RubyText text={ex.funFact} /></p>
+          </div>
+        </motion.div>
+      )}
 
       <motion.div variants={item} className="mt-4 px-6">
-        <Button size="lg" className="w-full" icon={saved ? 'library_add_check' : 'style'} iconFill onClick={onMakeCard}>
+        <Button size="lg" className="w-full" icon={saved ? 'library_add_check' : 'style'} iconFill onClick={onMakeCard} disabled={ex.partial}>
           {saved ? (notes ? 'カードを更新' : 'カードを見る') : 'カードにする'}
         </Button>
       </motion.div>
 
-      <SchoolUnits name={ex.name} />
+      {/* Units are asked for only once the explanation is stored: the server refuses things it hasn't explained. */}
+      {ex.partial ? <SearchingUnits /> : <SchoolUnits name={ex.name} />}
 
       <motion.h3 variants={item} className="mt-8 flex items-center gap-2 px-6 text-[19px] font-black">
         <Icon name="explore" size={24} fill className="text-accent" />
         もっと知りたい！
       </motion.h3>
+      {ex.partial && <SearchingTopics />}
       <motion.ul variants={list} className="mt-3 grid gap-3 px-6">
         {ex.topics.map((t, i) => (
           <motion.li key={t.id} variants={item}>
@@ -276,9 +296,11 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
         </motion.a>
       )}
 
-      <motion.div variants={item} className="px-6">
-        <MoreSearch name={ex.name} entry={ex.entryPoint} />
-      </motion.div>
+      {!ex.partial && (
+        <motion.div variants={item} className="px-6">
+          <MoreSearch name={ex.name} entry={ex.entryPoint} />
+        </motion.div>
+      )}
 
       <motion.div variants={item} className="mt-8 flex justify-center">
         <Button tone="ghost" icon="photo_camera" onClick={onReset}>
@@ -286,6 +308,66 @@ function ExploreView({ ex, crop, onTopic, onMakeCard, onReset, notes, correction
         </Button>
       </motion.div>
     </motion.div>
+  );
+}
+
+// While the rest of a new card is written with Google Search: says so where the fun fact will be, with the shape of it.
+function SearchingFact() {
+  const reduced = useReducedMotion();
+  return (
+    <motion.div variants={item} role="status" className="mx-6 mt-4 flex gap-3 rounded-3xl bg-[color-mix(in_oklab,var(--sun)_22%,var(--paper))] p-4">
+      <motion.span
+        className="mt-0.5 grid h-[26px] w-[26px] shrink-0 place-items-center text-[#b7800b]"
+        animate={reduced ? undefined : { x: [0, 5, 0, -5, 0], y: [0, -3, -5, -3, 0], rotate: [0, 10, 0, -10, 0] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <Icon name="search" size={26} weight={700} />
+      </motion.span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[12px] font-black text-[#9a6b06]">しらべ中</p>
+        <p className="phrase-wrap text-[15px] font-bold leading-relaxed">
+          <KidText text="Google 検索《けんさく》で確《たし》かめながら、問《と》いを作《つく》っています…" />
+        </p>
+        <div className="mt-2.5 grid gap-2" aria-hidden>
+          <span className="skeleton h-3 rounded-full" />
+          <span className="skeleton h-3 w-2/3 rounded-full" style={{ animationDelay: '0.15s' }} />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function SearchingUnits() {
+  return (
+    <motion.div variants={item} className="mt-8 px-6" aria-hidden>
+      <p className="flex items-center gap-2 text-[19px] font-black text-ink-3">
+        <Icon name="school" size={24} fill />
+        学校でならうよ
+      </p>
+      <div className="mt-3 flex gap-2">
+        {['w-32', 'w-24'].map((w, i) => (
+          <span key={w} className={`skeleton h-9 rounded-full ${w}`} style={{ animationDelay: `${i * 0.15}s` }} />
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+// Six empty, dashed slots where the questions will be (the same empty-card look as the loading card).
+function SearchingTopics() {
+  return (
+    <motion.ul variants={list} className="mt-3 grid gap-3 px-6" aria-hidden>
+      {Array.from({ length: 6 }, (_, i) => (
+        <motion.li key={i} variants={item} className="flex items-start gap-3 rounded-3xl border-2 border-dashed border-ink/12 p-4">
+          <span className="skeleton h-12 w-12 shrink-0 rounded-2xl" style={{ animationDelay: `${i * 0.1}s` }} />
+          <span className="grid flex-1 gap-2 pt-1">
+            <span className="skeleton h-2.5 w-14 rounded-full" style={{ animationDelay: `${i * 0.1}s` }} />
+            <span className="skeleton h-4 w-4/5 rounded-full" style={{ animationDelay: `${i * 0.1 + 0.05}s` }} />
+            <span className="skeleton h-3 w-3/5 rounded-full" style={{ animationDelay: `${i * 0.1 + 0.1}s` }} />
+          </span>
+        </motion.li>
+      ))}
+    </motion.ul>
   );
 }
 
