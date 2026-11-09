@@ -29,7 +29,7 @@
 
 ```bash
 cd web && npx tsc -b && npx oxlint --deny-warnings src && npx vite build
-cd server && npm run typecheck
+cd server && npm run typecheck && npm test
 cd web && npm run test:rules   # firestore.rules を変えたとき（Java 21 以上が必要）
 ```
 

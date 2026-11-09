@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { getAppCheck } from 'firebase-admin/app-check';
 import { ADMIN_UIDS, APPCHECK_ENFORCE, LOCAL } from './config.ts';
-import { auth, requester, type Tier } from './store.ts';
+import { auth, runAs, type Tier } from './store.ts';
 import type { Env } from './http.ts';
 
 export type IdToken = { uid: string; exp: number; email_verified?: boolean; firebase?: { sign_in_provider?: string } };
@@ -32,6 +32,8 @@ export const tierOf = (d: IdToken): Tier => {
 
 const WINDOW = 5 * 60_000;
 export const RATE_LIMIT = 120;
+// Reads are mostly cache hits, but each still costs Firestore reads (and /api/media may search), so they get a looser limit.
+export const GET_RATE_LIMIT = 300;
 
 // Rate limits live in each instance's memory: with at most 2 Cloud Run instances the effective ceiling is 2x,
 // which is fine at this scale and costs no Firestore writes per request.
@@ -75,13 +77,14 @@ export function authMiddleware(deps: AuthDeps): MiddlewareHandler<Env> {
     c.set('uid', entry.uid);
     c.set('tier', entry.tier);
     c.set('attested', attested);
-    if (c.req.method === 'POST' && entry.tier !== 'admin') {
+    if ((c.req.method === 'POST' || c.req.method === 'GET') && entry.tier !== 'admin') {
       const now = Date.now();
-      const list = (hits.get(entry.uid) ?? []).filter((t) => now - t < WINDOW);
-      if (list.length >= RATE_LIMIT) return c.json({ error: 'rate_limited' }, 429);
+      const k = `${c.req.method}:${entry.uid}`;
+      const list = (hits.get(k) ?? []).filter((t) => now - t < WINDOW);
+      if (list.length >= (c.req.method === 'GET' ? GET_RATE_LIMIT : RATE_LIMIT)) return c.json({ error: 'rate_limited' }, 429);
       list.push(now);
-      hits.set(entry.uid, list);
+      hits.set(k, list);
     }
-    await requester.run({ uid: entry.uid, tier: entry.tier, attested }, next);
+    await runAs({ uid: entry.uid, tier: entry.tier, attested }, next);
   };
 }

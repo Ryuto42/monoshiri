@@ -83,9 +83,9 @@ test('per-account cap stops a guest but not cached content', async () => {
   await requester.run({ uid: 'g2', tier: 'guest', attested: true }, () => addSpent(1, 'test'));
   const r = await post('/api/deep', { name: 'ペットボトル', topic: 'ペットボトルはどうやってできる？' }, 'g2:anonymous');
   assert.equal(r.status, 402);
-  assert.deepEqual(await r.json(), { error: 'user_limit', tier: 'guest', capJpy: 20 });
-  await setCached('cache_quiz', keyOf('quiz', 'ペットボトル', 'x'), { questions: [] });
-  const q = await post('/api/quiz', { name: 'ペットボトル', context: 'x' }, 'g2:anonymous');
+  assert.deepEqual(await r.json(), { error: 'user_limit', tier: 'guest', capJpy: 50 });
+  await setCached('cache_quiz', keyOf('quiz2', 'ペットボトル', 'ペットボトルはどうやってできる？'), { questions: [] });
+  const q = await post('/api/quiz', { name: 'ペットボトル', topic: 'ペットボトルはどうやってできる？' }, 'g2:anonymous');
   assert.equal(q.status, 200);
 });
 

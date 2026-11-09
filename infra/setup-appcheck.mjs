@@ -6,7 +6,8 @@ import fs from 'node:fs';
 const P = process.env.PROJECT ?? 'monoshiri-df26';
 const SITE = process.env.SITE ?? (P === 'monoshiri-df26' ? 'monoshiri' : P);
 const DISPLAY = 'monoshiri-web';
-const DOMAINS = [`${SITE}.web.app`, `${SITE}.firebaseapp.com`, `${P}.web.app`, `${P}.firebaseapp.com`, 'localhost'];
+// Production domains only: local development uses the debug token below, so the key can't be used from any localhost page.
+const DOMAINS = [...new Set([`${SITE}.web.app`, `${SITE}.firebaseapp.com`, `${P}.web.app`, `${P}.firebaseapp.com`])];
 const TOKEN_FILE = new URL('./.appcheck-debug-token', import.meta.url);
 
 execSync(`gcloud services enable recaptchaenterprise.googleapis.com firebaseappcheck.googleapis.com --project ${P}`, { stdio: 'inherit' });

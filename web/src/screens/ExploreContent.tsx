@@ -8,8 +8,9 @@ import { Button, Chip, Icon, IconButton } from '../components/ui';
 import { catStyle, spring, TOPIC_COLORS } from '../components/theme';
 import { Speak } from '../components/Speak';
 import { MoreSearch } from '../components/MoreSearch';
-import { haptic } from '../lib/native';
-import { RubyText } from '../components/RubyText';
+import { KidText, RubyText } from '../components/RubyText';
+import { useNavigate } from '@tanstack/react-router';
+import { haptic, isNative } from '../lib/native';
 import { UnitChips } from '../components/UnitChips';
 import { api } from '../lib/api';
 import { useStage } from '../lib/level';
@@ -22,7 +23,7 @@ export function ExploreContent({ flow, crops, onPick, onAsk, onCorrect, onTopic,
   flow: Flow; crops: string[]; onPick: (i: number) => void; onAsk: (label: string) => void; onCorrect: (label: string) => void;
   onTopic: (id: string) => void; onMakeCard: () => void; onRetry: () => void; onReset: () => void;
 }) {
-  if (flow.stage === 'error') return <ErrorState message={flow.error} onRetry={onRetry} onReset={onReset} />;
+  if (flow.stage === 'error') return <ErrorState message={flow.error} code={flow.errorCode} onRetry={onRetry} onReset={onReset} />;
   if (flow.stage === 'exploring') return <Exploring label={flow.label ?? flow.objects[flow.selected ?? 0]?.label ?? ''} crop={flow.crop} fresh={flow.known === false} />;
   if (flow.stage === 'explore' && flow.explore) {
     // Only a thing picked from a photo can be "misread"; a typed name is already what the person meant.
@@ -47,7 +48,9 @@ function Detecting() {
   return (
     <div className="px-6 pt-2 pb-8">
       <p className="text-[13px] font-bold text-ink-3">しらべ中</p>
-      <h2 className="text-[24px] font-black">写真の中のモノを探しています</h2>
+      <h2 className="phrase-wrap text-[24px] font-black">
+        <KidText text="写真《しゃしん》の中《なか》のモノを探《さが》しています" />
+      </h2>
       <div className="mt-5 flex gap-3">
         {[0, 1, 2].map((i) => (
           <div key={i} className="skeleton h-24 w-24 rounded-3xl" style={{ animationDelay: `${i * 0.15}s` }} />
@@ -66,7 +69,9 @@ function Picker({ objects, crops, onPick, onAsk, onReset }: {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[13px] font-bold text-accent">{objects.length ? `${objects.length}こ 見つけたよ` : 'うーん…'}</p>
-          <h2 className="text-[24px] font-black leading-snug">{objects.length ? 'どれを調べる？' : 'モノが見つかりませんでした'}</h2>
+          <h2 className="phrase-wrap text-[24px] font-black leading-snug">
+            <KidText text={objects.length ? 'どれを調《しら》べる？' : 'モノが見《み》つかりませんでした'} />
+          </h2>
         </div>
         <IconButton icon="photo_camera" label="撮りなおす" tone="paper" onClick={onReset} />
       </div>
@@ -400,20 +405,37 @@ function FirstFind({ name, saved }: { name: string; saved: boolean }) {
   );
 }
 
-function ErrorState({ message, onRetry, onReset }: { message: string | null; onRetry: () => void; onReset: () => void }) {
+// The sheet sizes itself to this (Sheet's `fit`) and pads it above the home indicator, so it needs no bottom room of its own.
+function ErrorState({ message, code, onRetry, onReset }: { message: string | null; code: string | null; onRetry: () => void; onReset: () => void }) {
+  const navigate = useNavigate();
+  const offline = code === 'offline';
+  // Without an account, the native apps can't make new pages: trying again can't help there, signing in can.
+  const login = code === 'attest_required';
+  const retry = !(login && isNative);
   return (
-    <AnimatePresence>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="px-6 pt-2 pb-10 text-center">
-        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-accent-soft text-accent">
-          <Icon name="sentiment_dissatisfied" size={40} fill />
-        </div>
-        <p className="mt-4 text-[18px] font-black">ごめんなさい</p>
-        <p className="mt-1 text-ink-2">{message}</p>
-        <div className="mt-5 flex justify-center gap-2">
-          <Button icon="refresh" onClick={onRetry}>もう一度</Button>
-          <Button tone="paper" icon="photo_camera" onClick={onReset}>撮りなおす</Button>
-        </div>
-      </motion.div>
-    </AnimatePresence>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="px-6 pt-2 pb-2 text-center">
+      <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-accent-soft text-accent">
+        <Icon name={offline ? 'wifi_off' : login ? 'account_circle' : 'sentiment_dissatisfied'} size={40} fill />
+      </div>
+      <p className="mt-4 text-[18px] font-black">{offline ? 'オフラインです' : 'ごめんなさい'}</p>
+      <p className="phrase-wrap mt-1 text-ink-2">
+        <KidText text={message ?? ''} />
+      </p>
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
+        {login && (
+          <Button icon="login" onClick={() => void navigate({ to: '/account' })}>
+            ログインする
+          </Button>
+        )}
+        {retry && (
+          <Button tone={login ? 'paper' : 'accent'} icon="refresh" onClick={onRetry}>
+            もう一度
+          </Button>
+        )}
+        <Button tone="paper" icon="photo_camera" onClick={onReset}>
+          <KidText text="撮《と》りなおす" />
+        </Button>
+      </div>
+    </motion.div>
   );
 }

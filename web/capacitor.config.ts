@@ -24,6 +24,9 @@ const config: CapacitorConfig = {
     },
     StatusBar: { overlaysWebView: true, style: 'DARK', backgroundColor: '#00000000' },
     Keyboard: { resize: 'none' },
+    // Android: the keyboard neither resizes nor pans the web view, as on iOS (MainActivity also hides it from the
+    // web view); lib/keyboardLift.ts moves the sheet itself. env(safe-area-inset-*) still works on WebView 140+.
+    SystemBars: { insetsHandling: 'disable' },
     // Native Google sign-in; the other providers stay out of the app bundle.
     SocialLogin: { providers: { google: true, apple: false, facebook: false, twitter: false } },
   },

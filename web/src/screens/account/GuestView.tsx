@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { useCards } from '../../lib/cards';
 import { accountMessage, googleAvailable, signInEmail, signInGoogle, signUpEmail } from '../../lib/account';
 import { mediaUrl } from '../../lib/api';
-import { haptic } from '../../lib/native';
 import { toast } from '../../lib/toast';
 import type { Card } from '../../lib/types';
 import { Icon } from '../../components/ui';
-import { Phrases } from '../../components/Phrases';
+import { KidText } from '../../components/RubyText';
+import { haptic, isNative } from '../../lib/native';
 import { catStyle, spring } from '../../components/theme';
 import { EmailForm, ResetForm } from './EmailForm';
 import { GoogleMark, PrivacyLink, Spinner } from './parts';
@@ -39,20 +39,42 @@ export function GuestView() {
   return (
     <div className="pb-2">
       <Hero cards={cards} />
-      <h2 id="account-title" className="mt-5 text-center text-[24px] font-black leading-snug">
-        {mode === 'reset' ? 'パスワードの再設定' : cards.length ? <>あつめた図鑑を<br />どの端末でも</> : 'ログイン'}
+      <h2 id="account-title" className="phrase-wrap mt-5 text-center text-[24px] font-black leading-snug">
+        {mode === 'reset' ? (
+          <KidText text="パスワードの再設定《さいせってい》" />
+        ) : cards.length ? (
+          <>
+            <KidText text="あつめた図鑑《ずかん》を" />
+            <br />
+            <KidText text="どの端末《たんまつ》でも" />
+          </>
+        ) : mode === 'signup' ? (
+          <KidText text="新規登録《しんきとうろく》" />
+        ) : (
+          'ログイン'
+        )}
       </h2>
       {mode !== 'reset' && (
         <p className="phrase-wrap mt-2 text-center text-[14px] leading-relaxed text-ink-2">
-          <Phrases
+          <KidText
             text={
               cards.length
-                ? `いまの ${cards.length} 枚はそのまま引きつがれます。スマホでもパソコンでも、ログインすれば同じ図鑑が開けます。`
-                : 'ログインすると、スマホでもパソコンでも同じ図鑑が開けます。'
+                ? `いまの ${cards.length} 枚《まい》はそのまま引《ひ》きつがれます。スマホでもパソコンでも、ログインすれば同《おな》じ図鑑《ずかん》が開《ひら》けます。`
+                : mode === 'signup'
+                  ? '登録《とうろく》すると、スマホでもパソコンでも同《おな》じ図鑑《ずかん》が開《ひら》けます。'
+                  : 'ログインすると、スマホでもパソコンでも同《おな》じ図鑑《ずかん》が開《ひら》けます。'
             }
           />
           <span className="mt-1 block text-[12px] text-ink-3">
-            <Phrases text="ゲストは新しく調べられる数に限りがあります。登録すると、もっとたくさん調べられます。" />
+            <KidText
+              text={
+                // The apps can't prove themselves to the server without an account, so a guest there only reads what
+                // somebody already explored.
+                isNative
+                  ? 'ゲストのままでは、まだだれも調《しら》べていないモノは調《しら》べられません。登録《とうろく》すると、新《あたら》しいモノも調《しら》べられます。'
+                  : 'ゲストは新《あたら》しく調《しら》べられる数《かず》に限《かぎ》りがあります。登録《とうろく》すると、もっとたくさん調《しら》べられます。'
+              }
+            />
           </span>
         </p>
       )}
@@ -90,7 +112,7 @@ export function GuestView() {
             disabled={!!busy}
             error={error}
             onSubmit={(email, pw) =>
-              run('form', () => (mode === 'signup' ? signUpEmail(email, pw) : signInEmail(email, pw)), mode === 'signup' ? '登録しました。確認メールを見てください' : 'ログインしました')
+              run('form', () => (mode === 'signup' ? signUpEmail(email, pw) : signInEmail(email, pw)), mode === 'signup' ? '登録しました。確認メールを見てください（迷惑メールのフォルダも）' : 'ログインしました')
             }
             onForgot={() => setMode('reset')}
           />
