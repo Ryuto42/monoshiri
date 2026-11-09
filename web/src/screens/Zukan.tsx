@@ -239,7 +239,8 @@ export function Zukan() {
           </AnimatePresence>
         </main>
       </div>
-      {/* The only ways back to the camera are this and the arrow at the top left; hidden while a card is open. */}
+      {/* The only ways back to the camera are this and the arrow at the top left; hidden while a card is open. A soft fade
+          of the paper behind it keeps it apart from the cards scrolling underneath. */}
       <AnimatePresence>
         {!params.cardId && (
           <motion.div
@@ -248,7 +249,7 @@ export function Zukan() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
             transition={spring}
-            className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-[max(env(safe-area-inset-bottom),16px)]"
+            className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center bg-linear-to-t from-paper/85 via-paper/50 to-transparent px-4 pt-10 pb-[max(env(safe-area-inset-bottom),16px)]"
           >
             <Button icon="photo_camera" onClick={toCamera} className="pointer-events-auto h-13 px-7 shadow-[var(--shadow-float)]">
               <KidText text="さがしに行《い》く" />
