@@ -1,10 +1,11 @@
 import { motion, useAnimationFrame, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import { useState, type ReactNode } from 'react';
 import { Icon } from './ui';
+import { BrandMark } from './BrandMark';
 
 // The API gives no real progress, so progress eases toward 95% on an expected-duration curve (≈85% at `expected` seconds).
 // A dashed empty card fills from the bottom up and becomes a real card as it nears completion.
-export function LoadingCard({ expected = 12, icon = 'travel_explore', img, bg = '#F9D9C4', ink = '#8A3B12', steps, className = '', children }: {
+export function LoadingCard({ expected = 12, icon, img, bg = '#F9D9C4', ink = '#8A3B12', steps, className = '', children }: {
   expected?: number; icon?: string; img?: string | null; bg?: string; ink?: string; steps: string[]; className?: string; children?: ReactNode;
 }) {
   const reduced = useReducedMotion();
@@ -30,7 +31,7 @@ export function LoadingCard({ expected = 12, icon = 'travel_explore', img, bg = 
         <div className="absolute inset-0 rounded-[20px] border-[3px] border-dashed border-ink/25" />
         <motion.div className="absolute inset-0 overflow-hidden rounded-[20px]" style={{ clipPath: clip }}>
           <div className="absolute inset-0 grid place-items-center" style={{ background: bg, color: ink }}>
-            {img ? <img src={img} alt="" className="h-full w-full object-cover" /> : <Icon name={icon} size={52} fill />}
+            {img ? <img src={img} alt="" className="h-full w-full object-cover" /> : icon ? <Icon name={icon} size={52} fill /> : <BrandMark size={52} />}
           </div>
           <motion.div className="absolute inset-0 rounded-[20px] border-[3px] border-white" style={{ opacity: solid }} />
         </motion.div>
