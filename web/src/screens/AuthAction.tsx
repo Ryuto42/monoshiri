@@ -6,6 +6,7 @@ import { haptic } from '../lib/native';
 import { Button, HeroIcon, Icon } from '../components/ui';
 import { dialogMotion, ui } from '../components/theme';
 import { Field, Spinner } from './account/parts';
+import { BrandMark } from '../components/BrandMark';
 
 type View =
   | { kind: 'working' }
@@ -78,7 +79,7 @@ export function AuthAction() {
       <motion.section role="dialog" aria-modal aria-labelledby="action-title" aria-live="polite" {...dialogMotion} className={`${ui.dialog} px-6 pb-6 pt-7`}>
         <div className="mb-5 flex items-center justify-center gap-2 text-[15px] font-black text-ink-2">
           <span className="grid h-7 w-7 place-items-center rounded-[9px] bg-accent text-white">
-            <Icon name="travel_explore" size={18} fill />
+            <BrandMark size={18} />
           </span>
           モノシリ
         </div>

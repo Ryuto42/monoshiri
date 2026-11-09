@@ -7,6 +7,7 @@ import { usePendingIllust } from '../lib/illust';
 import { nearestUnit } from '../lib/units';
 import { useStage } from '../lib/level';
 import { RubyText } from './RubyText';
+import { BrandMark } from './BrandMark';
 
 // Tilt follows a mouse; on touch screens it never moves, yet its 3D transform would still give every card its own GPU layer.
 const canHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -152,7 +153,7 @@ export function CardBack({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
         }}
       >
         <div className="text-center text-white">
-          <Icon name="travel_explore" size={size === 'sm' ? 32 : 56} fill />
+          <BrandMark size={size === 'sm' ? 32 : 56} />
           <div className={`font-black tracking-widest ${size === 'sm' ? 'text-[12px]' : 'text-[20px]'}`}>モノシリ</div>
         </div>
       </div>

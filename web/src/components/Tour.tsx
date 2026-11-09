@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
-import { closeWelcome, setHelpHint, showWelcome, skipTutorial, useHelpHint, type TourTarget } from '../lib/welcome';
+import { closeWelcome, setHelpHint, showWelcome, skipTutorial, trySample, useHelpHint, type TourTarget } from '../lib/welcome';
+import { PASTE_KEY, useDesktop } from '../lib/useDesktop';
 import { STEPS, TOUR_PAGES } from '../lib/tour';
 import { haptic, onBack } from '../lib/native';
 import { Button } from './ui';
@@ -10,6 +11,8 @@ import { spring } from './theme';
 // The lit area: the button's box plus a margin, drawn as a pill (a circle for round buttons).
 type Spot = { x: number; y: number; w: number; h: number };
 const PAD = 6;
+// The welcome card's photo, so the try-out matches what the tutorial showed.
+const SAMPLE = '/samples/desk.webp';
 
 export function Tour() {
   // Everyone sees the same steps, signed in or not.
@@ -18,6 +21,7 @@ export function Tour() {
   const [dir, setDir] = useState(1);
   const spot = useSpot(steps[step].target);
   const still = useReducedMotion();
+  const desktop = useDesktop();
   const primary = useRef<HTMLButtonElement>(null);
   const last = step === steps.length - 1;
 
@@ -137,6 +141,12 @@ export function Tour() {
               <p className="phrase-wrap mt-2 text-[14px] leading-relaxed text-ink-2">
                 <KidText text={s.body} />
               </p>
+              {/* Only a PC can drop or paste an image, so only a PC is told. */}
+              {s.target === 'gallery' && desktop && (
+                <p className="phrase-wrap mt-1.5 text-[13px] leading-relaxed text-ink-3">
+                  <KidText text={`パソコンでは、画像《がぞう》をドロップしたり、${PASTE_KEY}で貼《は》り付《つ》けたりもできます。`} />
+                </p>
+              )}
             </motion.div>
           </AnimatePresence>
           <div className="mt-3 flex items-center justify-between gap-2">
@@ -148,6 +158,20 @@ export function Tour() {
               {last ? 'はじめる' : 'つぎへ'}
             </Button>
           </div>
+          {/* Trying the app without anything to photograph (a PC's webcam, a judge with nothing at hand): the same flow on
+              the welcome card's photo. It is offered only here (and again from "?"), not on the camera screen. */}
+          {last && (
+            <button
+              type="button"
+              onClick={() => {
+                haptic('select');
+                void trySample(SAMPLE);
+              }}
+              className="mx-auto mt-1 flex min-h-11 items-center px-3 text-[14px] font-bold text-ink-2 underline decoration-ink/20 underline-offset-4"
+            >
+              <KidText text="見本《みほん》の写真《しゃしん》でためす" />
+            </button>
+          )}
         </div>
       </motion.section>
     </motion.div>
