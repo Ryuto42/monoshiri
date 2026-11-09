@@ -122,7 +122,7 @@ function PrivacyBody() {
         <Part title="5. 外部への送信">
           <ul className="list-disc pl-5">
             <li>Google：Firebase（ログイン、データベース、ホスティング）、reCAPTCHA Enterprise（Firebase App Check。本アプリからの正しい通信かを確かめるため）、Vertex AI の Gemini と Cloud Vision（写真の解析・解説）</li>
-            <li>Gmail：メールアドレスの確認とパスワード再設定のメールは、モノシリ用の Gmail アカウントから送ります。送るために、登録したメールアドレスを使います</li>
+            <li>Gmail：メールアドレスの確認・パスワード再設定と、このポリシーの大事な変更のお知らせのメールは、モノシリ用の Gmail アカウント（monoshiri.app@gmail.com）から送ります。送るために、登録したメールアドレスを使います</li>
             <li>YouTube：関連する動画を、Cookie を使わない埋め込み（youtube-nocookie.com）で表示します。再生すると YouTube に通信が発生します</li>
             <li>Wikimedia Commons・Wikipedia：テーマに合う写真と、モノの要約を表示するために画像や文章を読み込みます</li>
           </ul>
@@ -154,7 +154,7 @@ function PrivacyBody() {
         </Part>
 
         <Part title="9. 改定">
-          <p>内容を変えるときは、このページを書き換えます。大事な変更のときは、次に本アプリを開いたときに同意の画面をもう一度出し、改めて同意をいただきます。</p>
+          <p>内容を変えるときは、このページを書き換えます。大事な変更のときは、次に本アプリを開いたときに同意の画面をもう一度出し、改めて同意をいただきます。メールアドレスを登録している方には、monoshiri.app@gmail.com からメールでもお知らせします。</p>
           <p className="mt-2 text-ink-3">{ENACTED} 制定</p>
         </Part>
       </div>

@@ -59,3 +59,46 @@ export function resetMail(email: string, link: string): Mail {
     ]),
   };
 }
+
+export type PolicyNotice = {
+  /** The day the policy changed, as shown, e.g. 2026年11月20日. */
+  date: string;
+  /** The main changes, one per line. */
+  changes: string[];
+  /** A major change: CONSENT_VERSION (web/src/lib/welcome.ts) was raised, so the app asks for consent again. */
+  reconsent: boolean;
+};
+
+// The notice sent once when the privacy policy changes, to accounts with a verified address (npm run notify:policy,
+// src/tools/notify-policy.ts). Guests have no address; the app's consent screen tells them.
+export function policyMail(n: PolicyNotice): Mail {
+  const link = `${SITE}/privacy`;
+  const after = n.reconsent
+    ? '次にモノシリをひらいたときに、同意の画面がもう一度出ます。読んで、同意してから使ってください。'
+    : 'これまでどおり、そのまま使えます。';
+  return {
+    subject: 'モノシリ プライバシーポリシーを変えました',
+    html: layout({
+      link,
+      title: 'プライバシーポリシーを変えました',
+      lead: `${escapeHtml(n.date)}に、モノシリのプライバシーポリシーを変えました。<br>${after}`,
+      button: 'プライバシーポリシーを読む',
+      tip: { title: 'おもに変わったところ', body: n.changes.map((c) => `・${escapeHtml(c)}`).join('<br>') },
+      ignore: 'このメールは、モノシリにメールアドレスを登録している方にお送りしています。',
+    }),
+    text: textOf([
+      'モノシリ プライバシーポリシーを変えました',
+      '',
+      `${n.date}に、モノシリのプライバシーポリシーを変えました。`,
+      after,
+      '',
+      'おもに変わったところ',
+      ...n.changes.map((c) => `・${c}`),
+      '',
+      '新しいプライバシーポリシーは、次のリンクから読めます。',
+      link,
+      '',
+      'このメールは、モノシリにメールアドレスを登録している方にお送りしています。',
+    ]),
+  };
+}

@@ -47,8 +47,37 @@ cd server && gcloud run deploy monoshiri-api --source=. --region=asia-northeast1
 
 ```bash
 gcloud run services update monoshiri-api --region=asia-northeast1 \
-  --update-env-vars=SMTP_USER=<送信に使う Gmail> --update-secrets=SMTP_PASSWORD=smtp-password:latest
+  --update-env-vars=SMTP_USER=monoshiri.app@gmail.com --update-secrets=SMTP_PASSWORD=smtp-password:latest
 ```
+
+送信元は、モノシリ用の Gmail `monoshiri.app@gmail.com` にします（プライバシーポリシーにも書いてあります）。アプリパスワードは、このアカウントで2段階認証を有効にしてから作ります。
+
+### プライバシーポリシーを変えたときのお知らせ
+
+大事な変更のときは、メールアドレスを確認済みのアカウントにメールでも知らせます（ゲストはアプリの同意の画面だけ）。
+
+1. `web/src/screens/Privacy.tsx` を書き換え、日付を足す。同意し直してほしい変更なら、`web/src/lib/welcome.ts` の `CONSENT_VERSION` を1つ上げる
+2. Web と API を公開する
+3. おもに変わったところを、1行に1つずつテキストファイルに書く（例 `changes.txt`）
+4. 手元で、本番の Firebase に Google Cloud の認証でつないで実行する（Firebase Authentication を読み、Firestore に書ける権限が要る）
+
+```bash
+gcloud auth application-default login
+cd server
+export SMTP_USER=monoshiri.app@gmail.com
+export SMTP_PASSWORD="$(gcloud secrets versions access latest --secret=smtp-password)"
+# 送らずに、送る相手の数を数え、mail-preview/policy-<id>.html に見た目を書き出す
+npm run notify:policy -- --id 2026-11-20 --date 2026年11月20日 --changes changes.txt --reconsent
+# 自分あてに1通だけ送って、見た目を確かめる（記録しない）
+npm run notify:policy -- --id 2026-11-20 --date 2026年11月20日 --changes changes.txt --reconsent --test-to <自分のアドレス>
+# まだ送っていない人に、最大400通送る
+npm run notify:policy -- --id 2026-11-20 --date 2026年11月20日 --changes changes.txt --reconsent --send
+```
+
+- Gmail の上限は1日に約500通なので、1回で送るのは最大400通（`--limit`）。残りは、翌日に同じコマンドをもう一度実行すれば、まだ送っていない人にだけ送る
+- 送った人は Firestore の `policyNotices/<id>/sent/<uid>` に記録する（送った時刻だけで、アドレスは残さない）。アプリからは読めない
+- `--reconsent` は、`CONSENT_VERSION` を上げたときだけ付ける（メールに「同意の画面がもう一度出ます」と書く）
+- 失敗が続いたら途中で止まる。アプリパスワードと、その日の送信数を確かめる
 
 App Check を強制するのは、App Check に対応した Web を公開してからにします。
 
