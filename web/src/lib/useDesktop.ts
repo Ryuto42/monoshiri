@@ -11,3 +11,6 @@ export function useDesktop() {
     () => !!mq?.matches,
   );
 }
+
+/** The paste shortcut as people know it on this computer. */
+export const PASTE_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘+V' : 'Ctrl+V';
