@@ -1,6 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { finishOnboarding, useWelcome } from '../lib/welcome';
+import { endSignIn, finishOnboarding, startSignIn, useWelcome } from '../lib/welcome';
+import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useMe } from '../lib/firebase';
+import { useStage } from '../lib/level';
 import { saveStage, type Stage } from '../lib/level';
 import { haptic, onBack } from '../lib/native';
 import { PrivacyLink } from '../screens/account/parts';
@@ -17,7 +20,37 @@ const GUARDIAN_AGE = 13;
 // Nothing here can be skipped, and the camera waits until it is done.
 export function Onboarding() {
   const state = useWelcome();
-  return <AnimatePresence>{state === 'onboard' && <Panel key="onboard" />}</AnimatePresence>;
+  return (
+    <>
+      <AnimatePresence>{state === 'onboard' && <Panel key="onboard" />}</AnimatePresence>
+      {state === 'signin' && <SignIn />}
+    </>
+  );
+}
+
+// Opens the account sheet for someone who logs in from the first screen, and settles it when they sign in or close it.
+function SignIn() {
+  const me = useMe();
+  const { uid, stage, loaded } = useStage();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const opened = useRef(false);
+  useEffect(() => {
+    void navigate({ to: '/account' });
+  }, [navigate]);
+  // Signed in: wait until the account's own stage has loaded (the guest's is gone by then).
+  const member = !!me && !me.guest && uid === me.uid && loaded;
+  useEffect(() => {
+    if (!member) return;
+    endSignIn(true, !!stage);
+    void navigate({ to: '/' });
+  }, [member, stage, navigate]);
+  // Closed the sheet without signing in.
+  useEffect(() => {
+    if (pathname === '/account') opened.current = true;
+    else if (opened.current && !member) endSignIn(false, false);
+  }, [pathname, member]);
+  return null;
 }
 
 function Panel() {
@@ -63,6 +96,8 @@ function Panel() {
                 initialAge={answer?.age}
                 titleId="onboard-title"
                 saveLabel="つぎへ"
+                skipLabel="アカウントが ある人は ログイン"
+                onSkip={startSignIn}
                 onSave={(stage, age) => {
                   setAnswer({ stage, age });
                   setStep('consent');
