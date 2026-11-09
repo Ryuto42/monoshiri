@@ -7,6 +7,7 @@ import { stripRuby } from '../lib/ruby';
 import { spring } from './theme';
 import { haptic } from '../lib/native';
 import { BLANK_POSTER } from '../lib/media';
+import { PASTE_KEY } from '../lib/useDesktop';
 import { toast } from '../lib/toast';
 import {
   applyHardwareZoom,
@@ -380,13 +381,20 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
               >
                 <Icon name="add_photo_alternate" size={56} />
               </motion.button>
+              {/* Only when the camera can't be used: the photo picker first, and the sample photos as a way to try the app
+                  without one. With a working camera the screen stays about taking photos (samples live in the tutorial). */}
               <p className="phrase-wrap text-[20px] font-black">
-                <KidText text="写真《しゃしん》をえらんで、しらべよう" />
+                <KidText text="カメラが使《つか》えないみたい" />
               </p>
-              <p className="phrase-wrap mt-2 text-[14px] text-white/60">
-                <KidText text="カメラが使《つか》えないときは、写真《しゃしん》をえらぶか、ここにドロップ・貼《は》り付《つ》けできます。" />
+              <p className="phrase-wrap mt-2 text-[14px] text-white/70">
+                <KidText text="写真《しゃしん》をえらぶか、見本《みほん》の写真《しゃしん》でためしてみてね。" />
               </p>
-              <p className="camera-sample-title mt-6 text-[13px] font-bold text-white/70">サンプルでためす</p>
+              <p className="phrase-wrap mt-1 hidden text-[13px] text-white/55 lg:block">
+                <KidText text={`画像《がぞう》をここにドロップしたり、${PASTE_KEY}で貼《は》り付《つ》けたりもできます。`} />
+              </p>
+              <p className="camera-sample-title mt-6 text-[13px] font-bold text-white/70">
+                <KidText text="見本《みほん》の写真《しゃしん》" />
+              </p>
               <div className="mt-2 flex justify-center gap-3">
                 {SAMPLES.map((s, i) => (
                   <motion.button
@@ -429,7 +437,7 @@ export const Viewfinder = forwardRef<ViewfinderHandle, { active: boolean; onPick
             </p>
             {/* A PC may never answer the camera prompt (or have no camera); the other ways in are easy to miss there. */}
             <p className="phrase-wrap mt-4 hidden max-w-sm text-[13px] leading-relaxed text-white/55 lg:block">
-              <Phrases text="写真をここにドロップしたり、Ctrl+V（⌘+V）で貼り付けたりしても調べられます。" />
+              <Phrases text={`写真をここにドロップしたり、${PASTE_KEY}で貼り付けたりしても調べられます。`} />
             </p>
           </motion.div>
         )}
