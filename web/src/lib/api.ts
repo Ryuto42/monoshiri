@@ -67,43 +67,60 @@ export const api = {
   usage: () =>
     call<{ spentJpy: number; capJpy: number; videoLeft: number; tier: 'guest' | 'member' | 'admin'; mySpentJpy: number; myCapJpy: number }>('/api/usage'),
 
-  async deep(name: string, topic: string, onDelta: (t: string) => void, signal?: AbortSignal): Promise<DeepMeta & { cached?: boolean }> {
-    const res = await fetch(`${BASE}/api/deep`, {
-      method: 'POST',
-      signal,
-      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-      body: JSON.stringify({ name, topic, level: currentLevel() }),
-    });
-    if (!res.ok || !res.body) {
-      const body = await res.json().catch(() => ({}));
-      if (body.error === 'user_limit' && body.tier === 'guest') nudgeForLimit();
-      throw new ApiError(res.status, body.error ?? 'network', body.tier);
-    }
-    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-    let buf = '';
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += value;
-      let i: number;
-      while ((i = buf.indexOf('\n\n')) >= 0) {
-        const block = buf.slice(0, i);
-        buf = buf.slice(i + 2);
-        const event = /^event: (.*)$/m.exec(block)?.[1];
-        const data = block
-          .split('\n')
-          .filter((l) => l.startsWith('data: '))
-          .map((l) => l.slice(6))
-          .join('\n');
-        if (!data) continue;
-        if (event === 'delta') onDelta(JSON.parse(data));
-        else if (event === 'done') return JSON.parse(data);
-        else if (event === 'error') throw new ApiError(500, JSON.parse(data));
-      }
-    }
-    throw new ApiError(500, 'stream_closed');
-  },
+  deep: (name: string, topic: string, onDelta: (t: string) => void, signal?: AbortSignal) =>
+    stream<DeepMeta & { cached?: boolean }>('/api/deep', { name, topic, level: currentLevel() }, signal, (event, data) => {
+      if (event === 'delta') onDelta(data as string);
+    }),
+
+  /**
+   * The explanation in two steps: `onQuick` gets the front of the card (name, reading, summary…) within seconds when nobody
+   * has explored the thing yet, while the rest is written with Google Search; the whole card is what it resolves to.
+   */
+  exploreStream: (label: string, onQuick: (ex: Explore) => void, image?: string, from?: string, signal?: AbortSignal) =>
+    stream<Explore>('/api/explore/stream', { label, image, from, level: currentLevel() }, signal, (event, data) => {
+      if (event === 'quick') onQuick({ ...(data as Explore), funFact: '', topics: [], keywords: [], entryPoint: null, queries: [], wiki: null, partial: true });
+    }),
 };
+
+// Reads a server-sent event response until `done` (its data is the result); `error` carries the same body as a JSON error.
+async function stream<T>(path: string, body: object, signal: AbortSignal | undefined, onEvent: (event: string, data: unknown) => void): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
+  const fail = (b: { error?: string; tier?: string }, status: number) => {
+    if (b.error === 'user_limit' && b.tier === 'guest') nudgeForLimit();
+    return new ApiError(status, b.error ?? 'network', b.tier);
+  };
+  if (!res.ok || !res.body) throw fail(await res.json().catch(() => ({})), res.status);
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += value;
+    let i: number;
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const block = buf.slice(0, i);
+      buf = buf.slice(i + 2);
+      const event = /^event: (.*)$/m.exec(block)?.[1];
+      const data = block
+        .split('\n')
+        .filter((l) => l.startsWith('data: '))
+        .map((l) => l.slice(6))
+        .join('\n');
+      if (!data) continue;
+      const parsed = JSON.parse(data);
+      if (event === 'done') return parsed;
+      // The deep dive sends a bare code; the explanation sends the JSON error body.
+      if (event === 'error') throw fail(typeof parsed === 'string' ? { error: parsed } : parsed, 500);
+      onEvent(event ?? '', parsed);
+    }
+  }
+  throw new ApiError(500, 'stream_closed');
+}
 
 // Messages carry 漢字《かんじ》 marks for the youngest readers; show them with <KidText> (toasts already do).
 export function errorMessage(e: unknown) {

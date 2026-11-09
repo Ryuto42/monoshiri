@@ -191,38 +191,74 @@ ${a.style}
 ${text.slice(0, 6000)}`;
 }
 
-export function explorePrompt(label: string, level: Level = 'std') {
-  if (level !== 'std') {
-    const a = AUDIENCE[level];
-    return stdExplorePrompt(label)
-      .replace('小学校高学年〜中学生が「へぇ！」と思える学びのカードを作ります。', `${a.who}が「へぇ！」と思える学びのカードを作ります。\n読む人は${a.who}です。次を守ってください。\n${a.style}`)
-      .replace('120字前後のやさしい説明', a.summary);
-  }
-  return stdExplorePrompt(label);
+const EXPLORE_HEAD = '小学校高学年〜中学生が「へぇ！」と思える学びのカードを作ります。';
+
+function forAudience(prompt: string, level: Level) {
+  if (level === 'std') return prompt;
+  const a = AUDIENCE[level];
+  return prompt
+    .replace(EXPLORE_HEAD, `${a.who}が「へぇ！」と思える学びのカードを作ります。\n読む人は${a.who}です。次を守ってください。\n${a.style}`)
+    .replace('120字前後のやさしい説明', a.summary);
 }
 
+export function explorePrompt(label: string, level: Level = 'std') {
+  return forAudience(stdExplorePrompt(label), level);
+}
+
+const fitFor = (label: string) => `- ok: 「${label}」が、子ども向けに説明してよい具体的なモノ・生き物・食べ物・自然などの一般名なら true。
+  人名や個人を特定する情報、暴力的・性的な内容、危険な物の作り方につながる名前、意味のない文字列なら false
+  （false のときは、ほかの項目は空でよい）`;
+
+const TOPICS_SPEC = `- topics: 6個。それぞれ
+  - title: 好奇心をくすぐる「問い」の形（例: ペットボトルはどうやってできる？）
+  - teaser: 40字以内の答えのチラ見せ
+  - kind: 次から1つ ${TOPIC_KINDS.join(' / ')}
+  - icon: 上と同じリストから1つ
+  6個の kind はできるだけバラバラにする（つくりかた・れきし・しくみ・かんきょう を優先）`;
+
 function stdExplorePrompt(label: string) {
-  return `「${label}」について、小学校高学年〜中学生が「へぇ！」と思える学びのカードを作ります。
+  return `「${label}」について、${EXPLORE_HEAD}
 必ず Google 検索で事実を確認してから、正確な内容だけを書いてください。
 
-- name: モノの一般名（日本語）
-- reading: ひらがなの読み
+- name: モノの一般名（日本語）。読む人の学年に関係なく、辞書や図鑑に載っているふつうの書き方（漢字・カタカナを使う。例: 鉛筆削り、ペットボトル）。ひらがなだけに開かない。《》は付けない
+- reading: name のひらがなの読み
 - en: 英語名
 - category: 次から1つ ${CATEGORIES.join(' / ')}
 - icon: 次から1つ ${ICONS.join(', ')}
 - oneLiner: 30字以内のキャッチコピー
 - summary: 120字前後のやさしい説明
 - funFact: 意外な豆知識 1つ（60字以内、数字や年号を入れる）
-- topics: 6個。それぞれ
-  - title: 好奇心をくすぐる「問い」の形（例: ペットボトルはどうやってできる？）
-  - teaser: 40字以内の答えのチラ見せ
-  - kind: 次から1つ ${TOPIC_KINDS.join(' / ')}
-  - icon: 上と同じリストから1つ
-  6個の kind はできるだけバラバラにする（つくりかた・れきし・しくみ・かんきょう を優先）
+${TOPICS_SPEC}
 - keywords: 関連キーワード 4個
-- ok: 「${label}」が、子ども向けに説明してよい具体的なモノ・生き物・食べ物・自然などの一般名なら true。
-  人名や個人を特定する情報、暴力的・性的な内容、危険な物の作り方につながる名前、意味のない文字列なら false
-  （false のときは、ほかの項目は空でよい）`;
+${fitFor(label)}`;
+}
+
+// The two-step explanation: the front of the card first (fast, no search), then the rest written and checked with search.
+export function exploreQuickPrompt(label: string, level: Level = 'std') {
+  return forAudience(`「${label}」について、${EXPLORE_HEAD}
+まずカードの表の部分だけを書きます。よく知られた確かな事実だけを書き、自信のない数字や年号は入れないでください。
+
+- name: モノの一般名（日本語）。読む人の学年に関係なく、辞書や図鑑に載っているふつうの書き方（漢字・カタカナを使う。例: 鉛筆削り、ペットボトル）。ひらがなだけに開かない。《》は付けない
+- reading: name のひらがなの読み
+- en: 英語名
+- category: 次から1つ ${CATEGORIES.join(' / ')}
+- icon: 次から1つ ${ICONS.join(', ')}
+- oneLiner: 30字以内のキャッチコピー
+- summary: 120字前後のやさしい説明
+${fitFor(label)}`, level);
+}
+
+export function exploreRestPrompt(name: string, summary: string, level: Level = 'std') {
+  return forAudience(`「${name}」について、${EXPLORE_HEAD}
+必ず Google 検索で事実を確認してから、正確な内容だけを書いてください。
+カードの説明（summary）は、もう次のように書いてあります。
+${summary}
+
+- summary: 上の説明を Google 検索で確かめ、事実の誤りがあれば直した文。誤りが無ければ同じ文をそのまま返す。長さ・言葉づかい・漢字と読みがなの付け方は変えない
+- funFact: 意外な豆知識 1つ（60字以内、数字や年号を入れる）
+- icon は次のリストから選ぶ ${ICONS.join(', ')}
+${TOPICS_SPEC}
+- keywords: 関連キーワード 4個`, level);
 }
 
 export function deepPrompt(name: string, topic: string, level: Level = 'std') {
