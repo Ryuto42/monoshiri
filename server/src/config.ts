@@ -62,8 +62,7 @@ export const USER_CAP_JPY = {
 };
 export const ADMIN_UIDS = new Set((process.env.ADMIN_UIDS ?? '').split(',').map((s) => s.trim()).filter(Boolean));
 
-// Grounding with Google Search (Gemini 3): $14 per 1,000 search queries on top of tokens. The 5,000 free queries a month
-// are not subtracted, so the meter errs on the high side.
+// Grounding with Google Search (Gemini 3): $14 per 1,000 search queries on top of tokens.
 export const GROUNDING_USD_PER_QUERY = Number(process.env.GROUNDING_USD_PER_QUERY ?? 0.014);
 // The first 5,000 search queries each month cost nothing, so only queries past that are put on the meters.
 export const GROUNDING_FREE_PER_MONTH = Number(process.env.GROUNDING_FREE_PER_MONTH ?? 5000);

@@ -5,7 +5,7 @@
 | 名前 | 用途 | ライセンス |
 |---|---|---|
 | React / React DOM 19 | UI | MIT |
-| babel-plugin-react-compiler | 自動メモ化 | MIT |
+| babel-plugin-react-compiler / @babel/core / @rolldown/plugin-babel | 自動メモ化（React Compiler） | MIT |
 | Vite 8 / @vitejs/plugin-react | ビルド | MIT |
 | @tanstack/react-router | ルーティング | MIT |
 | Tailwind CSS v4 | スタイル | MIT |
@@ -21,12 +21,13 @@
 | @google-cloud/storage | メディア保存 | Apache-2.0 |
 | google-auth-library | 認証 | Apache-2.0 |
 | sharp | 画像の WebP 変換 | Apache-2.0 |
+| TypeScript / oxlint / @firebase/rules-unit-testing | 型チェック・lint・ルールのテスト（開発時のみ） | Apache-2.0 / MIT / Apache-2.0 |
 | Nodemailer | 確認・再設定メールの送信（SMTP） | MIT-0 |
 | @google-cloud/billing / functions-framework | 予算キルスイッチ | Apache-2.0 |
 | Capacitor 8（core / ios / android / cli） | iOS・Android アプリ化 | MIT |
 | @capacitor/app, haptics, status-bar, splash-screen, browser, keyboard, network | ネイティブ機能 | MIT |
 | @capgo/capacitor-social-login | ネイティブの Google ログイン | MPL-2.0 |
-| @fontsource/zen-maru-gothic | フォント同梱 | MIT（フォント本体は OFL 1.1） |
+| @fontsource/zen-maru-gothic | フォント同梱 | SIL Open Font License 1.1 |
 
 ## フォント・アイコン
 
