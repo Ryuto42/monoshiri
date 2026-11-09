@@ -499,7 +499,7 @@ function Shutter({ onClick }: { onClick: () => void }) {
     >
       <motion.span tabIndex={-1} aria-hidden className="h-[64px] w-[64px] rounded-full bg-white" whileTap={{ scale: 0.8 }} />
       <span className="absolute grid h-[64px] w-[64px] place-items-center text-accent">
-        <BrandMark size={30} />
+        <BrandMark size={34} />
       </span>
     </motion.button>
   );
