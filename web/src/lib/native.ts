@@ -124,14 +124,24 @@ export async function setupNative(onOffline: (offline: boolean) => void) {
   App.addListener('backButton', () => {
     if (!goBack()) App.minimizeApp();
   });
+  // iOS: a swipe in from the left edge (MainViewController in ios/App/App/GlassChrome.swift). Nothing to close on the camera.
+  if (platform === 'ios') window.addEventListener('edgeback', () => goBack());
 
   Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
 
   // The web view does not resize for the keyboard (Keyboard.resize = 'none'); see lib/keyboardLift.ts.
   Keyboard.addListener('keyboardWillShow', (info) => keyboardShown(info.keyboardHeight));
-  // Moving between fields can report hide→show; while a field in the sheet still has focus, stay put.
-  Keyboard.addListener('keyboardWillHide', () => !typingInSheet() && keyboardHidden());
-  Keyboard.addListener('keyboardDidHide', () => !typingInSheet() && keyboardHidden());
+  if (platform === 'android') Keyboard.addListener('keyboardDidShow', (info) => keyboardShown(info.keyboardHeight));
+  const onHide = () => {
+    // iOS can report hide→show when moving between fields; while a field in the sheet still has focus, stay put.
+    if (platform === 'ios' && typingInSheet()) return;
+    // Android: the back button closes the keyboard but leaves the field focused. Drop the focus too, so the next tap
+    // on it brings the keyboard (and the lift) back.
+    if (platform === 'android' && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    keyboardHidden();
+  };
+  Keyboard.addListener('keyboardWillHide', onHide);
+  Keyboard.addListener('keyboardDidHide', onHide);
 
   const status = await Network.getStatus();
   onOffline(!status.connected);

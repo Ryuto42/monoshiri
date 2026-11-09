@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import type { Me } from '../../lib/firebase';
-import { syncCloud, useCards } from '../../lib/cards';
+import { cardsAtRisk, syncCloud, useCards } from '../../lib/cards';
 import { accountMessage, checkVerified, deleteAccount, logOut, resendVerification } from '../../lib/account';
 import { api } from '../../lib/api';
 import { haptic } from '../../lib/native';
@@ -26,6 +26,8 @@ export function MemberView({ me, onDone }: { me: Me; onDone: () => void }) {
   const cards = useCards();
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // Cards that would be lost by logging out now (an unconfirmed address can't sync, or the sync just failed).
+  const [risk, setRisk] = useState(0);
   const needsVerify = me.provider === 'password' && !me.verified;
   const st = useStage();
   const [editing, setEditing] = useState(false);
@@ -65,6 +67,12 @@ export function MemberView({ me, onDone }: { me: Me; onDone: () => void }) {
         skipLabel={editing ? 'やめる（いまの まま）' : undefined}
       />
     );
+  }
+
+  async function leave() {
+    await logOut();
+    toast('ログアウトしました', 'logout');
+    onDone();
   }
 
   async function act(kind: string, f: () => Promise<unknown>) {
@@ -110,7 +118,12 @@ export function MemberView({ me, onDone }: { me: Me; onDone: () => void }) {
             size={44}
             disabled={busy === 'sync'}
             className={busy === 'sync' ? 'animate-spin' : ''}
-            onClick={() => act('sync', async () => { await syncCloud(); toast('同期しました', 'cloud_done'); })}
+            onClick={() =>
+              act('sync', async () => {
+                const ok = await syncCloud();
+                toast(ok ? '同期しました' : '同期できませんでした。通信を確かめて、もう一度ためしてね', ok ? 'cloud_done' : 'cloud_off');
+              })
+            }
           />
         )}
       </div>
@@ -135,15 +148,36 @@ export function MemberView({ me, onDone }: { me: Me; onDone: () => void }) {
         </div>
       )}
 
-      <button
-        onClick={() => act('logout', async () => { await logOut(); toast('ログアウトしました', 'logout'); onDone(); })}
-        disabled={!!busy}
-        className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-ink/15 text-[15px] font-bold text-ink hover:bg-ink/5 disabled:opacity-60"
-      >
-        {busy === 'logout' ? <Spinner /> : <Icon name="logout" size={20} />}
-        ログアウト
-      </button>
-      <p className="mt-2 text-center text-[12px] text-ink-3">ログアウトすると、この端末の図鑑は消えます（クラウドには残ります）</p>
+      <AnimatePresence initial={false} mode="wait">
+        {risk > 0 ? (
+          <LogoutConfirm
+            key="risk"
+            count={risk}
+            unsynced={needsVerify}
+            busy={busy === 'logout'}
+            onCancel={() => setRisk(0)}
+            onLogout={() => act('logout', async () => { await leave(); setRisk(0); })}
+          />
+        ) : (
+          <motion.div key="logout" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <button
+              onClick={() =>
+                act('logout', async () => {
+                  const n = await cardsAtRisk();
+                  if (n > 0) return setRisk(n);
+                  await leave();
+                })
+              }
+              disabled={!!busy}
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-ink/15 text-[15px] font-bold text-ink hover:bg-ink/5 disabled:opacity-60"
+            >
+              {busy === 'logout' ? <Spinner /> : <Icon name="logout" size={20} />}
+              ログアウト
+            </button>
+            <p className="mt-2 text-center text-[12px] text-ink-3">ログアウトすると、この端末の図鑑は消えます（クラウドには残ります）</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence initial={false} mode="wait">
         {confirming ? (
@@ -184,6 +218,10 @@ function VerifyBanner({ email }: { email: string }) {
         <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
           <span className="break-all font-bold text-ink">{email}</span> に確認メールを送りました。メールのリンクを開くと、ほかの端末と同期できるようになります。
         </p>
+        <p className="mt-1 flex items-start gap-1.5 text-[12px] leading-relaxed text-ink-3">
+          <Icon name="info" size={16} className="mt-px shrink-0" />
+          メールが見つからないときは、迷惑メールのフォルダも見てね。
+        </p>
         <div className="mt-3 flex gap-2">
           <button
             disabled={checking}
@@ -219,6 +257,30 @@ function VerifyBanner({ email }: { email: string }) {
             {cool > 0 ? `再送まで ${cool} 秒` : 'メールを再送'}
           </button>
         </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function LogoutConfirm({ count, unsynced, busy, onCancel, onLogout }: {
+  count: number; unsynced: boolean; busy: boolean; onCancel: () => void; onLogout: () => void;
+}) {
+  return (
+    <motion.div role="alertdialog" aria-labelledby="logout-risk" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="mt-5 rounded-3xl border border-sun/50 bg-[color-mix(in_oklab,var(--sun)_16%,var(--paper))] px-4 py-4">
+      <p id="logout-risk" className="flex items-center gap-2 text-[15px] font-black">
+        <Icon name="warning" fill className="text-sun" /> このままだと集めたカードが消えます
+      </p>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
+        {unsynced
+          ? `メールアドレスの確認がまだなので、この端末の ${count} 枚はクラウドに保存されていません。確認メールのリンクを開いてからログアウトすると、カードは残ります。`
+          : `この端末の ${count} 枚をクラウドに保存できませんでした。通信を確かめて、もう一度ためしてからログアウトすると、カードは残ります。`}
+      </p>
+      <div className="mt-3 flex gap-2">
+        <button onClick={onCancel} className="h-11 flex-1 rounded-full bg-ink text-[14px] font-bold text-paper">ログアウトしない</button>
+        <button onClick={onLogout} disabled={busy} className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full border border-ink/15 text-[14px] font-bold disabled:opacity-60">
+          {busy ? <Spinner /> : <Icon name="logout" size={18} />}
+          消えてもよい
+        </button>
       </div>
     </motion.div>
   );

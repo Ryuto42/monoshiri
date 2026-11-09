@@ -11,7 +11,9 @@ export const detect = new Hono<Env>();
 detect.post('/api/detect', async (c) => {
   const { image, level } = await c.req.json<{ image: string; level?: string }>();
   if (!image || image.length > 3_000_000) return c.json({ error: 'bad_image' }, 400);
-  await ensureBudget(0.005);
+  // Detection is exempt from App Check: the native apps can't attest, and without it a guest there couldn't look anything up.
+  // The per-account and app-wide caps and the rate limit still apply.
+  await ensureBudget(0.005, { attest: false });
   // SafeSearch first: an unsuitable photo is never sent on to Gemini. The photo itself is not stored anywhere.
   const [ok] = await safeSearch([{ base64: image }]);
   if (!ok) return c.json({ error: 'unsafe_image' }, 422);

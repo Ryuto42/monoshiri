@@ -38,8 +38,3 @@ npm-debug.log*
 infra/.appcheck-debug-token
 infra/.prewarm-auth.json
 
-# Playwright
-web/test-results/
-web/playwright-report/
-test-results/
-playwright-report/

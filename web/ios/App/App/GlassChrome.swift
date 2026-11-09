@@ -3,9 +3,26 @@ import PhotosUI
 import UIKit
 
 /// Hosts the web app and registers the in-app native plugin.
-class MainViewController: CAPBridgeViewController {
+class MainViewController: CAPBridgeViewController, UIGestureRecognizerDelegate {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(GlassChromePlugin())
+        let edge = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(edgeSwiped(_:)))
+        edge.edges = .left
+        edge.delegate = self
+        webView?.addGestureRecognizer(edge)
+    }
+
+    /// A swipe in from the left edge sends `edgeback` to the web app, which closes the top layer (lib/native.ts).
+    @objc private func edgeSwiped(_ g: UIScreenEdgePanGestureRecognizer) {
+        guard g.state == .ended, let view = g.view else { return }
+        let t = g.translation(in: view)
+        let v = g.velocity(in: view)
+        guard t.x > abs(t.y), t.x > 80 || (t.x > 30 && v.x > 600) else { return }
+        bridge?.triggerWindowJSEvent(eventName: "edgeback")
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
     }
 }
 

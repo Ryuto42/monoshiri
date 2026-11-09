@@ -1,4 +1,5 @@
-import { motion } from 'motion/react';
+import { motion, useMotionValue } from 'motion/react';
+import { slideOut, useSwipeDismiss } from '../lib/useSwipeDismiss';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
@@ -22,10 +23,15 @@ export function PrivacySheet({ onClose }: { onClose: () => void }) {
     close.current = onClose;
   });
   useEffect(() => onBack(() => close.current(), { history: false }), []);
+  const y = useMotionValue(0);
+  const head = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  useSwipeDismiss({ y, areas: [head, body], onDismiss: () => slideOut(y, () => close.current()) });
 
   return (
     <motion.div className="fixed inset-0 z-[58] flex items-end justify-center text-ink lg:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.button aria-label="とじる" tabIndex={-1} className={ui.scrim} onClick={onClose} />
+      <motion.div style={{ y }} className="flex w-full justify-center">
       <motion.section
         role="dialog"
         aria-modal
@@ -33,14 +39,15 @@ export function PrivacySheet({ onClose }: { onClose: () => void }) {
         {...sheetMotion}
         className={`${ui.sheet} max-h-[94dvh] lg:max-h-[min(860px,92dvh)] lg:max-w-[560px]`}
       >
-        <div className={ui.sheetHeader}>
+        <div ref={head} className={ui.sheetHeader}>
           <span className={ui.handle} />
           <IconButton icon="close" label="とじる" onClick={onClose} className={ui.sheetClose} />
         </div>
-        <div className={ui.sheetBody}>
+        <div ref={body} className={ui.sheetBody}>
           <PrivacyBody />
         </div>
       </motion.section>
+      </motion.div>
     </motion.div>
   );
 }
@@ -65,6 +72,9 @@ function PrivacyBody() {
           </Easy>
           <Easy icon="school">
             <RubyText text="はじめに 年齢《ねんれい》を きくけど、年齢《ねんれい》は おぼえないよ。「低学年《ていがくねん》むけ」のような せつめいの むずかしさだけ おぼえるよ。" />
+          </Easy>
+          <Easy icon="edit">
+            <RubyText text="「ちがうよ」で モノの 名前《なまえ》を なおしたら、どう なおしたかを、だれの ものか わからない かたちで のこして、つぎから まちがえないように つかうよ。" />
           </Easy>
           <Easy icon="style">
             <RubyText text="あつめた カードは、きみの 図鑑《ずかん》に しまっておくよ。ほかの 人には 見えないよ。" />
@@ -92,6 +102,7 @@ function PrivacyBody() {
             <li>図鑑に保存したカード（モノの名前・解説・ノートなど）</li>
             <li>年齢から決めた「学びの段階」（低学年・高学年・中学生・高校生以上のいずれか）</li>
             <li>このポリシーに同意したこと（同意した日時と、ポリシーの版。その端末の中にだけ記録します）</li>
+            <li>写真に写ったモノの名前を「ちがうよ」で直したときの、もとの名前と直した名前（どのモノをどう直したか）。アカウントや利用者IDとは結び付けずにサーバーに保存し、モノを見つける精度の改善にだけ使います</li>
           </ul>
           <p className="mt-2">年齢は保存も送信もしません。はじめて使うときと段階を変えるときに年齢をたずねますが、その場で段階に置きかえて、年齢そのものは捨てています。</p>
         </Part>
@@ -111,6 +122,7 @@ function PrivacyBody() {
         <Part title="5. 外部への送信">
           <ul className="list-disc pl-5">
             <li>Google：Firebase（ログイン、データベース、ホスティング）、reCAPTCHA Enterprise（Firebase App Check。本アプリからの正しい通信かを確かめるため）、Vertex AI の Gemini と Cloud Vision（写真の解析・解説）</li>
+            <li>Gmail：メールアドレスの確認とパスワード再設定のメールは、モノシリ用の Gmail アカウントから送ります。送るために、登録したメールアドレスを使います</li>
             <li>YouTube：関連する動画を、Cookie を使わない埋め込み（youtube-nocookie.com）で表示します。再生すると YouTube に通信が発生します</li>
             <li>Wikimedia Commons・Wikipedia：テーマに合う写真と、モノの要約を表示するために画像や文章を読み込みます</li>
           </ul>

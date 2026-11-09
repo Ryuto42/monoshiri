@@ -2,7 +2,7 @@ import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 import { execSync } from 'node:child_process';
 import { GROUNDING_USD_PER_QUERY, LOCAL, PROJECT, PRICES, SAFETY, type Level } from './config.ts';
-import { addSpent } from './store.ts';
+import { addSpent, billableSearches } from './store.ts';
 
 function makeClient() {
   const base = { vertexai: true, project: PROJECT, location: 'global' } as const;
@@ -64,7 +64,8 @@ export function costOf(model: string, usage: Usage, images = 0) {
 
 // searchQueries: how many Google Search queries a grounded call ran (billed per query on top of tokens).
 export async function track(model: string, usage: Usage, kind: string, images = 0, searchQueries = 0) {
-  await addSpent(costOf(model, usage, images) + searchQueries * GROUNDING_USD_PER_QUERY * SAFETY, kind);
+  const searches = await billableSearches(searchQueries);
+  await addSpent(costOf(model, usage, images) + searches * GROUNDING_USD_PER_QUERY * SAFETY, kind);
 }
 
 export function grounding(res: GenerateContentResponse | undefined) {
@@ -98,6 +99,13 @@ export const DETECT_PROMPT = `あなたは写真の中のモノを見つける�
 - alts: 見まちがえやすい別の候補の一般名（日本語、最大2個。自信があれば空の配列）
 - 人物そのものは対象にしない（服やメガネなど身につけているモノは可）
 - 何も見つからなければ空の配列`;
+
+export function namePrompt(label: string) {
+  return `写真の中で「${label}」と呼ばれているモノの、子どもにも分かる日本語の一般名を1つ答えてください。
+- 「${label}」が合っていれば、そのまま「${label}」と答える
+- 商品名・人名・写真の中の文字は使わない
+- name だけを JSON で答える`;
+}
 
 // How each learning stage is written. 'std' keeps the original wording so existing shared caches stay valid.
 const AUDIENCE: Record<Exclude<Level, 'std'>, { who: string; style: string; summary: string; deep: string }> = {
@@ -147,6 +155,40 @@ ${list}
 
 - 一覧の id からだけ選ぶ。関係が強い順に最大3つ。こじつけになるなら選ばない（0個でもよい）
 - why: その単元でこのモノがどう出てくるかを、小学生にも分かる言葉で25字以内（例: 「水にとける量を調べる実験で使う」）`;
+}
+
+// A stage that hasn't been written yet is rewritten from one that has (no new search, no new facts): far cheaper and
+// faster than writing it again, and the topics keep the same titles so cards from any stage still open them.
+const STD_WHO = '小学校高学年〜中学生';
+const STD_STYLE = '- 常用漢字はそのまま使ってよい。むずかしい言葉には（かっこ）で言いかえを添える\n- ふりがなの《》は付けない';
+const whoOf = (level: Level) => (level === 'std' ? { who: STD_WHO, style: STD_STYLE, deep: '全体で 700 字前後' } : AUDIENCE[level]);
+
+export function restyleExplorePrompt(level: Level, src: { name: string; oneLiner?: string; summary?: string; funFact?: string; teasers: string[] }) {
+  const a = whoOf(level);
+  return `次の学びのカードを、${a.who}が読む文章に書き直してください。
+- 事実・数字・年号は変えない。新しい事実を足さない。書いてあることを、読む人に合わせた言葉と漢字で言い直すだけ
+${a.style}
+- oneLiner は30字以内、funFact は60字以内、teasers は元と同じ数・同じ順番で各40字以内
+
+モノ: ${src.name}
+oneLiner: ${src.oneLiner ?? ''}
+summary: ${src.summary ?? ''}
+funFact: ${src.funFact ?? ''}
+teasers:
+${src.teasers.map((t, i) => `${i + 1}. ${t}`).join('\n')}`;
+}
+
+export function restyleDeepPrompt(level: Level, name: string, topic: string, text: string) {
+  const a = whoOf(level);
+  return `「${name}」— ${topic} の解説（Markdown）を、${a.who}が読む文章に書き直してください。
+- 事実・数字・年号は変えない。新しい事実を足さない。見出し（### ）の数と順番、「### やってみよう」はそのまま
+- mermaid の図があれば、ノードの数とつながりはそのままにし、ノードの文字だけ読む人に合わせる（15字以内、《》は付けない）
+${a.style}
+- 分量: ${a.deep}
+- 書き直した Markdown だけを出力する（前置きや説明はいらない）
+
+元の解説:
+${text.slice(0, 6000)}`;
 }
 
 export function explorePrompt(label: string, level: Level = 'std') {

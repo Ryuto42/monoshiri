@@ -73,12 +73,18 @@ export function CardDetail({ cardId }: { cardId: string }) {
         : undefined,
     [router, isPresent],
   );
-  // The explanation is cached on the server once explored, so this only fetches the extras (Wikipedia, Google suggestions).
+  // The card itself is what this shows; only the extras (Wikipedia, Google suggestions) come from the server. They are
+  // the same at every stage, so they are read from the standard explanation, and only when /api/known says it is cached:
+  // asking at the current stage would quietly write a new explanation for a stage the card was never read at.
   const name = card?.name;
   useEffect(() => {
     if (!name) return;
     let live = true;
-    api.explore(name).then((ex) => live && setExplore(ex)).catch(() => {});
+    api
+      .known(name)
+      .then(({ known }) => (known && live ? api.explore(name, undefined, undefined, 'std') : null))
+      .then((ex) => live && ex && setExplore(ex))
+      .catch(() => {});
     return () => {
       live = false;
     };

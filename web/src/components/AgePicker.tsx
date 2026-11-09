@@ -62,7 +62,12 @@ export function AgePicker({ initial, initialAge, saving = false, onSave, onSkip,
 
   return (
     <div className="phrase-wrap pb-2">
-      {!compact && <HeroIcon icon="school" />}
+      {/* Short screens (a small phone in landscape-ish split view) drop the badge so the keypad still fits. */}
+      {!compact && (
+        <div className="[@media(max-height:700px)]:hidden">
+          <HeroIcon icon="school" />
+        </div>
+      )}
       <h2 id={titleId} className={`${compact ? 'mt-0' : 'mt-4'} text-center ${ui.title}`}>
         なんさい？
       </h2>

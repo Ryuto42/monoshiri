@@ -11,17 +11,13 @@ const C = {
   ink2: '#66574a',
   ink3: '#9a8a7a',
   accent: '#ef6a3a',
-  leafSoft: '#d9efe6',
-  accentSoft: '#fde3d6',
 };
 const FONT = `'Hiragino Maru Gothic ProN','Hiragino Sans','Zen Maru Gothic','Meiryo',sans-serif`;
 import { APP_URL as SITE } from '../config.ts';
 
+// No hidden preheader text and no emoji in the heading: both are common in spam and count against delivery.
 export type MailParts = {
   link: string;
-  preheader: string;
-  badge: string;
-  badgeTone?: 'leaf' | 'accent';
   title: string;
   lead: string;
   button: string;
@@ -34,7 +30,6 @@ export const escapeHtml = (s: string) =>
 
 export function layout(m: MailParts) {
   const link = escapeHtml(m.link);
-  const badgeBg = m.badgeTone === 'accent' ? C.accentSoft : C.leafSoft;
   const button = `<tr><td align="center" style="padding:28px 0 8px;">
         <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
           <td align="center" bgcolor="${C.accent}" style="border-radius:999px;background:${C.accent};">
@@ -67,7 +62,6 @@ export function layout(m: MailParts) {
 <title>モノシリ</title>
 </head>
 <body style="margin:0;padding:0;background:${C.paper};-webkit-text-size-adjust:100%;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:${C.paper};">${m.preheader}</div>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="${C.paper}" style="background:${C.paper};">
 <tr><td align="center" style="padding:32px 14px 40px;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:520px;">
@@ -79,12 +73,7 @@ export function layout(m: MailParts) {
     </td></tr>
     <tr><td style="background:${C.card};border:1px solid ${C.line};border-radius:28px;padding:36px 26px 30px;box-shadow:0 18px 40px -24px rgba(42,32,23,0.35);">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-        <tr><td align="center">
-          <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
-            <td align="center" valign="middle" width="68" height="68" style="width:68px;height:68px;border-radius:22px;background:${badgeBg};font-size:34px;line-height:68px;">${m.badge}</td>
-          </tr></table>
-        </td></tr>
-        <tr><td align="center" style="padding:18px 0 0;font-family:${FONT};font-size:22px;font-weight:900;line-height:1.5;color:${C.ink};">${m.title}</td></tr>
+        <tr><td align="center" style="padding:0;font-family:${FONT};font-size:22px;font-weight:900;line-height:1.5;color:${C.ink};">${m.title}</td></tr>
         <tr><td align="center" style="padding:10px 0 0;font-family:${FONT};font-size:15px;line-height:1.85;color:${C.ink2};">${m.lead}</td></tr>
         ${button}
         ${tip}

@@ -25,6 +25,7 @@ import { auth, currentUser, refreshMe } from './firebase';
 import { clearLocalCards, deleteCloudCards, syncCloud } from './cards';
 import { isNative, platform } from './native';
 import { api } from './api';
+import { forgetConsent } from './welcome';
 
 // The WebViews can't open Firebase's popup, so the native apps get an ID token from the OS sign-in sheet
 // (@capgo/capacitor-social-login) and hand it to the JS SDK as a credential. Each needs its OAuth client ID.
@@ -244,13 +245,14 @@ async function startOver() {
   } catch {
     /* ignore */
   }
+  forgetConsent();
   await currentUser().catch(() => {});
   refreshMe();
 }
 
 // Logging out also removes this device's copy of the zukan; it comes back from the cloud on the next login.
+// Callers check cardsAtRisk() first (it syncs), so cards that never reached the cloud aren't lost without a warning.
 export async function logOut() {
-  await syncCloud();
   await signOut(auth);
   await startOver();
 }

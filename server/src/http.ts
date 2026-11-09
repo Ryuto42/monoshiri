@@ -8,7 +8,14 @@ export type Env = { Variables: { uid: string; tier: Tier; attested: boolean } };
 
 export const S = { STRING: 'STRING', INTEGER: 'INTEGER', ARRAY: 'ARRAY', OBJECT: 'OBJECT', BOOLEAN: 'BOOLEAN' } as const;
 export const str = (extra: object = {}) => ({ type: S.STRING, ...extra });
-export const json = <T>(text: string | undefined): T => JSON.parse(text ?? 'null');
+// Model output: a parse failure is a server error, not the client's bad_json (see app.ts).
+export const json = <T>(text: string | undefined): T => {
+  try {
+    return JSON.parse(text ?? 'null');
+  } catch {
+    throw new Error('bad_model_json');
+  }
+};
 export const clean = (v: unknown, max = 80) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
 
 // Each learning stage has its own cached explanations; 'std' keeps the original keys so existing caches stay in use.
@@ -20,13 +27,7 @@ export type ExploreDoc = { name?: string; en?: string; summary?: string; oneLine
 
 // Paid endpoints only work for things the app has already explored (and for their listed topics),
 // so the API can't be used as a general-purpose Gemini proxy.
-export async function explored(name: string, topic?: string, level: Level = 'std') {
-  const ex = await getCached<ExploreDoc>('cache_explore', atLevel(keyOf('explore', name), level));
-  if (!ex) return false;
-  return topic === undefined || (ex.topics ?? []).some((t) => clean(t.title, 80) === topic);
-}
-
-/** The listed topic with this title (at this stage first, then any: cards keep the stage they were saved at), or null. */
+// The listed topic with this title (at this stage first, then any: cards keep the stage they were saved at), or null.
 export async function exploredTopic(name: string, topic: string, level: Level = 'std') {
   for (const l of [level, ...LEVELS.filter((x) => x !== level)]) {
     const ex = await getCached<ExploreDoc>('cache_explore', atLevel(keyOf('explore', name), l));
@@ -36,10 +37,47 @@ export async function exploredTopic(name: string, topic: string, level: Level = 
   return null;
 }
 
+/** The stored explanation of a thing, at this stage first and then any other (null when it was never explored). */
+export async function exploreDoc(name: string, level: Level = 'std') {
+  for (const l of [level, ...LEVELS.filter((x) => x !== level)]) {
+    const ex = await getCached<ExploreDoc>('cache_explore', atLevel(keyOf('explore', name), l));
+    if (ex) return ex;
+  }
+  return null;
+}
+
 // Card illustrations are shared by every stage, so a thing explored at any stage qualifies.
 export async function exploredAtAnyLevel(name: string) {
-  for (const level of LEVELS) if (await explored(name, undefined, level)) return true;
-  return false;
+  return !!(await exploreDoc(name));
+}
+
+const RUBY = /《[^《》\n]{0,20}》/g;
+export const stripRuby = (s: string) => s.replace(RUBY, '');
+
+/** The stored deep dive of a topic, at this stage first and then any other. */
+export async function deepText(name: string, topic: string, level: Level = 'std') {
+  for (const l of [level, ...LEVELS.filter((x) => x !== level)]) {
+    const d = await getCached<{ text: string }>('cache_deep', atLevel(keyOf('deep', name, topic), l));
+    if (d?.text) return d.text;
+  }
+  return null;
+}
+
+/**
+ * What a diagram or video is about, taken from the stored deep dive (or the explanation) on the server: shared results
+ * must not be steered by text a client sends. Plain prose only: no mermaid, furigana or markdown marks.
+ */
+export async function outlineOf(name: string, topic: string, level: Level = 'std', max = 600) {
+  const text = await deepText(name, topic, level);
+  const ex = text ? null : await exploreDoc(name, level);
+  const t = ex?.topics?.find((x) => clean(x.title, 80) === topic);
+  const raw = text ?? [t?.teaser, ex?.summary].filter(Boolean).join('\n');
+  return stripRuby(raw)
+    .replace(/```[\s\S]*?(```|$)/g, ' ')
+    .replace(/[#*>`_|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
 }
 
 export const unknown = { error: 'unknown_subject' } as const;
