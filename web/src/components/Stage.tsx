@@ -1,9 +1,95 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { DetectedObject } from '../lib/types';
 import { layoutLabels, type Size } from '../lib/labelLayout';
 
 type Fit = { w: number; h: number; x: number; y: number };
+type View = { k: number; tx: number; ty: number };
+
+const MAX_ZOOM = 4;
+const HOME: View = { k: 1, tx: 0, ty: 0 };
+const clampNum = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+// Keep the zoomed photo covering the frame: no empty edge shows while panning.
+function clampView(v: View, w: number, h: number): View {
+  const k = clampNum(v.k, 1, MAX_ZOOM);
+  return { k, tx: clampNum(v.tx, w - w * k, 0), ty: clampNum(v.ty, h - h * k, 0) };
+}
+
+// Pinch to zoom the photo around the fingers and drag to move it, like the Photos app. Without this, a pinch zoomed
+// the whole page, and the iOS app (whose page doesn't scroll) could only grow it from the top-left corner.
+// The dots and labels are placed on the zoomed photo but keep their size, so they stay readable.
+function usePinchZoom(w: number, h: number, reset: unknown) {
+  // A new photo starts unzoomed: the view is kept together with the photo it belongs to.
+  const [held, setHeld] = useState<{ for: unknown; v: View }>({ for: reset, v: HOME });
+  const view = held.for === reset ? held.v : HOME;
+  const setView = (v: View) => setHeld({ for: reset, v });
+  const pts = useRef(new Map<number, { x: number; y: number }>());
+  const start = useRef<{ view: View; mid: { x: number; y: number }; dist: number; p0: { x: number; y: number } } | null>(null);
+  const moved = useRef(false);
+
+  const local = (e: ReactPointerEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const begin = (v: View) => {
+    const ps = [...pts.current.values()];
+    const mid = ps.length > 1 ? { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 } : ps[0];
+    const dist = ps.length > 1 ? Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y) : 0;
+    start.current = { view: v, mid, dist, p0: ps[0] };
+  };
+
+  function end(e: ReactPointerEvent<HTMLElement>) {
+    pts.current.delete(e.pointerId);
+    const snapped = view.k < 1.05 ? HOME : view;
+    if (snapped !== view) setView(snapped);
+    // One finger left after a pinch: carry on as a drag from where the photo is now.
+    const rest = [...pts.current.values()];
+    start.current = rest.length ? { view: snapped, mid: rest[0], dist: 0, p0: rest[0] } : null;
+  }
+
+  const handlers = {
+    onPointerDown: (e: ReactPointerEvent<HTMLElement>) => {
+      pts.current.set(e.pointerId, local(e));
+      if (pts.current.size === 1) moved.current = false;
+      if (pts.current.size === 2) {
+        moved.current = true;
+        // Two fingers: the gesture is ours, so taps on the dots under them must not fire.
+        for (const id of pts.current.keys()) e.currentTarget.setPointerCapture?.(id);
+      }
+      begin(view);
+    },
+    onPointerMove: (e: ReactPointerEvent<HTMLElement>) => {
+      if (!pts.current.has(e.pointerId) || !start.current) return;
+      pts.current.set(e.pointerId, local(e));
+      const s0 = start.current;
+      const ps = [...pts.current.values()];
+      if (ps.length >= 2) {
+        const mid = { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 };
+        const k = clampNum((s0.view.k * Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y)) / (s0.dist || 1), 1, MAX_ZOOM);
+        // The photo point that was under the fingers stays under them.
+        const px = (s0.mid.x - s0.view.tx) / s0.view.k, py = (s0.mid.y - s0.view.ty) / s0.view.k;
+        setView(clampView({ k, tx: mid.x - px * k, ty: mid.y - py * k }, w, h));
+      } else if (s0.view.k > 1) {
+        const dx = ps[0].x - s0.p0.x, dy = ps[0].y - s0.p0.y;
+        if (!moved.current && Math.hypot(dx, dy) < 6) return;
+        if (!moved.current) e.currentTarget.setPointerCapture?.(e.pointerId);
+        moved.current = true;
+        setView(clampView({ k: s0.view.k, tx: s0.view.tx + dx, ty: s0.view.ty + dy }, w, h));
+      }
+    },
+    onPointerUp: end,
+    onPointerCancel: end,
+    // A drag or pinch that ends over a dot is not a tap on it.
+    onClickCapture: (e: ReactMouseEvent) => {
+      if (moved.current) {
+        e.stopPropagation();
+        e.preventDefault();
+        moved.current = false;
+      }
+    },
+  };
+  return [view, handlers] as const;
+}
 
 function useFit(ratio: number) {
   const ref = useRef<HTMLDivElement>(null);
@@ -27,9 +113,13 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
   onSelect: (i: number) => void; bottomInset: number;
 }) {
   const [ref, fit] = useFit(ratio);
+  const [view, gesture] = usePinchZoom(fit.w, fit.h, src);
   const sel = selected != null ? objects[selected] : null;
   const rect = (b: DetectedObject['box']) => ({
-    left: (b[1] / 1000) * fit.w, top: (b[0] / 1000) * fit.h, width: ((b[3] - b[1]) / 1000) * fit.w, height: ((b[2] - b[0]) / 1000) * fit.h,
+    left: (b[1] / 1000) * fit.w * view.k + view.tx,
+    top: (b[0] / 1000) * fit.h * view.k + view.ty,
+    width: ((b[3] - b[1]) / 1000) * fit.w * view.k,
+    height: ((b[2] - b[0]) / 1000) * fit.h * view.k,
   });
 
   // Measure each label, then place them so they neither overlap nor get clipped at the photo edge.
@@ -50,24 +140,39 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
     };
   }, [objects, scanning]);
 
-  const centers = objects.map((o) => ({ x: ((o.box[1] + o.box[3]) / 2000) * fit.w, y: ((o.box[0] + o.box[2]) / 2000) * fit.h }));
-  const spots = layoutLabels(
-    centers,
-    objects.map((o, i) => (sizes[i]?.w ? sizes[i] : { w: o.label.length * 12 + 20, h: 24 })),
+  const centers = objects.map((o) => ({
+    x: ((o.box[1] + o.box[3]) / 2000) * fit.w * view.k + view.tx,
+    y: ((o.box[0] + o.box[2]) / 2000) * fit.h * view.k + view.ty,
+  }));
+  // Zoomed in, things outside the frame get no dot or label (a label pinned to the edge would point at nothing).
+  const inside = centers.map((c) => c.x >= 0 && c.x <= fit.w && c.y >= 0 && c.y <= fit.h);
+  const shownIdx = objects.map((_, i) => i).filter((i) => inside[i]);
+  const placed = layoutLabels(
+    shownIdx.map((i) => centers[i]),
+    shownIdx.map((i) => (sizes[i]?.w ? sizes[i] : { w: objects[i].label.length * 12 + 20, h: 24 })),
     fit.w,
     fit.h,
   );
+  const spots: Record<number, { x: number; y: number }> = {};
+  shownIdx.forEach((i, j) => (spots[i] = placed[j]));
 
   return (
     <div ref={ref} className="absolute inset-x-0 top-0 transition-[bottom] duration-500" style={{ bottom: bottomInset }}>
       <motion.div
-        className="absolute overflow-hidden rounded-[28px]"
+        className="absolute touch-none overflow-hidden rounded-[28px]"
         style={{ left: fit.x, top: fit.y, width: fit.w, height: fit.h }}
+        {...gesture}
         initial={{ scale: 1.06, filter: 'brightness(1.8)' }}
         animate={{ scale: 1, filter: 'brightness(1)' }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
-        <img src={src} alt="撮影した写真" className="h-full w-full object-cover select-none" draggable={false} />
+        <img
+          src={src}
+          alt="撮影した写真"
+          className="h-full w-full origin-top-left object-cover select-none"
+          style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.k})` }}
+          draggable={false}
+        />
 
         <AnimatePresence>{scanning && <ScanOverlay key="scan" w={fit.w} h={fit.h} />}</AnimatePresence>
 
@@ -89,6 +194,7 @@ export function Stage({ src, ratio, objects, selected, scanning, onSelect, botto
 
         {!scanning &&
           objects.map((o, i) => {
+            if (!inside[i]) return null;
             const c = centers[i];
             const isSel = i === selected;
             return (
