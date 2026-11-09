@@ -105,15 +105,24 @@ public final class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, @unchecked Se
         return c
     }
 
-    @MainActor private func makeButton(id: String, symbol: String, size: CGFloat, prominent: Bool = false, label: String) -> UIButton {
+    /// モノシリのマーク（Assets の BrandMark、元は web/assets/mark.svg）を、Web版の Icon と同じく1文字分の大きさで描く
+    private static func brandMark(size: CGFloat) -> UIImage? {
+        guard let mark = UIImage(named: "BrandMark") else { return nil }
+        let image = UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { _ in
+            mark.draw(in: CGRect(x: 0, y: 0, width: size, height: size))
+        }
+        return image.withRenderingMode(.alwaysTemplate)
+    }
+
+    @MainActor private func makeButton(id: String, symbol: String, image: UIImage? = nil, size: CGFloat, prominent: Bool = false, label: String) -> UIButton {
         var c = glassConfig(prominent: prominent)
         c.cornerStyle = .capsule
-        c.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: size * (prominent ? 0.36 : 0.4), weight: .semibold))
+        c.image = image ?? UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: size * (prominent ? 0.36 : 0.4), weight: .semibold))
         c.baseForegroundColor = prominent ? Self.accent : .white
         let b = UIButton(configuration: c, primaryAction: UIAction { [weak self] _ in
             self?.notifyListeners("tap", data: ["id": id])
         })
-        // 撮影ボタンはいつも白地にオレンジ。ダークモードのガラスだと白地がくすみ、虫眼鏡も淡くなるので、ライトの見た目に固定する
+        // 撮影ボタンはいつも白地にオレンジ。ダークモードのガラスだと白地がくすみ、マークも淡くなるので、ライトの見た目に固定する
         if prominent { b.overrideUserInterfaceStyle = .light }
         b.accessibilityLabel = label
         b.translatesAutoresizingMaskIntoConstraints = false
@@ -124,7 +133,8 @@ public final class GlassChromePlugin: CAPPlugin, CAPBridgedPlugin, @unchecked Se
     @MainActor private func buildBar() {
         guard let host else { return }
         let gallery = makeButton(id: "gallery", symbol: "photo.on.rectangle.angled", size: 58, label: "写真をえらぶ")
-        let shutter = makeButton(id: "shutter", symbol: "magnifyingglass", size: 74, prominent: true, label: "撮影する")
+        // 撮影ボタンはアプリのアイコンと同じマーク。Web版（白丸64にマーク34）と同じ割合にする
+        let shutter = makeButton(id: "shutter", symbol: "magnifyingglass", image: Self.brandMark(size: 40), size: 74, prominent: true, label: "撮影する")
         // Web版と同じく、白い丸のまわりに白い輪を重ねて、カメラのシャッターらしい二重丸にする
         let ring = UIView()
         ring.isUserInteractionEnabled = false

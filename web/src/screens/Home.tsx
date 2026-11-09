@@ -30,6 +30,7 @@ import { StageChip } from '../components/StageChip';
 import { LeaveConfirm } from '../components/LeaveConfirm';
 import { unlockAudio } from '../components/Speak';
 import { currentLevel } from '../lib/level';
+import { BrandMark } from '../components/BrandMark';
 
 // The youngest readers get explanations read aloud on their own; that needs audio unlocked inside a tap (iOS).
 const unlockForReading = () => {
@@ -498,7 +499,7 @@ function Shutter({ onClick }: { onClick: () => void }) {
     >
       <motion.span tabIndex={-1} aria-hidden className="h-[64px] w-[64px] rounded-full bg-white" whileTap={{ scale: 0.8 }} />
       <span className="absolute grid h-[64px] w-[64px] place-items-center text-accent">
-        <Icon name="travel_explore" size={30} fill />
+        <BrandMark size={34} />
       </span>
     </motion.button>
   );
