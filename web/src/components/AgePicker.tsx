@@ -27,7 +27,8 @@ export function AgePicker({ initial, initialAge, saving = false, onSave, onSkip,
 
   const press = (d: number) => {
     const next = digits + d;
-    if ((!digits && d === 0) || Number(next) > AGE_MAX) return void haptic('error');
+    // Up to three digits; anything out of 3〜120 stays on screen with the range message instead of turning into another age.
+    if ((!digits && d === 0) || next.length > 3) return void haptic('error');
     haptic('select');
     setDigits(next);
   };
@@ -61,10 +62,10 @@ export function AgePicker({ initial, initialAge, saving = false, onSave, onSkip,
   }, []);
 
   return (
-    <div className="phrase-wrap pb-2">
+    <div className="age-picker phrase-wrap pb-2">
       {/* Short screens (a small phone in landscape-ish split view) drop the badge so the keypad still fits. */}
       {!compact && (
-        <div className="[@media(max-height:700px)]:hidden">
+        <div className="[@media(max-height:760px)]:hidden">
           <HeroIcon icon="school" />
         </div>
       )}
@@ -83,39 +84,41 @@ export function AgePicker({ initial, initialAge, saving = false, onSave, onSkip,
         </p>
       )}
 
-      <div className="mt-4 flex items-center gap-3">
-        <Key round label="1さい へらす" disabled={age == null || age <= AGE_MIN} onClick={() => step(-1)} className="h-16 w-16 shrink-0 rounded-full">
+      {/* On a short screen (Safari on an iPhone, with its toolbars) the keypad and gaps tighten so the button below
+          fits without scrolling. */}
+      <div className="mt-4 flex items-center gap-3 [@media(max-height:760px)]:mt-3">
+        <Key round label="1さい へらす" disabled={age == null || age <= AGE_MIN} onClick={() => step(-1)} className="h-16 w-16 shrink-0 rounded-full [@media(max-height:760px)]:h-14 [@media(max-height:760px)]:w-14">
           <span aria-hidden className="text-[32px] leading-none">−</span>
         </Key>
         <output
           aria-live="polite"
           aria-label={age == null ? 'まだ いれていないよ' : `${age}さい`}
-          className="flex h-20 min-w-0 flex-1 items-baseline justify-center gap-1 rounded-3xl bg-paper-2 pt-3"
+          className="flex h-20 min-w-0 flex-1 items-baseline justify-center gap-1 rounded-3xl bg-paper-2 pt-3 [@media(max-height:760px)]:h-16 [@media(max-height:760px)]:pt-1.5"
         >
           <span className={`text-[52px] font-black leading-none tabular-nums ${age == null ? 'text-ink-3' : 'text-ink'}`}>{digits || '?'}</span>
           <span className="text-[18px] font-black text-ink-2">さい</span>
         </output>
-        <Key round label="1さい ふやす" disabled={age != null && age >= AGE_MAX} onClick={() => step(1)} className="h-16 w-16 shrink-0 rounded-full">
+        <Key round label="1さい ふやす" disabled={age != null && age >= AGE_MAX} onClick={() => step(1)} className="h-16 w-16 shrink-0 rounded-full [@media(max-height:760px)]:h-14 [@media(max-height:760px)]:w-14">
           <span aria-hidden className="text-[32px] leading-none">+</span>
         </Key>
       </div>
 
       <div role="group" aria-label="数字をいれる" className="mt-3 grid grid-cols-3 gap-2">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
-          <Key key={d} label={String(d)} onClick={() => press(d)} className="h-12 rounded-2xl text-[22px]">
+          <Key key={d} label={String(d)} onClick={() => press(d)} className="h-12 rounded-2xl text-[22px] [@media(max-height:760px)]:h-11">
             {d}
           </Key>
         ))}
         <span aria-hidden />
-        <Key label="0" onClick={() => press(0)} className="h-12 rounded-2xl text-[22px]">
+        <Key label="0" onClick={() => press(0)} className="h-12 rounded-2xl text-[22px] [@media(max-height:760px)]:h-11">
           0
         </Key>
-        <Key label="1つ けす" disabled={!digits} onClick={erase} className="h-12 rounded-2xl text-[15px]">
+        <Key label="1つ けす" disabled={!digits} onClick={erase} className="h-12 rounded-2xl text-[15px] [@media(max-height:760px)]:h-11">
           けす
         </Key>
       </div>
 
-      <div className="mt-4 min-h-[48px]" aria-live="polite">
+      <div className="mt-4 min-h-[48px] [@media(max-height:760px)]:mt-3" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           {stage ? (
             <motion.p
@@ -153,7 +156,7 @@ export function AgePicker({ initial, initialAge, saving = false, onSave, onSkip,
         size="lg"
         disabled={!valid || saving}
         onClick={() => stage && age != null && onSave(stage, age)}
-        className="mt-4 w-full"
+        className="mt-4 w-full [@media(max-height:760px)]:mt-3"
       >
         {saving ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <Icon name="check" size={22} />}
         {saveLabel ?? 'これで はじめる'}

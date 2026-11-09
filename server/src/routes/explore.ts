@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { randomBytes } from 'node:crypto';
 import {
-  restyleExplorePrompt, ai, CATEGORIES, explorePrompt, exploreQuickPrompt, exploreRestPrompt, grounding, ICONS, namePrompt, TOPIC_KINDS, track,
+  restyleExplorePrompt, ai, CATEGORIES, explorePrompt, exploreQuickPrompt, exploreRestPrompt, grounding, ICONS, namePrompt, TOPIC_KINDS, track, type ExploreDraft,
 } from '../ai.ts';
 import { LEVELS, LOCAL, MODELS, type Level } from '../config.ts';
 import { atLevel, clean, errorOf, json, levelOf, S, str, type Env } from '../http.ts';
@@ -35,7 +35,27 @@ const exploreSchema = {
   required: ['name', 'reading', 'en', 'category', 'icon', 'oneLiner', 'summary', 'funFact', 'topics', 'keywords', 'ok'],
 };
 const quickSchema = { type: S.OBJECT, properties: { ...front, ok: { type: S.BOOLEAN } }, required: [...Object.keys(front), 'ok'] };
-const restSchema = { type: S.OBJECT, properties: { summary: str(), ...back }, required: ['summary', 'funFact', 'topics', 'keywords'] };
+const restSchema = {
+  type: S.OBJECT,
+  properties: { oneLiner: str(), summary: str(), category: front.category, ...back },
+  required: ['oneLiner', 'summary', 'funFact', 'topics', 'keywords'],
+};
+
+// Only the correction fields may replace the draft. The fun fact comes from the grounded step only; if it is still empty
+// the card is saved without it (the screen hides the box) rather than failing the whole explanation.
+export function mergeExploreRest<T extends ExploreDraft>(draft: T, rest: {
+  oneLiner?: string | null; summary?: string | null; category?: string | null; funFact?: string | null;
+}) {
+  const funFact = clean(rest.funFact, 400);
+  const category = clean(rest.category, 20);
+  return {
+    ...draft,
+    oneLiner: clean(rest.oneLiner, 200) || draft.oneLiner,
+    summary: clean(rest.summary, 2000) || draft.summary,
+    category: CATEGORIES.some((c) => c === category) ? category : draft.category,
+    funFact,
+  };
+}
 
 const plain = (s: unknown, max: number) => clean(String(s ?? '').replace(/《[^《》\n]{0,20}》/g, ''), max);
 
@@ -191,11 +211,11 @@ async function writeQuick(subject: string, level: Level) {
   };
 }
 
-// Step 2: the rest, written with Google Search, which also checks the summary from step 1.
-async function writeRest(quick: { name: string; summary: string }, level: Level) {
+// Step 2: check the whole draft with Google Search and write the rest of the card.
+async function writeRest(quick: ExploreDraft, level: Level) {
   const res = await ai.models.generateContent({
     model: MODELS.explore,
-    contents: [{ role: 'user', parts: [{ text: exploreRestPrompt(quick.name, quick.summary, level) }] }],
+    contents: [{ role: 'user', parts: [{ text: exploreRestPrompt(quick, level) }] }],
     config: {
       tools: [{ googleSearch: {} }],
       thinkingConfig: { thinkingLevel: 'LOW' as any },
@@ -207,7 +227,7 @@ async function writeRest(quick: { name: string; summary: string }, level: Level)
   await track(MODELS.explore, res.usageMetadata, 'explore', 0, g.queries.length);
   const d = json<any>(res.text);
   if (!d?.topics?.length) throw new Error('empty_explore');
-  return { data: { summary: clean(d.summary, 2000) || quick.summary, funFact: d.funFact, topics: d.topics, keywords: d.keywords ?? [] }, g };
+  return { data: { ...mergeExploreRest(quick, d), topics: d.topics, keywords: d.keywords ?? [] }, g };
 }
 
 // Stores a newly written explanation for everyone and returns what the requester gets.
@@ -279,7 +299,7 @@ explore.post('/api/explore/stream', async (c) => {
       await send('quick', { id: key, label: r.label, ...quick, level: r.level });
       const wiki = wikiSummary(quick.name).catch(() => null);
       const rest = await writeRest(quick, r.level);
-      await send('done', await save(r, uid, p.subject, { ...quick, ...rest.data }, rest.g, wiki));
+      await send('done', await save(r, uid, p.subject, rest.data, rest.g, wiki));
     } catch (e: any) {
       const known = errorOf(e);
       if (!known) console.error(e);

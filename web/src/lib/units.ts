@@ -162,21 +162,28 @@ export function unitsFor(name: string): Promise<UnitLink[]> {
   return p;
 }
 
-/** Units for a thing: null while loading (or when the lookup failed). */
-export function useUnitLinks(name: string | null | undefined) {
-  const [state, setState] = useState<{ name: string; links: UnitLink[] } | null>(null);
+/** Loading, empty results and failures stay distinct, with an explicit retry. */
+export function useUnitLookup(name: string | null | undefined) {
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<{ name: string; attempt: number; links: UnitLink[] | null; error: boolean } | null>(null);
   useEffect(() => {
     if (!name || !UNITS.length) return;
     let live = true;
     unitsFor(name).then(
-      (links) => live && setState({ name, links }),
-      () => {},
+      (links) => live && setState({ name, attempt, links, error: false }),
+      () => live && setState({ name, attempt, links: null, error: true }),
     );
-    return () => {
-      live = false;
-    };
-  }, [name]);
-  return state && state.name === name ? state.links : null;
+    return () => { live = false; };
+  }, [name, attempt]);
+  return {
+    links: state && state.name === name && state.attempt === attempt ? state.links : null,
+    error: !!state && state.name === name && state.attempt === attempt && state.error,
+    retry: () => { if (name) mem.delete(stripRuby(name).trim()); setAttempt((n) => n + 1); },
+  };
+}
+
+export function useUnitLinks(name: string | null | undefined) {
+  return useUnitLookup(name).links;
 }
 
 // Cards saved before units existed get them the first time the zukan (or the card) is opened. Best effort, one at a time.

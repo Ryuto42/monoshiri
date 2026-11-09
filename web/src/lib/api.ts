@@ -21,13 +21,23 @@ export class ApiError extends Error {
   }
 }
 
+// Only a rejected fetch is a connection failure; parsing and application errors are temporary failures.
+async function fetchApi(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    throw new ApiError(0, 'network');
+  }
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
   const [id, ac] = await Promise.all([idToken(), appCheckToken()]);
   return { Authorization: `Bearer ${id}`, ...(ac && { 'X-Firebase-AppCheck': ac }) };
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchApi(`${BASE}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()), ...init.headers },
   });
@@ -84,7 +94,7 @@ export const api = {
 
 // Reads a server-sent event response until `done` (its data is the result); `error` carries the same body as a JSON error.
 async function stream<T>(path: string, body: object, signal: AbortSignal | undefined, onEvent: (event: string, data: unknown) => void): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchApi(`${BASE}${path}`, {
     method: 'POST',
     signal,
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -123,9 +133,9 @@ async function stream<T>(path: string, body: object, signal: AbortSignal | undef
 }
 
 // Messages carry 漢字《かんじ》 marks for the youngest readers; show them with <KidText> (toasts already do).
-export function errorMessage(e: unknown) {
+export function errorMessage(e: unknown, feature?: 'speech' | 'illustration') {
   if (e instanceof DOMException && e.name === 'AbortError') return '';
-  if (!(e instanceof ApiError) && isOffline()) return OFFLINE_MESSAGE;
+  if (isOffline()) return OFFLINE_MESSAGE;
   if (e instanceof ApiError) {
     if (e.code === 'not_a_thing') return 'その名前《なまえ》では調《しら》べられませんでした。モノや生《い》き物《もの》の名前《なまえ》で、もう一度《いちど》ためしてね。';
     if (e.code === 'budget') return 'アプリ全体《ぜんたい》で使《つか》える学《まな》びパワーを使《つか》い切《き》りました。保存《ほぞん》したカードと、みんなが調《しら》べたモノは見《み》られます。';
@@ -144,7 +154,10 @@ export function errorMessage(e: unknown) {
     }
     if (e.status === 401) return 'ログイン情報《じょうほう》を確認《かくにん》できませんでした。ページを再読《さいよ》み込《こ》みしてね。';
   }
-  return 'うまく調《しら》べられませんでした。電波《でんぱ》を確《たし》かめて、もう一度《いちど》ためしてね。';
+  if (e instanceof ApiError && e.status === 0) return 'つながりませんでした。インターネットを確《たし》かめて、もう一度《いちど》ためしてね。';
+  if (feature === 'speech') return '声《こえ》を出《だ》せませんでした。もう一度《いちど》ためしてね。';
+  if (feature === 'illustration') return 'イラストをつくれませんでした。少《すこ》し待《ま》って、もう一度《いちど》ためしてね。';
+  return 'いまはうまく調《しら》べられません。少《すこ》し待《ま》って、もう一度《いちど》ためしてね。';
 }
 
 export const OFFLINE_MESSAGE = 'オフラインです。調《しら》べるには、インターネットにつながっている必要《ひつよう》があります。';

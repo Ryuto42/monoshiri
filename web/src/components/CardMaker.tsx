@@ -1,4 +1,4 @@
-import { animate, motion, useMotionValue } from 'motion/react';
+import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { getCard, saveCard, useCards } from '../lib/cards';
 import { illustFor, notifyWhenReady, startIllust, usePendingIllust } from '../lib/illust';
@@ -8,6 +8,7 @@ import { CardBack, CardFace } from './CardFace';
 import { toast } from '../lib/toast';
 import { Button, Icon } from './ui';
 import { haptic, onBack } from '../lib/native';
+import { KidText } from './RubyText';
 import { api } from '../lib/api';
 import { fillCard, useUnitLinks } from '../lib/units';
 import { useFlip } from '../lib/flip';
@@ -17,6 +18,10 @@ const FLIP = { type: 'spring', stiffness: 120, damping: 16 } as const;
 export function CardMaker({ ex, notes, onClose, flyTo }: {
   ex: Explore; notes: DeepNote[]; onClose: () => void; flyTo: () => DOMRect | null;
 }) {
+  const reduced = useReducedMotion();
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const existing = getCard(ex.id);
   const cards = useCards();
   const [illustration, setIllustration] = useState<string | null>(existing?.illustration ?? illustFor(ex.id));
@@ -29,7 +34,8 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
   const links = useUnitLinks(ex.name);
   const units = links?.map((l) => l.id) ?? existing?.units;
 
-  useEffect(() => onBack(onClose), [onClose]);
+  const close = () => { if (!savingRef.current) onClose(); };
+  useEffect(() => onBack(() => { if (!savingRef.current) onClose(); }), [onClose]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -46,6 +52,10 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
   }, [ex.id]);
 
   const store = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError(false);
     const byTopic = new Map((existing?.notes ?? []).map((n) => [n.topicId, n]));
     notes.forEach((n) => byTopic.set(n.topicId, { ...byTopic.get(n.topicId), ...n }));
     const card: Card = {
@@ -55,7 +65,14 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
       ...(units && { units }),
       createdAt: existing?.createdAt ?? Date.now(), updatedAt: Date.now(),
     };
-    void saveCard(card);
+    try {
+      await saveCard(card);
+    } catch {
+      savingRef.current = false;
+      setSaving(false);
+      setSaveError(true);
+      return;
+    }
     void api.events([{ name: 'card_save' }]);
     // Units still on their way are added to the card when they arrive.
     if (!units) void fillCard(ex.id, ex.name).catch(() => {});
@@ -63,7 +80,7 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
     haptic('success');
     const target = flyTo();
     const el = box.current?.getBoundingClientRect();
-    if (target && el) {
+    if (!reduced && target && el) {
       const dx = target.left + target.width / 2 - (el.left + el.width / 2);
       const dy = target.top + target.height / 2 - (el.top + el.height / 2);
       await Promise.all([
@@ -80,34 +97,36 @@ export function CardMaker({ ex, notes, onClose, flyTo }: {
   };
 
   return (
-    <motion.div className="fixed inset-0 z-[70] grid place-items-center p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.div className="absolute inset-0 bg-[#120e0b]/75 backdrop-blur-md" onClick={onClose} />
+    <motion.div role="dialog" aria-modal aria-labelledby="card-maker-title" className="fixed inset-0 z-[70] grid place-items-center p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div className="absolute inset-0 bg-[#120e0b]/75 backdrop-blur-md" onClick={close} />
       <div className="relative flex w-full max-w-[340px] flex-col items-center">
-        <Sparkles />
+        <h2 id="card-maker-title" className="sr-only">{ex.name}のカードをつくる</h2>
+        {!reduced && <Sparkles />}
         <motion.div ref={box} style={{ x, y, scale, opacity }} className="relative w-[min(78vw,300px)] [perspective:1200px]">
           <motion.div
             className="relative [transform-style:preserve-3d]"
             style={{ rotateY: flip.rotateY }}
-            initial={{ y: 60, scale: 0.6 }}
+            initial={reduced ? false : { y: 60, scale: 0.6 }}
             animate={{ y: 0, scale: 1 }}
             transition={{ type: 'spring', stiffness: 220, damping: 20 }}
           >
-            <motion.div className="[backface-visibility:hidden]" style={{ opacity: flip.front }}>
+            <motion.div aria-hidden={flipped} className="[backface-visibility:hidden]" style={{ opacity: flip.front }}>
               <CardBack size="lg" />
             </motion.div>
-            <motion.div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={{ opacity: flip.back }}>
+            <motion.div aria-hidden={!flipped} className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={{ opacity: flip.back }}>
               <CardFace card={{ ...ex, illustration, units }} no={no} size="lg" loadingArt={busy} />
             </motion.div>
           </motion.div>
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.9 } }} className="mt-7 flex gap-2">
-          <Button icon="inventory_2" iconFill onClick={store}>
-            {existing ? '図鑑を更新' : '図鑑にしまう'}
+          <Button icon="inventory_2" iconFill onClick={store} disabled={saving}>
+            {saving ? 'しまっています' : existing ? '図鑑を更新' : '図鑑にしまう'}
           </Button>
-          <Button tone="glass" onClick={onClose} aria-label="とじる">
+          <Button tone="glass" disabled={saving} onClick={close} aria-label="とじる">
             <Icon name="close" size={22} />
           </Button>
         </motion.div>
+        {saveError && <p role="alert" className="mt-3 text-center text-[13px] font-bold text-white"><KidText text="カードをしまえませんでした。もう一度《いちど》ためしてね。" /></p>}
         {busy && <p className="mt-3 text-center text-[13px] font-bold text-white/70">イラストを待たずにしまえます</p>}
         {notes.length > 0 && (
           <p className="mt-1.5 text-[13px] font-bold text-white/70">深掘りした {notes.length} テーマもカードに記録されます</p>

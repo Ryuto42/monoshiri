@@ -1,6 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { finishOnboarding, useWelcome } from '../lib/welcome';
+import { endSignIn, finishOnboarding, startSignIn, useWelcome } from '../lib/welcome';
+import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useMe } from '../lib/firebase';
+import { useStage } from '../lib/level';
 import { saveStage, type Stage } from '../lib/level';
 import { haptic, onBack } from '../lib/native';
 import { PrivacyLink } from '../screens/account/parts';
@@ -17,11 +20,43 @@ const GUARDIAN_AGE = 13;
 // Nothing here can be skipped, and the camera waits until it is done.
 export function Onboarding() {
   const state = useWelcome();
-  return <AnimatePresence>{state === 'onboard' && <Panel key="onboard" />}</AnimatePresence>;
+  return (
+    <>
+      <AnimatePresence>{state === 'onboard' && <Panel key="onboard" />}</AnimatePresence>
+      {state === 'signin' && <SignIn />}
+    </>
+  );
+}
+
+// Opens the account sheet for someone who logs in from the first screen, and settles it when they sign in or close it.
+function SignIn() {
+  const me = useMe();
+  const { uid, stage, loaded } = useStage();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const opened = useRef(false);
+  useEffect(() => {
+    void navigate({ to: '/account' });
+  }, [navigate]);
+  // Signed in: wait until the account's own stage has loaded (the guest's is gone by then).
+  const member = !!me && !me.guest && uid === me.uid && loaded;
+  useEffect(() => {
+    if (!member) return;
+    endSignIn(true, !!stage);
+    void navigate({ to: '/' });
+  }, [member, stage, navigate]);
+  // Closed the sheet without signing in.
+  useEffect(() => {
+    if (pathname === '/account') opened.current = true;
+    else if (opened.current && !member) endSignIn(false, false);
+  }, [pathname, member]);
+  return null;
 }
 
 function Panel() {
   const [answer, setAnswer] = useState<{ age: number; stage: Stage } | null>(null);
+  const [policy, setPolicy] = useState(false);
+  const [guardian, setGuardian] = useState(false);
   const [step, setStep] = useState<'age' | 'consent'>('age');
   useEffect(() => void haptic('select'), []);
   useEffect(() => (step === 'consent' ? onBack(() => setStep('age'), { history: false }) : undefined), [step]);
@@ -63,7 +98,10 @@ function Panel() {
                 initialAge={answer?.age}
                 titleId="onboard-title"
                 saveLabel="つぎへ"
+                skipLabel="アカウントが ある人は ログイン"
+                onSkip={startSignIn}
                 onSave={(stage, age) => {
+                  if (answer && (answer.age < GUARDIAN_AGE) !== (age < GUARDIAN_AGE)) setGuardian(false);
                   setAnswer({ stage, age });
                   setStep('consent');
                 }}
@@ -72,7 +110,7 @@ function Panel() {
           ) : (
             <motion.div key="consent" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }} transition={spring}>
               <ReadingStage.Provider value={answer?.stage ?? null}>
-                <Consent child={!!answer && answer.age < GUARDIAN_AGE} onBack={() => setStep('age')} onAgree={finish} />
+                <Consent policy={policy} guardian={guardian} setPolicy={setPolicy} setGuardian={setGuardian} child={!!answer && answer.age < GUARDIAN_AGE} onBack={() => setStep('age')} onAgree={finish} />
               </ReadingStage.Provider>
             </motion.div>
           )}
@@ -85,17 +123,36 @@ function Panel() {
 
 function Grow({ children }: { children: ReactNode }) {
   const inner = useRef<HTMLDivElement>(null);
+  // A number only while the card eases to a new step's height; at rest it is 'auto', so nothing is ever clipped
+  // (Safari on an iPhone cut off the bottom button when the measured height came up short).
   const [height, setHeight] = useState<number | 'auto'>('auto');
+  const last = useRef(0);
   useLayoutEffect(() => {
     const el = inner.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setHeight(el.offsetHeight));
+    last.current = el.offsetHeight;
+    const ro = new ResizeObserver(() => {
+      const h = el.offsetHeight;
+      if (Math.abs(h - last.current) < 1) return;
+      setHeight(last.current);
+      last.current = h;
+      requestAnimationFrame(() => setHeight(h));
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
   return (
-    <motion.div initial={false} animate={{ height }} transition={{ type: 'spring', stiffness: 320, damping: 34 }} className="relative overflow-hidden">
-      <div ref={inner}>{children}</div>
+    <motion.div
+      initial={false}
+      animate={{ height }}
+      transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+      onAnimationComplete={() => setHeight('auto')}
+      className={height === 'auto' ? 'relative' : 'relative overflow-hidden'}
+    >
+      {/* flow-root keeps the first child's top margin inside, so it is part of the measured height. */}
+      <div ref={inner} className="flow-root">
+        {children}
+      </div>
     </motion.div>
   );
 }
@@ -110,13 +167,11 @@ function Dots({ at }: { at: number }) {
   );
 }
 
-function Consent({ child, onBack, onAgree }: { child: boolean; onBack: () => void; onAgree: () => void }) {
-  const [policy, setPolicy] = useState(false);
-  const [guardian, setGuardian] = useState(false);
+function Consent({ child, onBack, onAgree, policy, guardian, setPolicy, setGuardian }: { child: boolean; onBack: () => void; onAgree: () => void; policy: boolean; guardian: boolean; setPolicy: (v: boolean) => void; setGuardian: (v: boolean) => void }) {
   const ready = policy && (!child || guardian);
   return (
     <div className="pb-2">
-      <div className="[@media(max-height:700px)]:hidden">
+      <div className="[@media(max-height:760px)]:hidden">
         <HeroIcon icon="shield_lock" tone="leaf" />
       </div>
       <h2 id="onboard-title" className={`mt-4 text-center ${ui.title}`}>

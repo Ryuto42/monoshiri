@@ -137,7 +137,7 @@ const AUDIENCE: Record<Exclude<Level, 'std'>, { who: string; style: string; summ
   senior: {
     who: '高校生以上',
     style: `- 学術的に正確な用語を使い、原理まで踏み込む（化学式・物理法則・生物のしくみ・経済の構造など、該当するものを具体的に）
-- 定量的な数字や、学説・研究の出典が分かる事実を入れる。単純化しすぎず、例外や限界にも触れる`,
+- 定量的な数字や、学説・研究の事実は裏付けがある場合だけ入れる。単純化しすぎず、例外や限界にも触れる`,
     summary: '180字前後の説明（原理を含める）',
     deep: '全体で 1200 字前後。原理・メカニズムを中心に、関連する法則や式があれば示す',
   },
@@ -193,6 +193,16 @@ ${text.slice(0, 6000)}`;
 
 const EXPLORE_HEAD = '小学校高学年〜中学生が「へぇ！」と思える学びのカードを作ります。';
 
+const ACCURACY_ONLY = '- おどろきやおもしろさより正確さを優先する。数字・年号・固有名・記録は裏付けがある場合だけ使い、不明なら一般的な説明に言いかえる。「世界一」「必ず」などの強い断定も根拠なしに使わない';
+// The card itself starts from what the thing is; the deep dives (6 per thing) only get the accuracy line, so they don't
+// all open with the same definition.
+const ACCURACY_SPEC = `- 説明の最初に、何の仲間で、ふだん何に使うものかを伝える（例: しょうゆは料理の味つけに使う調味料で、飲料ではない）。生き物や自然など用途のないものには、無理に用途を作らない
+${ACCURACY_ONLY}`;
+
+const FUN_FACT_SPEC = '- funFact: 検索した資料で裏付けられる豆知識を1つ（60字以内）。数字や年号は必須ではない。候補の裏付けが取れなければ、資料で裏付けられる別の豆知識を選び、必ず空でない文を返す';
+
+export type ExploreDraft = { name: string; category: string; oneLiner: string; summary: string };
+
 function forAudience(prompt: string, level: Level) {
   if (level === 'std') return prompt;
   const a = AUDIENCE[level];
@@ -214,20 +224,21 @@ const TOPICS_SPEC = `- topics: 6個。それぞれ
   - teaser: 40字以内の答えのチラ見せ
   - kind: 次から1つ ${TOPIC_KINDS.join(' / ')}
   - icon: 上と同じリストから1つ
-  6個の kind はできるだけバラバラにする（つくりかた・れきし・しくみ・かんきょう を優先）`;
+  6個の kind はできるだけバラバラにする（つくりかた・れきし・しくみ・かんきょう を優先）。数や種類をそろえるために根拠のない内容を作らず、問いと teaser の正確さを優先する`;
 
 function stdExplorePrompt(label: string) {
   return `「${label}」について、${EXPLORE_HEAD}
 必ず Google 検索で事実を確認してから、正確な内容だけを書いてください。
+${ACCURACY_SPEC}
 
 - name: モノの一般名（日本語）。読む人の学年に関係なく、辞書や図鑑に載っているふつうの書き方（漢字・カタカナを使う。例: 鉛筆削り、ペットボトル）。ひらがなだけに開かない。《》は付けない
 - reading: name のひらがなの読み
 - en: 英語名
 - category: 次から1つ ${CATEGORIES.join(' / ')}
 - icon: 次から1つ ${ICONS.join(', ')}
-- oneLiner: 30字以内のキャッチコピー
+- oneLiner: 何の仲間で何に使うかが伝わる、30字以内の親しみやすいひとこと
 - summary: 120字前後のやさしい説明
-- funFact: 意外な豆知識 1つ（60字以内、数字や年号を入れる）
+${FUN_FACT_SPEC}
 ${TOPICS_SPEC}
 - keywords: 関連キーワード 4個
 ${fitFor(label)}`;
@@ -237,25 +248,35 @@ ${fitFor(label)}`;
 export function exploreQuickPrompt(label: string, level: Level = 'std') {
   return forAudience(`「${label}」について、${EXPLORE_HEAD}
 まずカードの表の部分だけを書きます。よく知られた確かな事実だけを書き、自信のない数字や年号は入れないでください。
+${ACCURACY_SPEC}
 
 - name: モノの一般名（日本語）。読む人の学年に関係なく、辞書や図鑑に載っているふつうの書き方（漢字・カタカナを使う。例: 鉛筆削り、ペットボトル）。ひらがなだけに開かない。《》は付けない
 - reading: name のひらがなの読み
 - en: 英語名
 - category: 次から1つ ${CATEGORIES.join(' / ')}
 - icon: 次から1つ ${ICONS.join(', ')}
-- oneLiner: 30字以内のキャッチコピー
+- oneLiner: 何の仲間で何に使うかが伝わる、30字以内の親しみやすいひとこと
 - summary: 120字前後のやさしい説明
 ${fitFor(label)}`, level);
 }
 
-export function exploreRestPrompt(name: string, summary: string, level: Level = 'std') {
-  return forAudience(`「${name}」について、${EXPLORE_HEAD}
+export function exploreRestPrompt(draft: ExploreDraft, level: Level = 'std') {
+  return forAudience(`「${draft.name}」について、${EXPLORE_HEAD}
 必ず Google 検索で事実を確認してから、正確な内容だけを書いてください。
-カードの説明（summary）は、もう次のように書いてあります。
-${summary}
+${ACCURACY_SPEC}
+カードの初稿全体を確認し、何の仲間か・通常の用途も含めて訂正してください。初稿:
+${JSON.stringify({ name: draft.name, category: draft.category, oneLiner: draft.oneLiner, summary: draft.summary }, null, 2)}
 
-- summary: 上の説明を Google 検索で確かめ、事実の誤りがあれば直した文。誤りが無ければ同じ文をそのまま返す。長さ・言葉づかい・漢字と読みがなの付け方は変えない
-- funFact: 意外な豆知識 1つ（60字以内、数字や年号を入れる）
+訂正のバランス:
+- 資料と矛盾する内容は正しい内容に直す
+- 資料に同じ文が見つからないという理由だけで内容を削らない。資料で未確認でも、妥当な一般知識は残し、言いすぎない表現にする。数字・年号や「世界一」「必ず」などを根拠なく補わない
+- 削るのは資料で裏付けられない具体的な主張（数字・年号・固有名・記録）に限る。その部分を裏付けのある説明や一般的な説明に置き換え、初稿と同じくらいの情報量・長さを保つ
+- 子どもに親しみやすい言葉づかいと、その学年の漢字・読みがな《》のルールは保つ
+
+- oneLiner: 初稿を確認した30字以内のひとこと。必要な訂正だけ行い、訂正不要なら初稿をそのまま返す
+- summary: 初稿を確認した説明。必要な訂正だけ行い、訂正不要なら初稿をそのまま返す。長さ・言葉づかい・漢字と読みがなの付け方は変えない
+- category: 初稿の分類が明らかに誤っている場合だけ訂正し、次から1つ返す ${CATEGORIES.join(' / ')}。訂正不要なら省略するか初稿と同じ値を返す
+${FUN_FACT_SPEC}
 - icon は次のリストから選ぶ ${ICONS.join(', ')}
 ${TOPICS_SPEC}
 - keywords: 関連キーワード 4個`, level);
@@ -276,10 +297,11 @@ function stdDeepPrompt(name: string, topic: string) {
   return `テーマ: 「${name}」— ${topic}
 
 小学校高学年〜中学生向けに、このテーマを深掘りして説明してください。必ず Google 検索で事実を確認すること。
+${ACCURACY_ONLY}
 書式（Markdown）:
-- 最初に 2〜3 文で結論をズバッと言う
+- 最初に 2〜3 文で、このテーマの答えをやさしく伝える
 - 続けて「### 見出し」を 3〜4 個。各見出しの下は短い段落か箇条書き
-- 数字・年号・具体例をできるだけ入れる
+- 具体例は検索した資料で裏付けられるものを選ぶ。数字・年号は裏付けがある場合だけ入れ、無理に増やさない
 - 工程・流れ・因果関係があるなら、1つだけ mermaid の図を入れる:
   \`\`\`mermaid
   flowchart LR
