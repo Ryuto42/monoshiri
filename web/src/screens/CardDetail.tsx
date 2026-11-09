@@ -1,4 +1,4 @@
-import { animate, AnimatePresence, motion, useMotionValue, usePresence, useTransform } from 'motion/react';
+import { animate, AnimatePresence, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from '@tanstack/react-router';
@@ -45,6 +45,7 @@ function landing(grid: HTMLElement) {
 const FLIP = { type: 'spring', stiffness: 140, damping: 18 } as const;
 
 export function CardDetail({ cardId }: { cardId: string }) {
+  const reduced = useReducedMotion();
   const cards = useCards();
   const card = cards.find((c) => c.id === cardId);
   const [flipped, setFlipped] = useState(false);
@@ -96,7 +97,7 @@ export function CardDetail({ cardId }: { cardId: string }) {
   useEffect(() => {
     if (!missing || !links) return;
     const latest = getCard(cardId);
-    if (latest && !latest.units) void saveCard({ ...latest, units: links.map((l) => l.id), updatedAt: Date.now() });
+    if (latest && !latest.units) void saveCard({ ...latest, units: links.map((l) => l.id), updatedAt: Date.now() }).catch(() => {});
   }, [missing, links, cardId]);
   const scroller = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -132,6 +133,7 @@ export function CardDetail({ cardId }: { cardId: string }) {
   useLayoutEffect(() => {
     const el = face.current;
     if (!el) return;
+    if (reduced) { entry.set(1); return; }
     const grid = gridCard(cardId);
     const from = grid?.getBoundingClientRect();
     if (grid) grid.style.visibility = 'hidden';
@@ -148,11 +150,12 @@ export function CardDetail({ cardId }: { cardId: string }) {
       opening.current?.cancel();
       if (grid) grid.style.visibility = '';
     };
-  }, [cardId, entry]);
+  }, [cardId, entry, reduced]);
 
   // Close: shrink the detail so the card lands exactly on its grid slot, cross-fading into it at the end.
   useEffect(() => {
     if (isPresent) return;
+    if (reduced) return void safeToRemove?.();
     const box = scroller.current, c = content.current, el = face.current;
     if (!box || !c || !el) return void safeToRemove?.();
     box.style.pointerEvents = 'none';
@@ -193,7 +196,7 @@ export function CardDetail({ cardId }: { cardId: string }) {
     const fly = c.animate([{ transform: from }, { transform: to }], { duration: D, easing: ease, fill: 'forwards' });
     fly.finished.then(() => safeToRemove?.(), () => {});
     return () => clearTimeout(reveal);
-  }, [isPresent, safeToRemove, cardId, dragX, dragY, shrink, x, y]);
+  }, [isPresent, safeToRemove, reduced, cardId, dragX, dragY, shrink, x, y]);
 
   if (!card) return null;
   const c = catStyle(card.category);
@@ -207,11 +210,11 @@ export function CardDetail({ cardId }: { cardId: string }) {
   const onNote = (n: DeepNote) => {
     const latest = getCard(card.id);
     if (!latest) return;
-    void saveCard({ ...latest, notes: [...latest.notes.filter((x) => x.topicId !== n.topicId), n], updatedAt: Date.now() });
+    void saveCard({ ...latest, notes: [...latest.notes.filter((x) => x.topicId !== n.topicId), n], updatedAt: Date.now() }).catch(() => toast('カードをしまえませんでした。もう一度《いちど》ためしてね'));
   };
 
   return (
-    <div ref={scroller} className="fixed inset-0 z-40 overflow-y-auto overscroll-contain">
+    <div role="dialog" aria-modal aria-labelledby="card-detail-title" ref={scroller} className="fixed inset-0 z-40 overflow-y-auto overscroll-contain">
       <motion.div ref={scrim} className="fixed inset-0 bg-[#120e0b]/70 backdrop-blur-md" style={{ opacity: scrimOpacity }} onClick={close} />
       <motion.div
         ref={content}
@@ -225,17 +228,17 @@ export function CardDetail({ cardId }: { cardId: string }) {
         </div>
 
         <div className="w-[min(80vw,340px)] shrink-0 lg:sticky lg:top-16">
-          <button ref={face} onClick={() => setFlipped((f) => !f)} className="block w-full origin-top-left [perspective:1400px]" aria-label="カードをうらがえす">
+          <button ref={face} onClick={() => setFlipped((f) => !f)} className="block w-full origin-top-left [perspective:1400px]" aria-label={flipped ? 'カードのうらを表示中。おもてにする' : 'カードのおもてを表示中。うらにする'}>
             <motion.div className="relative [transform-style:preserve-3d]" style={{ rotateY: flip.rotateY }}>
-              <motion.div className="[backface-visibility:hidden]" style={{ opacity: flip.front }}>
+              <motion.div aria-hidden={flipped} className="[backface-visibility:hidden]" style={{ opacity: flip.front }}>
                 <CardFace card={card} no={no} size="lg" />
               </motion.div>
-              <motion.div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={{ opacity: flip.back }}>
-                <div className="flex h-full flex-col rounded-[22px] bg-[#fffdf8] p-5 text-left text-[#2a2017] shadow-[var(--shadow-float)]">
+              <motion.div aria-hidden={!flipped} className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={{ opacity: flip.back }}>
+                <div className="flex h-full flex-col overflow-y-auto overscroll-contain rounded-[22px] bg-[#fffdf8] p-5 text-left text-[#2a2017] shadow-[var(--shadow-float)]">
                   <span className="text-[12px] font-black" style={{ color: c.ink }}>No.{String(no).padStart(3, '0')} ・ {card.category}</span>
                   <span className="text-[22px] font-black">{card.name}</span>
                   <span className="mt-2 text-[14px] leading-relaxed text-[#66574a]"><RubyText text={card.summary} /></span>
-                  <span className="mt-auto rounded-2xl p-3 text-[13px] font-bold leading-relaxed" style={{ background: c.bg, color: c.ink }}>
+                  <span className="mt-auto shrink-0 rounded-2xl p-3 text-[13px] font-bold leading-relaxed" style={{ background: c.bg, color: c.ink }}>
                     知ってた？ <RubyText text={card.funFact} />
                   </span>
                 </div>
@@ -256,7 +259,7 @@ export function CardDetail({ cardId }: { cardId: string }) {
               <p className="min-w-0 flex-1 text-[12px] font-bold tracking-wider text-ink-3">{card.reading}・{card.en}</p>
               <Speak target={intro} text={`知ってた？${stripRuby(card.funFact)}`} ttsRef={{ name: card.name }} compact />
             </div>
-            <h2 data-speak className="text-[30px] font-black leading-tight">{card.name}</h2>
+            <h2 id="card-detail-title" data-speak className="text-[30px] font-black leading-tight">{card.name}</h2>
             {card.firstFind && (
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklab,var(--sun)_30%,var(--paper))] py-1 pl-1.5 pr-3 text-[13px] font-black">
                 <span className="grid h-6 w-6 place-items-center rounded-full bg-sun text-[#5a3b00]">

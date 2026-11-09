@@ -37,13 +37,13 @@ export function startIllust(id: string, name: string, { quiet = false } = {}) {
       done.set(id, url);
       const card = getCard(id);
       if (card && !card.illustration) {
-        void saveCard({ ...card, illustration: url, updatedAt: Date.now() });
+        void saveCard({ ...card, illustration: url, updatedAt: Date.now() }).catch(() => toast('イラストをしまえませんでした。もう一度《いちど》ためしてね'));
         if (notify.has(id)) queue = [...queue, { id, name: card.name, url }];
       }
       return url;
     })
     .catch((e) => {
-      const m = errorMessage(e);
+      const m = errorMessage(e, 'illustration');
       if (m && !quiet) toast(m);
       return null;
     })

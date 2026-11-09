@@ -55,6 +55,8 @@ function SignIn() {
 
 function Panel() {
   const [answer, setAnswer] = useState<{ age: number; stage: Stage } | null>(null);
+  const [policy, setPolicy] = useState(false);
+  const [guardian, setGuardian] = useState(false);
   const [step, setStep] = useState<'age' | 'consent'>('age');
   useEffect(() => void haptic('select'), []);
   useEffect(() => (step === 'consent' ? onBack(() => setStep('age'), { history: false }) : undefined), [step]);
@@ -99,6 +101,7 @@ function Panel() {
                 skipLabel="アカウントが ある人は ログイン"
                 onSkip={startSignIn}
                 onSave={(stage, age) => {
+                  if (answer && (answer.age < GUARDIAN_AGE) !== (age < GUARDIAN_AGE)) setGuardian(false);
                   setAnswer({ stage, age });
                   setStep('consent');
                 }}
@@ -107,7 +110,7 @@ function Panel() {
           ) : (
             <motion.div key="consent" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }} transition={spring}>
               <ReadingStage.Provider value={answer?.stage ?? null}>
-                <Consent child={!!answer && answer.age < GUARDIAN_AGE} onBack={() => setStep('age')} onAgree={finish} />
+                <Consent policy={policy} guardian={guardian} setPolicy={setPolicy} setGuardian={setGuardian} child={!!answer && answer.age < GUARDIAN_AGE} onBack={() => setStep('age')} onAgree={finish} />
               </ReadingStage.Provider>
             </motion.div>
           )}
@@ -164,9 +167,7 @@ function Dots({ at }: { at: number }) {
   );
 }
 
-function Consent({ child, onBack, onAgree }: { child: boolean; onBack: () => void; onAgree: () => void }) {
-  const [policy, setPolicy] = useState(false);
-  const [guardian, setGuardian] = useState(false);
+function Consent({ child, onBack, onAgree, policy, guardian, setPolicy, setGuardian }: { child: boolean; onBack: () => void; onAgree: () => void; policy: boolean; guardian: boolean; setPolicy: (v: boolean) => void; setGuardian: (v: boolean) => void }) {
   const ready = policy && (!child || guardian);
   return (
     <div className="pb-2">

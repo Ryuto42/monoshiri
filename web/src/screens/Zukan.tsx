@@ -4,7 +4,7 @@ import { onBack } from '../lib/native';
 import { useBackTo } from '../lib/useBackTo';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { CardDetail } from './CardDetail';
-import { useCards } from '../lib/cards';
+import { useCards, useCardsLoaded } from '../lib/cards';
 import type { Card } from '../lib/types';
 import { clearReady, useIllustReady } from '../lib/illust';
 import { CardFace } from '../components/CardFace';
@@ -15,7 +15,8 @@ import { CATEGORY_STYLE, spring } from '../components/theme';
 import { Logo } from '../components/Logo';
 import { api } from '../lib/api';
 import { useStage } from '../lib/level';
-import { stripRuby } from '../lib/ruby';
+import { normalizeSearch } from '../lib/search';
+import { toast } from '../lib/toast';
 import { backfillUnits, cardsByUnit, SUBJECTS, unitById, UNITS } from '../lib/units';
 import { ZukanUnits } from './ZukanUnits';
 
@@ -31,15 +32,29 @@ const readMode = (): Mode => {
 
 export function Zukan() {
   const cards = useCards();
+  const loaded = useCardsLoaded();
+
   const navigate = useNavigate();
   const params = useParams({ strict: false }) as { cardId?: string };
   const [cat, setCat] = useState<string>('すべて');
+  // A link to a card that isn't here (deleted elsewhere, or a wrong URL) falls back to the zukan. Cards seen during this
+  // visit don't count: removing the open card also leaves its URL for a moment.
+  const seen = useRef(new Set<string>());
+  useEffect(() => {
+    cards.forEach((c) => seen.current.add(c.id));
+  }, [cards]);
+  useEffect(() => {
+    if (loaded && params.cardId && !seen.current.has(params.cardId) && !cards.some((c) => c.id === params.cardId)) {
+      void navigate({ to: '/zukan', replace: true });
+      toast('カードが見《み》つかりませんでした');
+    }
+  }, [loaded, params.cardId, cards, navigate]);
   const [q, setQ] = useState('');
   const [mode, setModeState] = useState<Mode>(readMode);
   const [subject, setSubject] = useState('すべて');
   const { stage } = useStage();
   const cats = useMemo(() => ['すべて', ...Object.keys(CATEGORY_STYLE).filter((c) => cards.some((x) => x.category === c))], [cards]);
-  const shown = cards.filter((c) => (cat === 'すべて' || c.category === cat) && (!q || stripRuby(`${c.name}${c.reading}${c.en}`).toLowerCase().includes(q.toLowerCase())));
+  const shown = cards.filter((c) => (cat === 'すべて' || c.category === cat) && (!q || normalizeSearch(`${c.name}${c.reading}${c.en}`).includes(normalizeSearch(q))));
   const notes = cards.reduce((n, c) => n + c.notes.length, 0);
   const have = useMemo(() => cardsByUnit(cards), [cards]);
   const subjects = useMemo(() => SUBJECTS.filter((s) => [...have.keys()].some((id) => unitById.get(id)?.subject === s)), [have]);
@@ -138,7 +153,7 @@ export function Zukan() {
             >
               <div className="flex items-center gap-2">
                 {UNITS.length > 0 && (
-                  <div className="flex shrink-0 rounded-full bg-paper-2 p-1" role="tablist" aria-label="図鑑の見かた">
+                  <div className="flex shrink-0 rounded-full bg-paper-2 px-1" role="tablist" aria-label="図鑑の見かた">
                     {([['genre', 'ジャンル', 'category'], ['units', '教科', 'school']] as const).map(([m, label, icon]) => (
                       <motion.button
                         key={m}
@@ -147,9 +162,9 @@ export function Zukan() {
                         onClick={() => setMode(m)}
                         whileTap={{ scale: 0.97 }}
                         transition={spring}
-                        className="relative flex h-9 items-center gap-1 rounded-full px-3 text-[14px] font-bold"
+                        className="hit-44 relative flex h-9 items-center gap-1 rounded-full px-3 text-[14px] font-bold"
                       >
-                        {mode === m && <motion.span layoutId="mode-pill" className="absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-tab)]" transition={spring} />}
+                        {mode === m && <motion.span layoutId="mode-pill" className="hit-pill absolute inset-0 rounded-full bg-paper shadow-[var(--shadow-tab)]" transition={spring} />}
                         <span className={`relative flex items-center gap-1 ${mode === m ? 'text-ink' : 'text-ink-3'}`}>
                           <Icon name={icon} size={18} fill={mode === m} />
                           {label}
@@ -174,8 +189,8 @@ export function Zukan() {
               {mode === 'genre' && cards.length > 0 && (
                 <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
                   {cats.map((c) => (
-                    <motion.button key={c} onClick={() => pickCat(c)} whileTap={{ scale: 0.97 }} transition={spring} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
-                      {cat === c && <motion.span layoutId="cat-pill" className="absolute inset-0 rounded-full bg-ink" transition={spring} />}
+                    <motion.button key={c} aria-pressed={cat === c} onClick={() => pickCat(c)} whileTap={{ scale: 0.97 }} transition={spring} className="filter-pill hit-44 relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
+                      {cat === c && <motion.span layoutId="cat-pill" className="hit-pill absolute inset-0 rounded-full bg-ink" transition={spring} />}
                       <span className={`relative ${cat === c ? 'text-paper' : 'text-ink-2'}`}>{c}</span>
                     </motion.button>
                   ))}
@@ -184,8 +199,8 @@ export function Zukan() {
               {mode === 'units' && subjects.length > 1 && (
                 <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar">
                   {['すべて', ...subjects].map((c) => (
-                    <motion.button key={c} onClick={() => pickSubject(c)} whileTap={{ scale: 0.97 }} transition={spring} className="relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
-                      {subj === c && <motion.span layoutId="subject-pill" className="absolute inset-0 rounded-full bg-ink" transition={spring} />}
+                    <motion.button key={c} aria-pressed={subj === c} onClick={() => pickSubject(c)} whileTap={{ scale: 0.97 }} transition={spring} className="filter-pill hit-44 relative shrink-0 rounded-full px-4 py-1.5 text-[14px] font-bold">
+                      {subj === c && <motion.span layoutId="subject-pill" className="hit-pill absolute inset-0 rounded-full bg-ink" transition={spring} />}
                       <span className={`relative ${subj === c ? 'text-paper' : 'text-ink-2'}`}>{c}</span>
                     </motion.button>
                   ))}

@@ -353,3 +353,30 @@ rt {
   backdrop-filter: blur(18px) saturate(1.8);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), inset 0 -1px 0 rgb(255 255 255 / 0.08), 0 8px 24px -10px rgb(0 0 0 / 0.45);
 }
+
+/* Taller hit areas keep the original pills centred without overlapping neighbours. */
+.hit-44 { min-height: 44px; }
+.hit-44 > .hit-pill { top: 4px; bottom: 4px; }
+.topic-tabs .hit-44 > .hit-pill { top: 2px; bottom: 2px; }
+.filter-pill { padding-top: 0; padding-bottom: 0; }
+.topic-tabs { mask-image: linear-gradient(to right, transparent, black 8px, black calc(100% - 8px), transparent); }
+@media (max-height: 760px) {
+  .camera-fallback { padding-top: 76px; padding-bottom: 190px; }
+  .camera-pick { width: 96px; height: 96px; margin-bottom: 12px; border-radius: 28px; }
+  .camera-sample-title { margin-top: 12px; }
+  .camera-sample { width: 76px; }
+}
+@media (max-width: 420px) {
+  .correction-form { flex-wrap: wrap; border-radius: 24px; padding: 12px; }
+  .correction-form input { flex-basis: 100%; padding-left: 8px; }
+  .correction-form button { margin-left: auto; }
+}
+
+@media (max-height: 700px) {
+  .age-picker > h2 { margin-top: 4px; }
+  .age-picker > .flex { margin-top: 8px; }
+  .age-picker > [role="group"] { margin-top: 8px; gap: 4px; }
+  .age-picker > [aria-live] { margin-top: 4px; min-height: 44px; }
+  .age-picker > [aria-live] p { padding-top: 8px; padding-bottom: 8px; }
+  .age-picker > button { margin-top: 4px; }
+}
