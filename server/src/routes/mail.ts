@@ -3,6 +3,7 @@ import { APPCHECK_ENFORCE } from '../config.ts';
 import { clean, type Env } from '../http.ts';
 import { resetMail, verifyMail } from '../mail/templates.ts';
 import { mailDeps, toAppLink } from '../mail/send.ts';
+import { errorText, report } from '../report.ts';
 
 export const mail = new Hono<Env>();
 
@@ -74,7 +75,7 @@ mail.post('/api/mail/reset', async (c) => {
   const work = (async () => {
     const raw = await d.resetLink(email);
     if (raw) await d.send(email, resetMail(email, toAppLink(raw, 'resetPassword')));
-  })().catch((e) => console.error('reset mail failed', e));
+  })().catch((e) => report('failed', 'mail_failed', { kind: 'reset', detail: errorText(e) }));
   await Promise.all([work, sleep(MAIL_TIMING.resetMs)]);
   return c.json({ ok: true });
 });

@@ -4,6 +4,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { ALLOWED_ORIGINS, LOCAL } from './config.ts';
 import { authMiddleware, defaultAuthDeps, type AuthDeps } from './auth.ts';
 import { errorOf, type Env } from './http.ts';
+import { errorText, report } from './report.ts';
 import { files } from './routes/files.ts';
 import { detect } from './routes/detect.ts';
 import { explore } from './routes/explore.ts';
@@ -30,7 +31,7 @@ export function createApp(deps: AuthDeps = defaultAuthDeps) {
   app.onError((err, c) => {
     const known = errorOf(err);
     if (known) return c.json(known.body, known.status);
-    console.error(err);
+    report('failed', 'internal', { where: `${c.req.method} ${c.req.path}`, detail: errorText(err), stack: (err as Error)?.stack?.slice(0, 800) });
     return c.json({ error: 'internal', ...(LOCAL && { message: String(err?.message ?? err).slice(0, 200) }) }, 500);
   });
 

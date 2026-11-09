@@ -11,6 +11,7 @@ import { track as count } from '../stats.ts';
 import { GROUNDED_EST_USD } from './deep.ts';
 import { addCached, ensureBudget, getCached, holdRequest, setCached } from '../store.ts';
 import { safeSearch } from '../vision.ts';
+import { errorText, report } from '../report.ts';
 
 export const explore = new Hono<Env>();
 
@@ -161,7 +162,7 @@ async function prepare(r: ExploreRequest, uid: string): Promise<Prepared> {
   if (!r.image) return { subject: label };
   // The photo only helps decide what the thing is called. The shared explanation is written from the name alone,
   // so a crafted photo can't steer what everyone else reads. Both look at the photo at once; the name is dropped if it isn't safe.
-  const [[ok], named] = await Promise.all([safeSearch([{ base64: r.image }]), nameFromPhoto(label, r.image)]);
+  const [[ok], named] = await Promise.all([safeSearch([{ base64: r.image }], 'explore'), nameFromPhoto(label, r.image)]);
   if (!ok) return { refused: 'unsafe_image' };
   const subject = named || label;
   if (subject !== label) {
@@ -268,7 +269,10 @@ explore.post('/api/explore', async (c) => {
   if ('refused' in p) return c.json({ error: p.refused }, 422);
   const { data, g } = await writeWhole(p.subject, r.level);
   // Names now come from people too (typed or corrected), so a name Gemini judges unfit never reaches the shared cache.
-  if (data.ok === false) return c.json({ error: 'not_a_thing' }, 422);
+  if (data.ok === false) {
+    report('rejected', 'not_a_thing', { where: 'explore', label: p.subject });
+    return c.json({ error: 'not_a_thing' }, 422);
+  }
   return c.json(await save(r, uid, p.subject, data, g));
 });
 
@@ -287,7 +291,10 @@ explore.post('/api/explore/stream', async (c) => {
       if ('done' in p) return void (await send('done', p.done));
       if ('refused' in p) return void (await send('error', { error: p.refused }));
       const quick = await writeQuick(p.subject, r.level);
-      if (!quick) return void (await send('error', { error: 'not_a_thing' }));
+      if (!quick) {
+        report('rejected', 'not_a_thing', { where: 'explore', label: p.subject });
+        return void (await send('error', { error: 'not_a_thing' }));
+      }
       const key = keyOf('explore', quick.name);
       // The name it settled on may already be explained (e.g. a typed label written differently): no search needed then.
       const hit = await stored(key, r.level);
@@ -302,7 +309,7 @@ explore.post('/api/explore/stream', async (c) => {
       await send('done', await save(r, uid, p.subject, rest.data, rest.g, wiki));
     } catch (e: any) {
       const known = errorOf(e);
-      if (!known) console.error(e);
+      if (!known) report('failed', 'internal', { where: 'explore/stream', detail: errorText(e) });
       await send('error', known?.body ?? { error: 'internal', ...(LOCAL && { message: String(e?.message ?? e).slice(0, 200) }) });
     } finally {
       release();
