@@ -17,6 +17,7 @@ import { goBack, setStatusBar, setupNative } from './lib/native';
 import { allCards, loadCards } from './lib/cards';
 import { resumeIllust } from './lib/illust';
 import { currentUser } from './lib/firebase';
+import { setOffline } from './lib/online';
 
 export function App() {
   const { pathname } = useLocation();
@@ -36,18 +37,28 @@ export function App() {
     // Network status can blip to "offline" while the app starts or switches networks, so only report lasting changes.
     let shown = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    void setupNative((offline) => {
+    const onNetwork = (offline: boolean) => {
+      setOffline(offline);
       clearTimeout(timer);
       if (offline === shown) return;
       timer = setTimeout(() => {
         shown = offline;
-        if (offline) toast('オフラインです。図鑑は見られますが、調べるには通信が必要です', 'wifi_off');
+        if (offline) toast('オフラインです。図鑑《ずかん》は見《み》られますが、調《しら》べるには通信《つうしん》が必要《ひつよう》です', 'wifi_off');
         else toast('オンラインにもどりました', 'wifi');
       }, 1500);
-    });
+    };
+    void setupNative(onNetwork);
+    const onOnline = () => onNetwork(false);
+    const onOffline = () => onNetwork(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && goBack();
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
   }, []);
   useEffect(() => void setStatusBar(zukan), [zukan]);
   return (

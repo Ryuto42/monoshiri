@@ -11,6 +11,7 @@
 | Tailwind CSS v4 | スタイル | MIT |
 | Motion | アニメーション | MIT |
 | marked | Markdown 変換 | MIT |
+| BudouX（Google） | 日本語の文節で改行する（見出し・説明文の折り返し） | Apache-2.0 |
 | DOMPurify | HTML サニタイズ | Apache-2.0 / MPL-2.0 |
 | Dexie | IndexedDB | Apache-2.0 |
 | Firebase JS SDK | 認証・Firestore | Apache-2.0 |
@@ -25,7 +26,6 @@
 | Capacitor 8（core / ios / android / cli） | iOS・Android アプリ化 | MIT |
 | @capacitor/app, haptics, status-bar, splash-screen, browser, keyboard, network | ネイティブ機能 | MIT |
 | @capgo/capacitor-social-login | ネイティブの Google ログイン | MPL-2.0 |
-| @playwright/test | E2E テスト（開発時のみ） | Apache-2.0 |
 | @fontsource/zen-maru-gothic | フォント同梱 | MIT（フォント本体は OFL 1.1） |
 
 ## フォント・アイコン

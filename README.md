@@ -43,7 +43,7 @@
 | 年代 | 最初に入れた年齢から「小学校低学年・高学年・中学生・高校生以上」の段階に自動で変換し、段階だけを保存する（年齢は保存しない）。段階ごとに漢字・表現・くわしさを変えた解説・深掘り・クイズを作り、段階ごとにキャッシュする。解説シートのチップから年齢を入れ直して切り替えられ、表示中の解説も作り直す |
 | ふりがな | 低学年・高学年向けの文章は Gemini が `漢字《かんじ》` の形で読みを付け、`<ruby>` で表示する。読み上げはふりがなを除いて読む。低学年は文字を大きくし、解説を自動で読み上げる |
 | 学校の単元 | 解説したモノを、学習指導要領（小・中は平成29年、高は平成30年告示）から作った 219 単元に Gemini が結び付ける（一覧の id からだけ選ぶ）。「小5 理科『物の溶け方』」のように表示し、段階に応じて「いま習う／もうすぐ習う」を出す。段階から見てもう習った単元は出さない |
-| 教科でみる | 図鑑で、集めたカードの単元だけを教科×学年に並べ、単元ごとのカード枚数を出す |
+| 教科 | 図鑑の「教科」で、集めたカードの単元だけを教科×学年に並べ、単元ごとにカードを中央にそろえて並べる（スマホは2列）。教科のボタンで、ジャンルと同じ動きで切り替わる |
 | 学びの記録 | 問いを開いた・クイズに答えた／正解した・カードを保存した、などを**日ごとの合計回数だけ**サーバーで数える（個人とは結び付けない）。`node infra/stats.mjs` で見られる |
 | メール | 確認メールとパスワード再設定のメールは、API サーバーが Gmail（SMTP）から送る、アプリと同じ見た目の HTML。リンクはアプリの `/auth/action` を開き、確認やパスワードの再設定をその場で済ませて、自動でアプリにもどる（Firebase の標準のメールは文面とリンク先を変更できないため。SMTP が使えないときは標準のメールで送る） |
 | プライバシー | `/privacy` に子どもにも読める「かんたん版」と詳しい版。同意は最初の画面で受け、記録は端末にだけ残す |
@@ -61,7 +61,7 @@
 | データ | Firebase Auth（匿名・メール／パスワード・Google）、Firestore、Cloud Storage（非公開バケット）、Secret Manager |
 | 保護 | Firebase App Check（reCAPTCHA Enterprise）、Cloud Vision SafeSearch |
 | 監視 | Cloud Monitoring（稼働確認・5xx のアラート）、Cloud Billing の予算通知 |
-| テスト | `node --test`（API）、Firestore エミュレーター（ルール）、Playwright（E2E） |
+| テスト | `node --test`（API）、Firestore エミュレーター（ルール） |
 | 配信・CI | Firebase Hosting、GitHub Actions（Workload Identity Federation で鍵なしデプロイ） |
 | 外部データ | Wikimedia Commons、Wikipedia、YouTube Data API |
 
@@ -88,7 +88,7 @@
 
 1. **撮影**: `Viewfinder` がカメラ映像を出し、撮った画像を `lib/image.ts` で縮小して JPEG（base64）にする
 2. **検出**: `POST /api/detect` で写っているモノと位置（0〜1000 の座標）を受け取り、`Stage` がマーカーを重ねる
-3. **解説**: 選んだモノの切り抜きとラベルを `POST /api/explore` に送る。サーバーは別名キャッシュと解説キャッシュを引き、なければ Gemini + Google 検索で生成して保存する
+3. **解説**: 選んだモノの切り抜きとラベルを `POST /api/explore` に送る。サーバーは別名キャッシュと解説キャッシュを引き、なければ切り抜きでモノ名を確かめたうえで、名前だけから Gemini + Google 検索で生成して保存する（全員が見る本文に写真の内容が入らないように）
 4. **単元**: 解説を表示すると `POST /api/units` で学校の単元（最大3つ）を受け取り、チップで表示する（年代によらず共通のキャッシュ）
 5. **深掘り**: 問いを選ぶと `POST /api/deep` が SSE で本文を流す。写真・動画は `GET /api/media`、図解・動画・クイズは必要になったときにだけ生成する
 6. **カード化**: `POST /api/illustrate` を裏で走らせつつ、カードは単元と一緒にすぐ IndexedDB と Firestore に保存する（`lib/illust.ts`）。完成したらカードを更新して吹き出しで知らせる
@@ -103,11 +103,12 @@
 │  ├─ src/
 │  │  ├─ App.tsx             画面の土台（カメラの上に図鑑を重ねる）
 │  │  ├─ router.tsx          ルート定義（/、/zukan、/zukan/$cardId、/account、/privacy、/auth/action）
-│  │  ├─ screens/            Home（カメラと調べる流れ）、ExploreContent、TopicPanel（深掘り）、Zukan、ZukanUnits（教科でみる）、
+│  │  ├─ screens/            Home（カメラと調べる流れ）、ExploreContent、TopicPanel（深掘り）、Zukan、ZukanUnits（教科）、
 │  │  │                      CardDetail、Account と account/（ログイン・登録・段階）、Privacy、AuthAction（メールのリンク）
 │  │  ├─ data/curriculum.json 学習指導要領の単元一覧（server/src/curriculum.json と同じ内容。テストで一致を確認）
 │  │  ├─ components/         CardFace / CardMaker（カード）、Sheet（下から出るパネル）、Speak（読み上げ）、
-│  │  │                      LoadingCard、ReadyBubble、SignupNudge、Viewfinder、Stage、Markdown、SearchEntry、ui、theme、
+│  │  │                      LoadingCard、ReadyBubble、SignupNudge、Viewfinder、Stage、Markdown、SearchEntry、ui、theme、Logo、Toast、
+│  │  │                      LeaveConfirm（カードにせずに離れる前の確認）、MoreSearch（Google 検索など外で調べる）、Phrases（BudouX で文節ごとに折り返す）、
 │  │  │                      Onboarding / AgePicker（年齢と同意）、StageChip（段階の切り替え）、Welcome / Tour（案内とチュートリアル）、
 │  │  │                      UnitChips（単元）、RubyText（ふりがな）
 │  │  ├─ lib/
@@ -256,7 +257,6 @@ cd web && npm run dev:emu
 | `web/` | `npm run build` | 本番ビルド（`web/dist`） |
 | `web/` | `npm run ios` / `npm run android` | ネイティブ用にビルド → 同期 → Xcode / Android Studio を開く |
 | `web/` | `npm run test:rules` | Firestore ルールのテスト（Java 21 が必要） |
-| `web/` | `npm run test:e2e` | Playwright の E2E テスト（API はモック、Auth / Firestore はエミュレーター。Java 21 が必要） |
 | `server/` | `npm run dev` | API を開発モードで起動（ファイル変更で再起動） |
 | `server/` | `npm run typecheck` | 型チェック |
 | `server/` | `npm test` | API のテスト（Google Cloud には接続しない） |
@@ -282,9 +282,11 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 | 写真選択（iOS） | ネイティブの PHPicker から選び、1600px の JPEG にして Web に渡す |
 | 触覚 | 撮影・選択・クイズの正誤・カード保存で Haptics |
 | 戻る操作（Android） | 戻るボタンで「深掘り → 解説 → カメラ → アプリを背面へ」と1段ずつ閉じる |
+| 戻る操作（iOS） | 画面の左端から右へスワイプすると、Android の戻るボタンと同じく1段ずつ閉じる（GlassChrome.swift の端のスワイプ → `edgeback`） |
 | 外部リンク | 検索候補・出典・YouTube・Wikipedia はアプリ内ブラウザで開く |
 | 描画負荷 | Android（アプリとブラウザ）では背景ブラーを切る |
-| 起動 | フォントとアイコンをアプリ内に同梱し、ネイティブのスプラッシュから即表示。縦画面固定 |
+| 起動 | フォントとアイコンをアプリ内に同梱し、暗い背景（#120e0b）にアイコンの起動画面からそのまま表示（Android は SplashScreen API、iOS は LaunchScreen）。縦画面固定 |
+| キーボード | WebView は動かさず、入力中のシートだけをキーボードの上に持ち上げる（iOS・Android 共通。Android は SystemBars のキーボード分の余白を外している） |
 | 通信 | オフラインになったら通知。図鑑は端末内（IndexedDB）から表示 |
 
 ### ログイン
@@ -293,19 +295,20 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 
 ## API
 
-`/api/health` 以外は `Authorization: Bearer <Firebase ID トークン>` が必要です。Web 版は `X-Firebase-AppCheck`（App Check のトークン）も付けます。POST は 1 ユーザーあたり 5 分 120 回まで、本文は 4MB までです。解説・深掘り・クイズ・写真と動画・図解・動画は `level`（`std`・`lower`・`upper`・`junior`・`senior`）を受け取り、`std` 以外は段階ごとのキャッシュを使います。
+`/api/health` 以外は `Authorization: Bearer <Firebase ID トークン>` が必要です。Web 版は `X-Firebase-AppCheck`（App Check のトークン）も付けます。POST は 1 ユーザーあたり 5 分 120 回、GET は 5 分 300 回、生成の同時実行は 3 つまで、本文は 4MB までです。解説・深掘り・クイズ・写真と動画・図解・動画は `level`（`std`・`lower`・`upper`・`junior`・`senior`）を受け取り、`std` 以外は段階ごとのキャッシュを使います。
 
 | メソッドとパス | 内容 | キャッシュ | 費用 |
 |---|---|---|---|
 | `GET /api/health` | 死活確認 | — | なし |
 | `GET /api/usage` | 推定利用額（全体と自分）と上限、残りの動画本数 | — | なし |
+| `GET /api/known` | そのモノの解説がもう誰かに作られているか（キャッシュを読むだけ） | — | なし |
 | `POST /api/detect` | SafeSearch で確認してから、画像からモノと位置を検出（`{ image }`）。画像は保存しない | なし | 小 |
 | `POST /api/explore` | 解説と6つの問い（`{ label, image?, level? }`）。カードの ID は段階によらず同じ | `cache_explore`・`explore_alias` | 中 |
 | `POST /api/deep` | 問いの深掘り（SSE: `delta` / `done` / `error`） | `cache_deep` | 中 |
-| `POST /api/quiz` | 3択クイズ | `cache_quiz` | 小 |
+| `POST /api/quiz` | 3択クイズ（`{ name, topic, level }`。元の文はサーバーが深掘りの本文から取る。出力の形を検証） | `cache_quiz` | 小 |
 | `GET /api/media` | テーマに合う写真（Commons から Gemini が選び SafeSearch で確認）と YouTube 動画（セーフサーチ厳格） | `cache_media` | 小 |
-| `POST /api/illustrate` | カードイラスト | `cache_illust` | 大 |
-| `POST /api/diagram` | 図解イラスト | `cache_diagram` | 大 |
+| `POST /api/illustrate` | カードイラスト（`{ name }`。英語名はサーバーが解説から取る） | `cache_illust` | 大 |
+| `POST /api/diagram` | 図解イラスト（`{ name, topic, level }`。要点はサーバーが深掘りの本文から作る） | `cache_diagram` | 大 |
 | `POST /api/tts` | 読み上げ音声（最大 900 字。`ref: { name, topic?, level }` の解説・深掘り本文に含まれる文だけ） | `cache_tts` | 小 |
 | `POST /api/units` | 学校の単元（最大3つ、`{ id, why }`。id は curriculum.json のもの） | `cache_units` | 小 |
 | `POST /api/events` | 学びのイベント（日ごとの合計回数だけを数える） | — | なし |
@@ -316,7 +319,7 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 
 深掘り・クイズ・写真と動画・イラスト・図解・動画は、解説のキャッシュにあるモノ（深掘り・図解・動画・写真と動画は、その解説に含まれる問いも）に対してだけ動きます。
 
-主なエラーは `401 unauthenticated`、`400 unknown_subject`、`400 unknown_text`（読み上げの文が本文に無い）、`402 budget`（アプリ全体の上限）、`402 user_limit`（そのアカウントの上限）、`403 attest_required`（App Check の強制中に、確認できないゲストが新しく生成しようとした）、`413 too_large`、`422 unsafe_image`（SafeSearch で不適切）、`429 rate_limited`、`503 busy` です。
+主なエラーは `401 unauthenticated`、`400 unknown_subject`、`400 unknown_text`（読み上げの文が本文に無い）、`402 budget`（アプリ全体の上限）、`402 user_limit`（そのアカウントの上限）、`403 attest_required`（App Check の強制中に、確認できないゲストが新しく生成しようとした）、`413 too_large`、`422 unsafe_image`（SafeSearch で不適切）、`429 rate_limited`、`429 busy`（同じアカウントの生成が 3 つ実行中）、`400 bad_json`、`502 quiz_failed`、`503 busy` です。深掘り・図解・動画・写真と動画は、どの段階で調べたモノの問いでも使えます（段階を切り替えても、図鑑のカードの問いを開ける）。
 
 ## データの保存先
 
@@ -331,6 +334,7 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 | Firestore `meta/usage`、`meta/counters` | 推定利用額、動画の本数 | API サーバーのみ |
 | Firestore `meter_users/{uid}` | アカウントごとの推定利用額 | API サーバーのみ |
 | Firestore `video_jobs` | 動画生成ジョブ | API サーバーのみ |
+| Firestore `corrections` | 「ちがうよ」で直した名前（元の名前と直した名前。アカウントとは結び付けない） | API サーバーのみ |
 | Firestore `cache_units` | モノごとの単元（年代によらず共通） | API サーバーのみ |
 | Firestore `stats_daily/{日付}_{0-9}` | 日別の学びの合計回数（イベント別・段階別・利用者数）。uid は保存しない | API サーバーのみ |
 | Cloud Storage `<project>-media`（非公開） | 生成した画像・音声・動画 | API サーバーのみ（`/media/*` で配信） |
@@ -341,12 +345,13 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 
 1. **予算 ¥2,000**（クレジット適用前の総額、2026/11/1 から期限なし）を Cloud Billing に設定。10・20・30・50・80・100% でメールと Pub/Sub に通知
 2. **キルスイッチ**: 予算通知（Pub/Sub）を受けた Cloud Run 関数が、実費 ¥1,900 到達でプロジェクトの課金を自動で外す（`infra/budget-guard`、`KILL_AT_JPY`）
-3. **アプリ内メーター**: API サーバーがトークン数・Google 検索グラウンディングの検索回数（$14/1,000 件。月 5,000 件の無料枠は引かずに多めに見積もる）・SafeSearch の枚数から推定額を Firestore に積算し、推定 ¥1,800（`CAP_JPY`）で生成 API を止める
-4. **アカウントごとの上限**: 新しく生成した分の推定額をアカウントごとに積算し、ゲストは ¥20、ログインしたアカウント（Google、または確認済みのメールアドレス）は ¥300 で止める（累計。`USER_CAP_GUEST_JPY`・`USER_CAP_MEMBER_JPY`）。キャッシュ済みの内容は上限に達しても見られる
-5. **キャッシュ**: 同じモノ・同じ問いの結果は Firestore に保存して全ユーザーで再利用（2回目以降は無料・即表示。年代の段階ごとに保存）
-6. **事前生成**: よく撮られるモノは `infra/prewarm.mjs` で先に作っておく
-7. AI 動画は合計 2 本まで（`VIDEO_LIMIT`。トランザクションで数える）
-8. **App Check**: 匿名アカウントはいくらでも作れるので、`APPCHECK_ENFORCE=1` のとき、ゲストの新しい生成は App Check で確かめた Web アプリからだけ受け付ける。新規登録も IP ごと 1 時間 100 件まで
+3. **アプリ内メーター**: API サーバーがトークン数・Google 検索グラウンディングの検索回数（$14/1,000 件。毎月 5,000 件までの無料枠を超えた分だけ）・SafeSearch の枚数から推定額を Firestore に積算し、推定 ¥1,800（`CAP_JPY`）で生成 API を止める
+4. **アカウントごとの上限**: 新しく生成した分の推定額をアカウントごとに積算し、ゲストは ¥50、ログインしたアカウント（Google、または確認済みのメールアドレス）は ¥300 で止める（累計。`USER_CAP_GUEST_JPY`・`USER_CAP_MEMBER_JPY`）。キャッシュ済みの内容は上限に達しても見られる
+5. **段階の言い換え**: 別の段階の解説・深掘りがすでにあるモノは、検索せずにその文章を読む人の年代に合わせて言い換えて作る（費用は数十分の一。事実は足さず、問いの題はそのまま）
+6. **キャッシュ**: 同じモノ・同じ問いの結果は Firestore に保存して全ユーザーで再利用（2回目以降は無料・即表示。年代の段階ごとに保存）
+7. **事前生成**: よく撮られるモノは `infra/prewarm.mjs` で先に作っておく
+8. AI 動画は合計 2 本まで（`VIDEO_LIMIT`。トランザクションで数える）
+9. **App Check**: 匿名アカウントはいくらでも作れるので、`APPCHECK_ENFORCE=1` のとき、ゲストの新しい生成は App Check で確かめた Web アプリからだけ受け付ける。新規登録も IP ごと 1 時間 100 件まで
 
 単価は `server/src/config.ts` の `PRICES`、円換算は `JPY_PER_USD` です。
 
@@ -365,7 +370,7 @@ npm run android   # ビルド → 同期 → Android Studio を開く（JDK 21 �
 - ログアウトすると、端末内の図鑑を消します。アカウントを削除するときは、もう一度ログインしてもらってから、クラウドのカードとアカウントを消します。
 - 撮影・選択した写真はどこにも保存しません（端末にもクラウドにも）。検出と解説のときだけ API に送り、処理が終われば捨てます。
 - 写真は Cloud Vision の SafeSearch で確認し、不適切なものは検出も解説もしません。深掘りに出す写真も SafeSearch を通したものだけで、YouTube の検索はセーフサーチを厳格にしています。
-- アカウントごとに使える生成の額に上限があります（ゲスト ¥20・ログイン ¥300）。
+- アカウントごとに使える生成の額に上限があります（ゲスト ¥50・ログイン ¥300）。
 - 学びの記録は日ごとの合計回数だけで、個人とは結び付けません。外部の解析ツールは使っていません。
 - 最初に年齢を聞き（保存は段階だけ）、プライバシーポリシーへの同意を受けます。13歳未満は保護者の同意も確認します。
 - Hosting は HSTS・`X-Frame-Options: DENY`・`frame-ancestors 'none'` などのヘッダーを付けます。
@@ -437,7 +442,7 @@ Cloud Billing で予算と Pub/Sub 通知を作り、`infra/budget-guard` を Cl
 
 ### 自動デプロイ（GitHub Actions）
 
-- `ci.yml`: プルリクエストと `dev`・`main` への push で、Web の型チェック・lint・ビルド、サーバーの型チェックとテスト、Firestore ルールのテスト、Playwright の E2E テストを行います。
+- `ci.yml`: プルリクエストと `dev`・`main` への push で、Web の型チェック・lint・ビルド、サーバーの型チェックとテスト、Firestore ルールのテストを行います。
 - `branch-flow.yml`: `main` へのプルリクエストが `dev` から来ているかを確かめます。作業ブランチ → `dev` → `main` の順にしか入りません。
 - `deploy-web.yml`: `main` への push で Web を Firebase Hosting に出します。認証は Workload Identity Federation（鍵なし）で、このリポジトリの `main` からだけ Hosting のデプロイ権限しかないサービスアカウントになれます。fork では動かないようにしています。
 - API サーバー（Cloud Run）は変更頻度が低いので手動デプロイです。

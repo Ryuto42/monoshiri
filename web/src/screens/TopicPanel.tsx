@@ -11,7 +11,7 @@ import { Button, Icon, IconButton } from '../components/ui';
 import { spring, TOPIC_COLORS } from '../components/theme';
 import { haptic, onBack, openExternal } from '../lib/native';
 import { slideOut, useSwipeDismiss } from '../lib/useSwipeDismiss';
-import { RubyText } from '../components/RubyText';
+import { KidText, RubyText } from '../components/RubyText';
 import { stripRuby } from '../lib/ruby';
 
 type Tab = 'photos' | 'videos' | 'diagram' | 'ai' | 'quiz';
@@ -76,8 +76,6 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic.id]);
 
-  const outline = text.replace(/```[\s\S]*?```/g, '').slice(0, 700);
-
   return (
     <motion.div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center" initial={{ opacity: 1 }} exit={{ opacity: 1 }}>
       <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
@@ -110,7 +108,9 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.2 } }} className="px-6 pb-16 pt-5">
             {err ? (
               <div className="rounded-3xl bg-accent-soft p-5 text-center">
-                <p className="font-bold">{err}</p>
+                <p className="phrase-wrap font-bold">
+                  <KidText text={err} />
+                </p>
               </div>
             ) : !text ? (
               <LoadingCard className="py-8" expected={7} icon={topic.icon} bg={color[0]} ink={color[1]} steps={['調べています', '事実を確かめています', '説明を書いています']} />
@@ -168,7 +168,7 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
                       url={diagram}
                       ready={done}
                       make={async () => {
-                        const { url } = await api.diagram({ name: ex.name, en: ex.en, topic: topic.title, outline });
+                        const { url } = await api.diagram({ name: ex.name, en: ex.en, topic: topic.title });
                         setDiagram(url);
                         save({ diagram: url });
                       }}
@@ -178,14 +178,14 @@ export function TopicPanel({ ex, topic, index, note, onNote, onClose }: {
                     <AiVideo
                       url={video}
                       ready={done}
-                      start={() => api.video({ name: ex.name, en: ex.en, topic: topic.title, outline })}
+                      start={() => api.video({ name: ex.name, en: ex.en, topic: topic.title })}
                       onDone={(url) => {
                         setVideo(url);
                         save({ video: url });
                       }}
                     />
                   )}
-                  {tab === 'quiz' && <Quiz name={ex.name} context={done ? `${topic.title}\n${outline}` : ''} />}
+                  {tab === 'quiz' && <Quiz name={ex.name} topic={done ? topic.title : ''} />}
                 </motion.div>
               </AnimatePresence>
             </section>
@@ -337,8 +337,14 @@ function AiVideo({ url, ready, start, onDone }: { url: string | null; ready: boo
   const [state, setState] = useState<'idle' | 'confirm' | 'busy'>('idle');
   const [left, setLeft] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  // Closing the panel stops asking about the video (the server still finishes it; nothing here waits for it anymore).
+  const gone = useRef(false);
   useEffect(() => {
+    gone.current = false;
     api.usage().then((u) => setLeft(u.videoLeft)).catch(() => setLeft(null));
+    return () => {
+      gone.current = true;
+    };
   }, []);
 
   const run = async () => {
@@ -348,16 +354,20 @@ function AiVideo({ url, ready, start, onDone }: { url: string | null; ready: boo
     const timer = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
     try {
       const r = await start();
+      if (gone.current) return;
       if (r.url) return onDone(r.url);
       for (let i = 0; i < 80 && r.id; i++) {
         await new Promise((res) => setTimeout(res, 5000));
+        if (gone.current) return;
         const s = await api.videoStatus(r.id);
+        if (gone.current) return;
         if (s.status === 'completed' && s.url) return onDone(s.url);
         if (s.status === 'failed' || s.status === 'cancelled') throw new Error('failed');
       }
       throw new Error('timeout');
     } catch (e) {
-      toast(errorMessage(e) || '動画をつくれませんでした');
+      if (gone.current) return;
+      toast(errorMessage(e) || '動画《どうが》をつくれませんでした');
       setState('idle');
     } finally {
       clearInterval(timer);
@@ -397,7 +407,7 @@ function AiVideo({ url, ready, start, onDone }: { url: string | null; ready: boo
           <p className="font-bold">このテーマを6秒のアニメーションにします</p>
           <p className="text-[13px] text-ink-3">のこり {left ?? '-'} 本</p>
           <Button className="mt-3" icon="movie" disabled={!ready || left === 0} onClick={() => setState('confirm')}>
-            {left === 0 ? '今日はもう作れません' : ready ? 'AI動画をつくる' : '説明が終わるのを待っています'}
+            {left === 0 ? 'もう作れません（アプリ全体で2本まで）' : ready ? 'AI動画をつくる' : '説明が終わるのを待っています'}
           </Button>
         </>
       )}
@@ -405,15 +415,16 @@ function AiVideo({ url, ready, start, onDone }: { url: string | null; ready: boo
   );
 }
 
-function Quiz({ name, context }: { name: string; context: string }) {
+// Asked for only once the explanation is done: the server writes the questions from it.
+function Quiz({ name, topic }: { name: string; topic: string }) {
   const [quiz, setQuiz] = useState<QuizT | null>(null);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [err, setErr] = useState(false);
   useEffect(() => {
-    if (!context) return;
-    api.quiz(name, context).then(setQuiz).catch(() => setErr(true));
-  }, [name, context]);
-  if (!context) return <Empty icon="hourglass_top" text="説明を読み終えたらクイズが出るよ" />;
+    if (!topic) return;
+    api.quiz(name, topic).then(setQuiz).catch(() => setErr(true));
+  }, [name, topic]);
+  if (!topic) return <Empty icon="hourglass_top" text="説明を読み終えたらクイズが出るよ" />;
   if (err) return <Empty icon="sentiment_dissatisfied" text="クイズを用意できませんでした" />;
   if (!quiz) return <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-20" />)}</div>;
   const score = quiz.questions.filter((q, i) => answers[i] === q.answer).length;

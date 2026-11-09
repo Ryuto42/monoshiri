@@ -1,15 +1,18 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useRef } from 'react';
-import { skipTutorial, startTour, useWelcome } from '../lib/welcome';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { skipTutorial, startTour, useWelcome, welcomeAhead } from '../lib/welcome';
 import { TOUR_PAGES } from '../lib/tour';
 import { haptic, onBack } from '../lib/native';
 import { PrivacyLink } from '../screens/account/parts';
 import { HelpHint, Tour } from './Tour';
 import { dialogMotion, ui } from './theme';
 import { Button } from './ui';
-import { Phrases } from './Phrases';
+import { KidText } from './RubyText';
 
 const SAMPLE = '/samples/desk.webp';
+
+// Fetched while the age and consent screens are up, so the card opens with its photo already there.
+if (typeof Image !== 'undefined' && welcomeAhead()) new Image().src = SAMPLE;
 
 // Where the things sit in the sample photo (percent of width / height), shown the way the real result marks them.
 const MARKS = [
@@ -20,9 +23,9 @@ const MARKS = [
 ];
 
 const STEPS = [
-  { title: '撮る', body: '気になるモノを撮る' },
-  { title: 'えらぶ', body: '見つかったモノの印をタップ' },
-  { title: '知る', body: '解説や問いを読んで、図鑑に集める' },
+  { title: '撮《と》る', body: '気《き》になるモノを撮《と》る' },
+  { title: 'えらぶ', body: '見《み》つかったモノの印《しるし》をタップ' },
+  { title: '知《し》る', body: '解説《かいせつ》や問《と》いを読《よ》んで、図鑑《ずかん》に集《あつ》める' },
 ];
 
 export function Welcome() {
@@ -60,7 +63,7 @@ function Panel() {
         aria-modal
         aria-labelledby="welcome-title"
         {...dialogMotion}
-        className={`${ui.dialog} max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain p-3 pb-4 no-scrollbar`}
+        className={`${ui.dialog} max-h-full overflow-y-auto overscroll-contain p-3 pb-4 no-scrollbar`}
       >
         <Photo />
         <div className="px-3">
@@ -78,13 +81,13 @@ function Panel() {
               スキップ
             </button>
           </div>
-          <h2 id="welcome-title" className={`mt-2 ${ui.title}`}>
-            撮るだけで、
+          <h2 id="welcome-title" className={`phrase-wrap mt-2 ${ui.title}`}>
+            <KidText text="撮《と》るだけで、" />
             <br />
             モノシリになれる
           </h2>
           <p className={`phrase-wrap ${ui.lead}`}>
-            <Phrases text="身の回りのモノを撮ると、写っているモノを見つけて、その「なぜ？」を教えてくれます。" />
+            <KidText text="身《み》の回《まわ》りのモノを撮《と》ると、写《うつ》っているモノを見《み》つけて、その「なぜ？」を教《おし》えてくれます。" />
           </p>
           <ol className="phrase-wrap mt-4 flex flex-col gap-2">
             {STEPS.map((s, i) => (
@@ -93,8 +96,10 @@ function Panel() {
                   {i + 1}
                 </span>
                 <p className="text-[14px] leading-7 text-ink-2">
-                  <span className="mr-2 text-[15px] font-black text-ink">{s.title}</span>
-                  <Phrases text={s.body} />
+                  <span className="mr-2 text-[15px] font-black text-ink">
+                    <KidText text={s.title} />
+                  </span>
+                  <KidText text={s.body} />
                 </p>
               </li>
             ))}
@@ -112,12 +117,26 @@ function Panel() {
 }
 
 // The sample photo with markers popping in one by one, the same marks people will tap after taking a photo.
+// Until the photo has loaded, a soft paper-coloured shimmer holds its place (not a black box); then it fades in.
 function Photo() {
   const still = useReducedMotion();
+  const img = useRef<HTMLImageElement>(null);
+  const [loaded, setLoaded] = useState(false);
+  useLayoutEffect(() => {
+    if (img.current?.complete && img.current.naturalWidth) setLoaded(true);
+  }, []);
   return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] bg-[#120e0b]">
-      <img src={SAMPLE} alt="机の上のペットボトル、りんご、えんぴつ、消しゴムの写真" className="h-full w-full object-cover" draggable={false} />
-      {MARKS.map((m, i) => (
+    <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] bg-paper-2">
+      {!loaded && <span aria-hidden className="skeleton absolute inset-0" />}
+      <img
+        ref={img}
+        src={SAMPLE}
+        alt="机の上のペットボトル、りんご、えんぴつ、消しゴムの写真"
+        onLoad={() => setLoaded(true)}
+        className={`h-full w-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        draggable={false}
+      />
+      {loaded && MARKS.map((m, i) => (
         <motion.span
           key={m.label}
           aria-hidden

@@ -27,12 +27,12 @@ function setPending(id: string, on: boolean) {
   emit();
 }
 
-export function startIllust(id: string, name: string, en: string, { quiet = false } = {}) {
+export function startIllust(id: string, name: string, { quiet = false } = {}) {
   const running = jobs.get(id);
   if (running) return running;
   setPending(id, true);
   const job = api
-    .illustrate(name, en)
+    .illustrate(name)
     .then(({ url }) => {
       done.set(id, url);
       const card = getCard(id);
@@ -66,7 +66,7 @@ export const illustFor = (id: string) => done.get(id) ?? null;
 // Cards saved in an earlier session whose art never arrived (app closed mid-generation) get it now, one at a time.
 export async function resumeIllust(list: { id: string; name: string; en: string; illustration: string | null }[]) {
   for (const c of list.filter((x) => !x.illustration)) {
-    const job = startIllust(c.id, c.name, c.en, { quiet: true });
+    const job = startIllust(c.id, c.name, { quiet: true });
     notifyWhenReady(c.id);
     await job;
   }

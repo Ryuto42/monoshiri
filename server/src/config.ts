@@ -55,7 +55,7 @@ export const VIDEO_LIMIT = Number(process.env.VIDEO_LIMIT ?? 2);
 
 // Lifetime AI spend allowed per account (estimated, same meter as CAP_JPY). Cached results cost nothing and stay free.
 export const USER_CAP_JPY = {
-  guest: Number(process.env.USER_CAP_GUEST_JPY ?? 20),
+  guest: Number(process.env.USER_CAP_GUEST_JPY ?? 50),
   member: Number(process.env.USER_CAP_MEMBER_JPY ?? 300),
   // Operators' own accounts (prewarm script), listed in ADMIN_UIDS; still bounded by CAP_JPY.
   admin: CAP_JPY,
@@ -65,6 +65,8 @@ export const ADMIN_UIDS = new Set((process.env.ADMIN_UIDS ?? '').split(',').map(
 // Grounding with Google Search (Gemini 3): $14 per 1,000 search queries on top of tokens. The 5,000 free queries a month
 // are not subtracted, so the meter errs on the high side.
 export const GROUNDING_USD_PER_QUERY = Number(process.env.GROUNDING_USD_PER_QUERY ?? 0.014);
+// The first 5,000 search queries each month cost nothing, so only queries past that are put on the meters.
+export const GROUNDING_FREE_PER_MONTH = Number(process.env.GROUNDING_FREE_PER_MONTH ?? 5000);
 
 // App Check: '1' makes new generation require an attested app (or a signed-in account). Otherwise tokens are only checked and logged.
 export const APPCHECK_ENFORCE = process.env.APPCHECK_ENFORCE === '1';

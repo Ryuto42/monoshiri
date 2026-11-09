@@ -81,15 +81,18 @@ let chain: Promise<void> = Promise.resolve();
 
 // Two-way merge with the signed-in account: newest updatedAt wins, cards deleted elsewhere disappear here,
 // and anything collected on this device (including as a guest before logging in) is uploaded. Photos taken in the app are never stored.
-export function syncCloud(): Promise<void> {
-  chain = chain.then(runSync);
-  return chain;
+// Resolves to true once this device and the account match, false when the sync didn't happen (no confirmed address,
+// offline, a failed write).
+export function syncCloud(): Promise<boolean> {
+  const run = chain.then(runSync);
+  chain = run.then(() => {});
+  return run;
 }
 
-async function runSync() {
+async function runSync(): Promise<boolean> {
     try {
       const [{ fs, collection, getDocs, doc, setDoc, deleteDoc }, user] = await Promise.all([firestore(), currentUser()]);
-      if (!canSync(user)) return;
+      if (!canSync(user)) return false;
       const uid = user.uid;
       const state = readState(uid);
       for (const id of state.del) {
@@ -97,7 +100,7 @@ async function runSync() {
         patchState(uid, (s) => s.del.delete(id));
       }
       const snap = await getDocs(collection(fs, 'users', uid, 'cards'));
-      if (auth.currentUser?.uid !== uid) return;
+      if (auth.currentUser?.uid !== uid) return false;
       const known = new Set(state.known);
       const byId = new Map(cards.map((c) => [c.id, c]));
       const remote = new Map<string, number>();
@@ -116,9 +119,17 @@ async function runSync() {
       const push = cards.filter((c) => (remote.get(c.id) ?? -1) < c.updatedAt);
       await Promise.all(push.map((c) => setDoc(doc(fs, 'users', uid, 'cards', c.id), toCloud(c))));
       writeState(uid, { known: cards.map((c) => c.id), del: [] });
+      return true;
     } catch (e) {
       console.warn('cloud sync skipped', e);
+      return false;
     }
+}
+
+/** How many of this device's cards would be lost by logging out now (they are not safely in the account). */
+export async function cardsAtRisk(): Promise<number> {
+  if (!cards.length) return 0;
+  return (await syncCloud()) ? 0 : cards.length;
 }
 
 export async function saveCard(card: Card) {
@@ -160,11 +171,19 @@ export async function clearLocalCards() {
 }
 
 // Account deletion: remove every cloud card of the signed-in user before the auth account itself goes away.
+// Also for an address that was never confirmed: cards collected as a guest were synced under the same uid before the
+// email was linked. Such an account can't list its cards (the rules only let it delete), so the ids this device knows
+// about are deleted instead.
 export async function deleteCloudCards() {
   const [{ fs, collection, getDocs, deleteDoc, doc }, user] = await Promise.all([firestore(), currentUser()]);
-  if (!canSync(user)) return;
-  const snap = await getDocs(collection(fs, 'users', user.uid, 'cards'));
-  await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+  const ids = new Set([...cards.map((c) => c.id), ...readState(user.uid).known]);
+  try {
+    const snap = await getDocs(collection(fs, 'users', user.uid, 'cards'));
+    snap.docs.forEach((d) => ids.add(d.id));
+  } catch {
+    if (canSync(user)) throw new Error('cloud cards unreadable');
+  }
+  await Promise.all([...ids].map((id) => deleteDoc(doc(fs, 'users', user.uid, 'cards', id))));
   await deleteDoc(doc(fs, 'users', user.uid)).catch(() => {});
   try {
     localStorage.removeItem(stateKey(user.uid));

@@ -1,7 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { api, errorMessage, mediaUrl } from '../lib/api';
+import { api, errorCode, errorMessage, mediaUrl, OFFLINE_MESSAGE } from '../lib/api';
+import { isOffline } from '../lib/online';
+import { KidText } from '../components/RubyText';
 import { saveCard, getCard, useCards } from '../lib/cards';
 import { getFlow, resetFlow, setFlow, useFlow } from '../lib/flow';
 import { cropBox, shotFromBlob, shotFromVideo, type Shot } from '../lib/image';
@@ -32,6 +34,13 @@ import { currentLevel } from '../lib/level';
 // The youngest readers get explanations read aloud on their own; that needs audio unlocked inside a tap (iOS).
 const unlockForReading = () => {
   if (currentLevel() === 'lower') unlockAudio();
+};
+
+// Says so before anything is sent, instead of a general failure after the photo was taken.
+const offlineNow = () => {
+  if (!isOffline()) return false;
+  toast(OFFLINE_MESSAGE, 'wifi_off');
+  return true;
 };
 
 export function Home({ paused = false }: { paused?: boolean }) {
@@ -74,14 +83,14 @@ export function Home({ paused = false }: { paused?: boolean }) {
 
   async function analyze(shot: Shot) {
     setExpanded(false);
-    setFlow({ stage: 'detecting', shot, objects: [], selected: null, explore: null, crop: null, notes: {}, error: null, topicId: null });
+    setFlow({ stage: 'detecting', shot, objects: [], selected: null, explore: null, crop: null, notes: {}, error: null, errorCode: null, topicId: null });
     try {
       const { objects } = await api.detect(shot.base64);
       if (getFlow().shot !== shot) return;
       setFlow({ stage: 'picked', objects });
       if (objects.length === 1) pick(0);
     } catch (e) {
-      setFlow({ stage: 'error', error: errorMessage(e) });
+      setFlow({ stage: 'error', error: errorMessage(e), errorCode: errorCode(e) });
     }
   }
 
@@ -89,7 +98,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const exploreSeq = useRef(0);
   async function explore(label: string, crop: string | null, cropB64?: string, from?: string) {
     const seq = ++exploreSeq.current;
-    setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null, known: null, label });
+    setFlow({ stage: 'exploring', crop, explore: null, notes: {}, error: null, errorCode: null, known: null, label });
     void api.known(label).then(({ known }) => getFlow().stage === 'exploring' && setFlow({ known })).catch(() => {});
     try {
       const ex = await api.explore(label, cropB64, from);
@@ -100,7 +109,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
       const notes = Object.fromEntries((saved?.notes ?? []).map((n) => [n.topicId, n]));
       setFlow({ stage: 'explore', explore: ex, notes });
     } catch (e) {
-      if (seq === exploreSeq.current) setFlow({ stage: 'error', error: errorMessage(e) });
+      if (seq === exploreSeq.current) setFlow({ stage: 'error', error: errorMessage(e), errorCode: errorCode(e) });
     }
   }
 
@@ -140,8 +149,12 @@ export function Home({ paused = false }: { paused?: boolean }) {
   }
 
   async function capture() {
+    if (offlineNow()) return;
     const v = vf.current;
-    if (!v?.live || !v.video) return pickPhoto();
+    if (!v?.live || !v.video) {
+      if (v?.blocked) toast('カメラが使《つか》えないので、写真《しゃしん》をえらんでね', 'photo_library');
+      return pickPhoto();
+    }
     haptic('tap');
     unlockForReading();
     setFlash(true);
@@ -150,6 +163,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
   }
 
   async function pickPhoto() {
+    if (offlineNow()) return;
     if (!nativeChrome) return file.current?.click();
     try {
       const blob = await pickNativePhoto();
@@ -160,7 +174,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
   }
 
   async function fromFile(f: File | null | undefined) {
-    if (!f || !f.type.startsWith('image/')) return;
+    if (!f || !f.type.startsWith('image/') || offlineNow()) return;
     try {
       analyze(await shotFromBlob(f));
     } catch {
@@ -193,6 +207,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
   const peek = flow.stage === 'explore' ? Math.round(window.innerHeight * 0.5) : flow.stage === 'picked' ? 360 : 300;
 
   const sample = async (src: string) => {
+    if (offlineNow()) return;
     unlockForReading();
     const b = await fetch(src).then((r) => r.blob());
     analyze(await shotFromBlob(b));
@@ -308,12 +323,15 @@ export function Home({ paused = false }: { paused?: boolean }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 30 }}
             transition={spring}
-            className="absolute inset-x-0 bottom-0 z-20 pb-[max(env(safe-area-inset-bottom),24px)]"
+            // A soft shade under the buttons keeps the line above them readable over a bright picture.
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-[linear-gradient(to_top,rgb(0_0_0/0.45),rgb(0_0_0/0.25)_55%,transparent)] pt-10 pb-[max(env(safe-area-inset-bottom),24px)]"
           >
-            <p className="mb-5 text-center text-[15px] font-bold text-white/85 drop-shadow">気になるモノを撮ってみよう</p>
+            <p className="phrase-wrap mb-5 px-6 text-center text-[15px] font-bold text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.6),0_0_12px_rgb(0_0_0/0.35)]">
+              <KidText text="気《き》になるモノを撮《と》ってみよう" />
+            </p>
             {/* iOS uses these web buttons too (not native Liquid Glass ones), so the camera screen looks the same everywhere
                 and matches what the tour lights up. Picking a photo still opens the native photo picker on iOS. */}
-            <div className="mx-auto flex max-w-sm items-center justify-between px-8">
+            <div className="pointer-events-auto mx-auto flex max-w-sm items-center justify-between px-8">
               <IconButton data-tour="gallery" icon="photo_library" label="写真をえらぶ" tone="glass" size={56} onClick={() => void pickPhoto()} />
               <div data-tour="shutter">
                 <Shutter onClick={capture} />
@@ -339,7 +357,7 @@ export function Home({ paused = false }: { paused?: boolean }) {
       <input ref={file} type="file" accept="image/*" hidden onChange={(e) => fromFile(e.target.files?.[0])} />
 
       <div className="text-ink">
-        <Sheet open={!live} expanded={expanded} onExpandedChange={setExpanded} peek={peek}>
+        <Sheet open={!live} expanded={expanded} onExpandedChange={setExpanded} peek={peek} fit={flow.stage === 'error'}>
           {/* Not while it is still loading: changing the stage there would start the explanation over. */}
           {flow.stage === 'explore' && (
             <div className="flex justify-end px-4 pb-1">

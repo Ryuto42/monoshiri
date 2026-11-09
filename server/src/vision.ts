@@ -18,7 +18,12 @@ function safe(a: Annotation | undefined) {
 export type VisionImage = { base64: string } | { uri: string };
 
 // Returns one verdict per image, in order. If the check itself fails, images are treated as unsafe (fail closed).
-export async function safeSearch(images: VisionImage[]): Promise<boolean[]> {
+export const safeSearch = (images: VisionImage[]) => vision.safeSearch(images);
+
+// Swappable in tests.
+export const vision = { safeSearch: annotate };
+
+async function annotate(images: VisionImage[]): Promise<boolean[]> {
   if (!images.length) return [];
   try {
     const res = await fetch('https://vision.googleapis.com/v1/images:annotate', {

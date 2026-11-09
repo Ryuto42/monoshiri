@@ -11,6 +11,8 @@ export type Flow = {
   explore: Explore | null;
   notes: Record<string, DeepNote>;
   error: string | null;
+  /** The API's error code behind `error` ('offline' without a connection), so the error can offer the right way out. */
+  errorCode: string | null;
   topicId: string | null;
   /** While exploring: false when nobody has explored this name yet, null until known. */
   known: boolean | null;
@@ -18,7 +20,7 @@ export type Flow = {
   label: string | null;
 };
 
-const initial: Flow = { stage: 'camera', shot: null, objects: [], selected: null, crop: null, explore: null, notes: {}, error: null, topicId: null, known: null, label: null };
+const initial: Flow = { stage: 'camera', shot: null, objects: [], selected: null, crop: null, explore: null, notes: {}, error: null, errorCode: null, topicId: null, known: null, label: null };
 
 let state: Flow = initial;
 const listeners = new Set<() => void>();

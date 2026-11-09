@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import { Hono } from 'hono';
 import { ai, track, unitsPrompt } from '../ai.ts';
-import { CAP_JPY, JPY_PER_USD, LEVELS, MODELS, USER_CAP_JPY, VIDEO_LIMIT, type Level } from '../config.ts';
-import { atLevel, clean, levelOf, S, str, unknown, type Env, type ExploreDoc } from '../http.ts';
+import { CAP_JPY, JPY_PER_USD, MODELS, USER_CAP_JPY, VIDEO_LIMIT } from '../config.ts';
+import { clean, exploreDoc, json, levelOf, S, str, unknown, type Env } from '../http.ts';
 import { keyOf } from '../media.ts';
 import { CLIENT_EVENTS, track as count } from '../stats.ts';
 import { ensureBudget, getCached, getCounter, getSpent, getUserSpent, setCached } from '../store.ts';
@@ -28,12 +28,7 @@ learn.post('/api/units', async (c) => {
     count({ units: 1 }, levelOf(level), c.get('uid'));
     return c.json({ units: hit.units });
   }
-  const first = levelOf(level);
-  let ex: ExploreDoc | null = null;
-  for (const l of [first, ...LEVELS.filter((x) => x !== first)] as Level[]) {
-    ex = await getCached<ExploreDoc>('cache_explore', atLevel(keyOf('explore', n), l));
-    if (ex) break;
-  }
+  const ex = await exploreDoc(n, levelOf(level));
   if (!ex) return c.json(unknown, 400);
   await ensureBudget(0.004);
   const list = curriculum();
@@ -59,7 +54,7 @@ learn.post('/api/units', async (c) => {
   await track(MODELS.quiz, res.usageMetadata, 'units');
   const ids = new Set(list.map((u) => u.id));
   const seen = new Set<string>();
-  const picked = ((JSON.parse(res.text ?? 'null')?.units ?? []) as { id: string; why: string }[])
+  const picked = ((json<any>(res.text)?.units ?? []) as { id: string; why: string }[])
     .filter((u) => ids.has(u.id) && !seen.has(u.id) && seen.add(u.id))
     .slice(0, 3)
     .map((u) => ({ id: u.id, why: clean(u.why, 40) }));
