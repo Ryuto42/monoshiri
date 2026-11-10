@@ -498,7 +498,7 @@ function FirstFind({ name, saved }: { name: string; saved: boolean }) {
 function ErrorState({ message, code, onRetry, onReset }: { message: string | null; code: string | null; onRetry: () => void; onReset: () => void }) {
   const navigate = useNavigate();
   const offline = code === 'offline';
-  // Without an account, the native apps can't make new pages: trying again can't help there, signing in can.
+  // A native guest gets this when today's shared allowance is used up: trying again won't help today, signing in will.
   const login = code === 'attest_required';
   const retry = !(login && isNative);
   return (

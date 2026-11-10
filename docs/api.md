@@ -44,7 +44,7 @@ API サーバー（`server/`、Cloud Run の `monoshiri-api`）のエンドポ�
 | 401 | `unauthenticated` | ID トークンがない、または正しくない・失効している |
 | 402 | `budget` | アプリ全体の上限（`CAP_JPY`）に達した |
 | 402 | `user_limit` | そのアカウントの上限に達した |
-| 403 | `attest_required` | App Check の強制中に、確認できないゲストが新しく生成しようとした |
+| 403 | `attest_required` | App Check の強制中に、確認できないゲストが新しく生成しようとし、その日の共有の上限（`UNATTESTED_POOL_JPY`）が足りなかった |
 | 413 | `too_large` | 本文が大きすぎる |
 | 422 | `unsafe_image` | SafeSearch で不適切と判断した写真 |
 | 422 | `not_a_thing` | 解説できるモノではなかった |
