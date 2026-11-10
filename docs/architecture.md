@@ -145,7 +145,7 @@ sequenceDiagram
 | localStorage `monoshiri.consent`・`monoshiri.welcome` | 同意の記録（版と時刻）、案内を見たか | 端末内 |
 | localStorage `monoshiri.sync.<uid>` | 同期済みのカード ID（ほかの端末での削除を反映するため） | 端末内 |
 | Firestore `cache_*`、`explore_alias` | 生成結果の共有キャッシュ（`cache_units` は段階によらず共通） | API サーバーのみ |
-| Firestore `meta/usage`、`meta/counters`、`meta/grounding` | 推定利用額、動画の本数、月ごとの Google 検索の回数（無料枠の判定） | API サーバーのみ |
+| Firestore `meta/usage`、`meta/counters`、`meta/grounding`、`meta/unattested` | 推定利用額、動画の本数、月ごとの Google 検索の回数（無料枠の判定）、App Check のないゲストが日ごとに使った額 | API サーバーのみ |
 | Firestore `meter_users/{uid}` | アカウントごとの推定利用額 | API サーバーのみ |
 | Firestore `video_jobs` | 動画生成のジョブ | API サーバーのみ |
 | Firestore `corrections` | 「ちがうよ」で直した名前（元の名前と直した名前。アカウントとは結び付けない） | API サーバーのみ |

@@ -71,6 +71,9 @@ export const GROUNDING_FREE_PER_MONTH = Number(process.env.GROUNDING_FREE_PER_MO
 
 // App Check: '1' makes new generation require an attested app (or a signed-in account). Otherwise tokens are only checked and logged.
 export const APPCHECK_ENFORCE = process.env.APPCHECK_ENFORCE === '1';
+// While App Check is enforced, guests who can't attest (the iOS / Android apps) still get new generation from one shared
+// daily pool, so anonymous accounts made by a script can't spend more than this a day between them.
+export const UNATTESTED_POOL_JPY = Number(process.env.UNATTESTED_POOL_JPY ?? 150);
 
 // Learning stages the explanations are written for. 'std' is the original audience (upper elementary to junior high)
 // and is what guests and people who haven't picked a stage get.
