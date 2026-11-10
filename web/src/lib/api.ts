@@ -146,10 +146,10 @@ export function errorMessage(e: unknown, feature?: 'speech' | 'illustration') {
     if (e.code === 'busy') return 'いま混《こ》み合《あ》っています。少《すこ》しおいて、もう一度《いちど》ためしてね。';
     if (e.code === 'video_limit') return 'AI動画《どうが》は、作《つく》れる本数《ほんすう》の上限《じょうげん》に達《たっ》しました。';
     if (e.code === 'unknown_subject') return 'このモノの説明《せつめい》が見《み》つかりませんでした。もう一度《いちど》モノをえらんでね。';
-    // Native guests have no App Check token, so only things somebody already explored can be read without an account.
+    // Native guests have no App Check token: they share one daily allowance for new things, and this is it running out.
     if (e.code === 'attest_required') {
       return isNative
-        ? 'ゲストのままでは、まだだれも調《しら》べていないモノは調《しら》べられません。ログインすると調《しら》べられます。'
+        ? 'きょうゲストで新《あたら》しく調《しら》べられる分《ぶん》がいっぱいになりました。ログインすると調《しら》べられます。みんなが調《しら》べたモノは見《み》られます。'
         : 'アプリを確認《かくにん》できませんでした。ページを再読《さいよ》み込《こ》みするか、ログインしてからためしてね。';
     }
     if (e.status === 401) return 'ログイン情報《じょうほう》を確認《かくにん》できませんでした。ページを再読《さいよ》み込《こ》みしてね。';

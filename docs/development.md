@@ -120,7 +120,7 @@ cd web && npm run android   # ビルド → 同期 → Android Studio を開く�
 
 ネイティブ版は `web/.env.production.local` の設定でビルドされます（`VITE_TARGET=native`）。接続先の API は、そのファイルの `VITE_API_BASE` で決まります。メールアドレスか Google でのログインも Web 版と同じように使え、ゲストで集めたカードはそのまま引き継がれます。
 
-ネイティブ版は WebView で reCAPTCHA が動かないため App Check のトークンを付けられません。App Check の強制中は、ゲストは検出とキャッシュ済みの内容の閲覧ができ、まだ誰も調べていないモノを新しく作るにはログインが必要です。
+ネイティブ版は WebView で reCAPTCHA が動かないため App Check のトークンを付けられません。App Check の強制中は、確かめられないゲストの新しい生成を、全員で共有する1日の上限（`UNATTESTED_POOL_JPY`、既定 ¥150）の範囲でだけ受け付けます。使い切った日は、ログインすると新しく調べられます。
 
 | 最適化 | 内容 |
 |---|---|
