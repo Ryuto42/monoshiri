@@ -4,6 +4,8 @@ import { auth, fakeDeps } from './helpers.ts';
 
 // APPCHECK_ENFORCE is read at startup, so this file runs in its own process with it on.
 process.env.APPCHECK_ENFORCE = '1';
+// A pool smaller than one deep dive: guests without App Check are turned away once it can't cover the request.
+process.env.UNATTESTED_POOL_JPY = '5';
 const { createApp } = await import('../src/app.ts');
 const { setCached } = await import('../src/store.ts');
 const { atLevel } = await import('../src/http.ts');
@@ -19,11 +21,26 @@ const deep = (token: string, ac?: string) =>
     body: JSON.stringify({ name: 'りんご', topic: 'りんごはなぜ赤い？' }),
   });
 
-test('guests without App Check cannot start new generation', async () => {
+test('guests without App Check are turned away when the shared pool cannot cover new generation', async () => {
   const r = await deep('g1:anonymous');
   assert.equal(r.status, 403);
   assert.equal((await r.json()).error, 'attest_required');
   assert.equal((await deep('g1:anonymous', 'forged')).status, 403);
+});
+
+test('guests without App Check generate from a shared daily pool until it runs out', async () => {
+  const { ensureBudget, addSpent, runAs, AttestError } = await import('../src/store.ts');
+  const { JPY_PER_USD } = await import('../src/config.ts');
+  const pool = 5 / JPY_PER_USD;
+  // One native guest uses most of today's pool...
+  await runAs({ uid: 'p1', tier: 'guest', attested: false }, async () => {
+    await ensureBudget(pool * 0.6);
+    await addSpent(pool * 0.6, 'test');
+  });
+  // ...another fits in what is left, a third does not; an attested guest is not affected.
+  await runAs({ uid: 'p2', tier: 'guest', attested: false }, () => ensureBudget(pool * 0.3));
+  await assert.rejects(runAs({ uid: 'p3', tier: 'guest', attested: false }, () => ensureBudget(pool * 0.5)), AttestError);
+  await runAs({ uid: 'p4', tier: 'guest', attested: true }, () => ensureBudget(pool * 0.5));
 });
 
 test('cached content stays open to everyone', async () => {

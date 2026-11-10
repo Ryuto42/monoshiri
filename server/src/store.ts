@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { GROUNDING_FREE_PER_MONTH, APPCHECK_ENFORCE, LOCAL, PROJECT, CAP_USD, JPY_PER_USD, USER_CAP_JPY } from './config.ts';
+import { GROUNDING_FREE_PER_MONTH, APPCHECK_ENFORCE, LOCAL, PROJECT, CAP_USD, JPY_PER_USD, UNATTESTED_POOL_JPY, USER_CAP_JPY } from './config.ts';
 
 const app = initializeApp({ projectId: PROJECT });
 export const auth = getAuth(app);
@@ -52,7 +52,7 @@ export type Tier = 'guest' | 'member' | 'admin';
 // attested: the request carried a valid App Check token (it came from our own app).
 // reservedUsd / running: what this request has reserved with ensureBudget and whether it counts as a running generation;
 // holds: the request itself plus any stream still writing after the handler returned (see holdRequest).
-export type Requester = { uid: string; tier: Tier; attested: boolean; reservedUsd?: number; running?: boolean; holds?: number };
+export type Requester = { uid: string; tier: Tier; attested: boolean; unattested?: boolean; reservedUsd?: number; running?: boolean; holds?: number };
 export const requester = new AsyncLocalStorage<Requester>();
 
 // Generation still running, per account. Spend is only recorded when a call finishes, so without these reservations
@@ -124,9 +124,27 @@ async function addUserSpent(uid: string, usd: number, kind: string) {
   );
 }
 
+// Today's spend by guests without App Check (JST days), against UNATTESTED_POOL_JPY.
+const poolDay = () => `d${new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replaceAll('-', '')}`;
+let poolCache = { day: '', usd: 0, at: 0 };
+async function getPoolSpent(): Promise<number> {
+  const day = poolDay();
+  if (poolCache.day === day && Date.now() - poolCache.at < 5000) return poolCache.usd;
+  const usd = !db ? (mem.get(`p:${day}`) ?? 0) : (((await db.collection('meta').doc('unattested').get()).get(day) as number | undefined) ?? 0);
+  poolCache = { day, usd, at: Date.now() };
+  return usd;
+}
+async function addPoolSpent(usd: number) {
+  const day = poolDay();
+  if (poolCache.day === day) poolCache.usd += usd;
+  if (!db) return void mem.set(`p:${day}`, (mem.get(`p:${day}`) ?? 0) + usd);
+  await db.collection('meta').doc('unattested').set({ [day]: FieldValue.increment(usd) }, { merge: true });
+}
+
 export async function addSpent(usd: number, kind: string) {
   if (!(usd > 0)) return;
   const who = requester.getStore();
+  if (who?.unattested) await addPoolSpent(usd);
   // What was reserved for this request turns into recorded spend.
   if (who) unreserve(who, usd);
   if (who) await addUserSpent(who.uid, usd, kind);
@@ -214,12 +232,17 @@ export const userCapUsd = (tier: Tier) => USER_CAP_JPY[tier] / JPY_PER_USD;
 
 /**
  * Checks the caps and reserves `reserveUsd` (an estimate close to the real cost) for this request until it is over.
- * attest: false lets guests without App Check through (detection only: the native apps can't attest, and the caps still apply).
+ * attest: false lets guests without App Check through without using the shared pool (detection: the native apps can't attest,
+ * and the caps still apply).
  */
 export async function ensureBudget(reserveUsd: number, { attest = true }: { attest?: boolean } = {}) {
   const who = requester.getStore();
-  // Anonymous accounts are free to create, so new generation for guests needs proof that the request came from the app itself.
-  if (attest && APPCHECK_ENFORCE && who && who.tier === 'guest' && !who.attested) throw new AttestError();
+  // Anonymous accounts are free to create, so new generation for guests without proof that the request came from the app
+  // itself (the native apps can't attest) comes out of one shared daily pool; once that is used up they need an account.
+  if (attest && APPCHECK_ENFORCE && who && who.tier === 'guest' && !who.attested) {
+    if ((await getPoolSpent()) + reserveUsd > UNATTESTED_POOL_JPY / JPY_PER_USD) throw new AttestError();
+    who.unattested = true;
+  }
   const spent = await getSpent();
   const userSpent = who ? await getUserSpent(who.uid) : 0;
   // No await from here on, so requests arriving together see each other's reservations.
@@ -247,4 +270,5 @@ export function resetMemory() {
   inflightUsd = 0;
   userCache.clear();
   spentCache = { usd: 0, at: 0 };
+  poolCache = { day: '', usd: 0, at: 0 };
 }

@@ -7,7 +7,7 @@ import { toast } from '../../lib/toast';
 import type { Card } from '../../lib/types';
 import { Icon } from '../../components/ui';
 import { KidText } from '../../components/RubyText';
-import { haptic, isNative } from '../../lib/native';
+import { haptic } from '../../lib/native';
 import { catStyle, spring } from '../../components/theme';
 import { EmailForm, ResetForm } from './EmailForm';
 import { GoogleMark, PrivacyLink, Spinner } from './parts';
@@ -67,13 +67,7 @@ export function GuestView() {
           />
           <span className="mt-1 block text-[12px] text-ink-3">
             <KidText
-              text={
-                // The apps can't prove themselves to the server without an account, so a guest there only reads what
-                // somebody already explored.
-                isNative
-                  ? 'ゲストのままでは、まだだれも調《しら》べていないモノは調《しら》べられません。登録《とうろく》すると、新《あたら》しいモノも調《しら》べられます。'
-                  : 'ゲストは新《あたら》しく調《しら》べられる数《かず》に限《かぎ》りがあります。登録《とうろく》すると、もっとたくさん調《しら》べられます。'
-              }
+              text="ゲストは新《あたら》しく調《しら》べられる数《かず》に限《かぎ》りがあります。登録《とうろく》すると、もっとたくさん調《しら》べられます。"
             />
           </span>
         </p>
